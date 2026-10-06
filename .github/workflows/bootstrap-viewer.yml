@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   bootstrap:
-    if: ${{ hashFiles('.bootstrap/viewer.patch.b64') != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Viewer repository
@@ -25,6 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -f "$GITHUB_WORKSPACE/.bootstrap/viewer.patch.b64"
           work="$(mktemp -d)"
           trap 'rm -rf "$work"' EXIT
 
