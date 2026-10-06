@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Podman compatibility shim for the Supabase CLI on the rootless Podman version
+# used by Brepia. Keep every workaround narrowly scoped and delegate everything
+# else unchanged to the real Podman binary.
+REAL_PODMAN="/usr/bin/podman"
+if [[ ! -x "${REAL_PODMAN}" ]]; then
+  echo "Brepia Podman shim: /usr/bin/podman is unavailable" >&2
+  exit 127
+fi
+
+# Podman 4.9 can fail on `podman cp - CONTAINER:/path` while consuming the
+# Docker-compatible tar stream from stdin. Supabase CLI uses that form for
+# generated bootstrap material. Materialize the stream privately, then use
+# Podman's normal directory-copy path.
+if [[ "${1:-}" == "cp" && "${2:-}" == "-" && "${3:-}" == *:* ]]; then
+  tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/brepia-podman-cp.XXXXXX")"
+  cleanup_cp_stdin() { rm -rf -- "${tmpdir}"; }
+  trap cleanup_cp_stdin EXIT INT TERM
+  tar -xf - -C "${tmpdir}"
+  "${REAL_PODMAN}" cp "${tmpdir}/." "${3}"
+  exit $?
+fi
+
+pin_brepia_realtime=0
+if [[ "${1:-}" == "create" && "${APP_NAME:-}" == "realtime" && "${DB_HOST:-}" == supabase_db_* ]]; then
+  pin_brepia_realtime=1
+  db_ip="$(
+    "${REAL_PODMAN}" inspect "${DB_HOST}" \
+      --format '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' 2>/dev/null \
+      | awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }'
+  )"
+  if [[ -z "${db_ip}" ]]; then
+    echo "Brepia Podman shim: could not resolve ${DB_HOST} IPv4 before Realtime create" >&2
+    exit 1
+  fi
+  export DB_HOST="${db_ip}"
+  export DB_IP_VERSION="ipv4"
+fi
+
+newargs=()
+rewrite=0
+for arg in "$@"; do
+  if [[ "${rewrite}" -eq 1 ]]; then
+    arg="${arg//\{\{.Label \"/\{\{index .Labels \"}"
+    rewrite=0
+  elif [[ "${arg}" = --format=* ]]; then
+    arg="--format=${arg#--format=}"
+    arg="${arg//\{\{.Label \"/\{\{index .Labels \"}"
+  elif [[ "${arg}" == "--format" ]]; then
+    rewrite=1
+  fi
+
+  newargs+=("${arg}")
+  if [[ "${pin_brepia_realtime}" -eq 1 && "${#newargs[@]}" -eq 1 ]]; then
+    # Supabase CLI 2.114.0 omits DB_IP_VERSION from the Realtime env map.
+    # Add it after the create verb; the existing key-only "-e DB_HOST" then
+    # reads the numeric DB_HOST override from this shim's process environment.
+    newargs+=("-e" "DB_IP_VERSION")
+  fi
+done
+
+exec "${REAL_PODMAN}" "${newargs[@]}"

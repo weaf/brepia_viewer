@@ -1,0 +1,2 @@
+[user attached {{fileType}} "{{filename}}"]{{dimensions}}
+Use import("{{filename}}") to include the user's model. Brepia supplies and preserves the authoritative project asset descriptor for this attachment; do not invent storage metadata from the filename. Use rotation_x = 90 to stand it upright.

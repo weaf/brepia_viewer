@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "id": "planar-elbow-cable-conduit",
+  "name": "Planar Elbow Cable Conduit",
+  "units": "mm",
+  "placement": {
+    "origin": [0, 0, 0],
+    "xAxis": [1, 0, 0],
+    "yAxis": [0, 1, 0]
+  },
+  "metadata": {
+    "objectType": "cable-conduit",
+    "classification": "electrical-cable-management"
+  },
+  "parameters": [
+    {
+      "id": "OD",
+      "label": "Outer diameter",
+      "type": "number",
+      "unit": "mm",
+      "default": 50,
+      "min": 20,
+      "max": 100,
+      "step": 5,
+      "description": "Outside diameter of the conduit."
+    },
+    {
+      "id": "wall_t",
+      "label": "Wall thickness",
+      "type": "number",
+      "unit": "mm",
+      "default": 2,
+      "min": 1,
+      "max": 5,
+      "step": 0.5,
+      "description": "Uniform conduit wall thickness."
+    },
+    {
+      "id": "firstLeg",
+      "label": "First leg",
+      "type": "number",
+      "unit": "mm",
+      "default": 1000,
+      "min": 200,
+      "max": 5000,
+      "step": 100,
+      "description": "Straight length before the 90 degree bend."
+    },
+    {
+      "id": "secondLeg",
+      "label": "Second leg",
+      "type": "number",
+      "unit": "mm",
+      "default": 700,
+      "min": 200,
+      "max": 5000,
+      "step": 100,
+      "description": "Straight length after the 90 degree bend."
+    },
+    {
+      "id": "bendRadius",
+      "label": "Bend radius",
+      "type": "number",
+      "unit": "mm",
+      "default": 150,
+      "min": 60,
+      "max": 1000,
+      "step": 10,
+      "description": "Centerline radius of the 90 degree bend."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "outer",
+      "type": "sweep",
+      "profile": {
+        "type": "circle",
+        "radius": {
+          "op": "div",
+          "args": [
+            {
+              "parameter": "OD"
+            },
+            2
+          ]
+        }
+      },
+      "path": {
+        "type": "planarElbow90",
+        "planeNormalAxis": "z",
+        "firstLegLength": {
+          "parameter": "firstLeg"
+        },
+        "secondLegLength": {
+          "parameter": "secondLeg"
+        },
+        "bendRadius": {
+          "parameter": "bendRadius"
+        }
+      }
+    },
+    {
+      "id": "inner",
+      "type": "sweep",
+      "profile": {
+        "type": "circle",
+        "radius": {
+          "op": "sub",
+          "args": [
+            {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "OD"
+                },
+                2
+              ]
+            },
+            {
+              "parameter": "wall_t"
+            }
+          ]
+        }
+      },
+      "path": {
+        "type": "planarElbow90",
+        "planeNormalAxis": "z",
+        "firstLegLength": {
+          "parameter": "firstLeg"
+        },
+        "secondLegLength": {
+          "parameter": "secondLeg"
+        },
+        "bendRadius": {
+          "parameter": "bendRadius"
+        }
+      }
+    },
+    {
+      "id": "conduit",
+      "type": "subtract",
+      "base": "outer",
+      "tools": ["inner"]
+    }
+  ],
+  "resultNodeId": "conduit"
+}

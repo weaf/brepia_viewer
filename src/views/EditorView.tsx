@@ -1,0 +1,1001 @@
+import { ChatTitle } from '@/components/chat/ChatTitle';
+import { ChatSession } from '@/components/chat/ChatSession';
+import { CreateIcon } from '@/components/icons/ui/CreateIcon';
+import { ParameterSection } from '@/components/parameter/ParameterSection';
+import { ParameterSheetContent } from '@/components/parameter/ParameterSheetContent';
+import { ProjectFilesEditor } from '@/components/parameter/ProjectFilesEditor';
+import { ActivityIndicator } from '@/components/brand';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { ShareContent } from '@/components/ui/ShareContent';
+import { OpenSCADPreview } from '@/components/viewer/OpenSCADViewer';
+import { MeshPreview } from '@/components/viewer/MeshPreview';
+import Loader from '@/components/viewer/Loader';
+import { useAuth } from '@/contexts/AuthContext';
+import { ConversationContext } from '@/contexts/ConversationContext';
+import { SelectedItemsContext } from '@/contexts/SelectedItemsContext';
+import { useConversation } from '@/contexts/ConversationContext';
+import {
+  ensureInputRecords,
+  messageRowToChatMessage,
+  type ChatMessage,
+} from '@/lib/aiMessages';
+import { UNCONFIGURED_MODEL_ID } from '@/lib/defaultModels';
+import parseParameters from '@shared/parseParameters';
+import { normalizeModelId } from '@shared/models';
+import { replaceOpenScadProjectFileContent } from '@shared/openScadProject';
+import { supabase } from '@/lib/supabase';
+import { updateParameter } from '@/lib/utils';
+import {
+  persistAssistantParts,
+  persistUserMessage,
+  useChangeRatingMutation,
+  useMessagesQuery,
+} from '@/services/messageService';
+import { useConversationMutations } from '@/services/conversationMutations';
+import type { DxfExporter } from '@/utils/downloadUtils';
+import type { AppUIMessage } from '@shared/chatAi';
+import {
+  getParametricArtifactEntrypointCode,
+  isParametricArtifact,
+  replaceBuildParametricModelOutput,
+  replaceParametricArtifactEntrypointCode,
+} from '@shared/parametricParts';
+import Tree from '@shared/Tree';
+import type {
+  Conversation,
+  Message,
+  Model,
+  Parameter,
+  ParametricArtifact,
+} from '@shared/types';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { Share } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MessageItem } from '../types/misc.ts';
+import { ConversationView } from './ConversationView';
+
+/**
+ * Route-level entry for `/editor/$id`.
+ *
+ * Owns the conversation fetch + auth gate + provider wiring. The actual
+ * editor logic lives inside `<ConversationEditor>` which assumes the
+ * conversation is loaded and the contexts are mounted.
+ */
+export default function EditorView() {
+  const { id: conversationId } = useParams({
+    from: '/_layout/_auth/editor/$id',
+  });
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [images, setImages] = useState<MessageItem[]>([]);
+  const [mesh, setMesh] = useState<MessageItem | null>(null);
+
+  const { data: conversation, isLoading: isConversationLoading } = useQuery({
+    queryKey: ['conversation', conversationId],
+    enabled: !!conversationId,
+    queryFn: async () => {
+      if (!conversationId) throw new Error('Conversation ID is required');
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .eq('user_id', user?.id ?? '')
+        .limit(1)
+        .single();
+      if (error) throw error;
+      return data as Conversation;
+    },
+  });
+
+  const {
+    updateConversation,
+    updateConversationAsync,
+    setConversationLeafAsync,
+  } = useConversationMutations();
+
+  useEffect(() => {
+    if (!conversationId) navigate({ to: '/app' });
+  }, [conversationId, navigate]);
+
+  if (isConversationLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-adam-bg-secondary-dark text-adam-text-primary">
+        <ActivityIndicator label="Loading conversation" />
+      </div>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center bg-adam-bg-secondary-dark text-adam-text-primary">
+        <span className="text-2xl font-medium">404</span>
+        <span className="text-sm">Conversation not found</span>
+      </div>
+    );
+  }
+
+  return (
+    <ConversationContext.Provider
+      value={{
+        conversation,
+        updateConversation,
+        updateConversationAsync,
+        setConversationLeafAsync,
+      }}
+    >
+      <SelectedItemsContext.Provider
+        value={{ images, setImages, mesh, setMesh }}
+      >
+        {/* `key` forces a full remount whenever the conversation changes,
+            so all per-conversation state inside the editor (active
+            preview, parameter values, model selector, dxf exporter, etc.)
+            reinitialises naturally instead of needing a manual reset
+            effect that would race with `ChatSession`'s auto-switch. */}
+        <ConversationEditor key={conversation.id} />
+      </SelectedItemsContext.Provider>
+    </ConversationContext.Provider>
+  );
+}
+
+type ActivePreview =
+  | { type: 'artifact'; messageId: string; artifact: ParametricArtifact }
+  | { type: 'mesh'; messageId: string; meshId: string }
+  | null;
+
+/**
+ * Owns the DB/tree layer for the editor: builds the tree from
+ * `useMessagesQuery`, derives the visible branch from the conversation's
+ * `current_message_leaf_id`, holds preview/parameter UI state, and
+ * implements the action handlers that translate user intent into the right
+ * DB writes (`persistUserMessage`, `updateConversationAsync`, etc.).
+ *
+ * The handlers return whatever data `<ChatSession>` needs to keep its
+ * `useChat` state in sync after the write lands. That keeps the
+ * DB-vs-SDK ordering explicit: parent persists, then child streams.
+ */
+function ConversationEditor() {
+  const { conversation, updateConversation, setConversationLeafAsync } =
+    useConversation();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  // ── Per-conversation UI state ───────────────────────────────────────────
+  const [model, setModel] = useState<Model>(
+    conversation.settings?.model
+      ? normalizeModelId(conversation.settings.model)
+      : conversation.type === 'creative'
+        ? 'quality'
+        : UNCONFIGURED_MODEL_ID,
+  );
+  const [executionMode, setExecutionMode] = useState<'cli' | 'streaming'>(
+    conversation.settings?.openCodeExecutionMode ?? 'cli',
+  );
+
+  const handleExecutionModeChange = useCallback(
+    (newMode: 'cli' | 'streaming') => {
+      setExecutionMode(newMode);
+      updateConversation?.({
+        id: conversation.id,
+        patch: { settings: { openCodeExecutionMode: newMode } },
+      });
+    },
+    [conversation, updateConversation],
+  );
+  const [activePreview, setActivePreview] = useState<ActivePreview>(null);
+  const [parameters, setParameters] = useState<Parameter[]>([]);
+  const [currentOutput, setCurrentOutput] = useState<Blob | undefined>();
+  const [dxfExporter, setDxfExporter] = useState<DxfExporter | null>(null);
+  const [mobilePreviewVersion, setMobilePreviewVersion] = useState(0);
+  // Streaming flag surfaced from <ChatSession>. While true, the preview
+  // pane swaps to the bouncing loader instead of mounting OpenSCAD —
+  // matches the legacy ParametricPreviewSection behavior. Keep a ref in
+  // parallel so async file writes can re-check the live value after awaiting
+  // queued parameter persistence instead of relying on a captured render.
+  const [isChatStreaming, setIsChatStreaming] = useState(false);
+  const isChatStreamingRef = useRef(false);
+  const baseCodeRef = useRef<string | null>(null);
+
+  const handleChatLoadingChange = useCallback((loading: boolean) => {
+    isChatStreamingRef.current = loading;
+    setIsChatStreaming(loading);
+  }, []);
+
+  // `dxfExporter` is itself a function, so we MUST use the lazy-set form
+  // when OpenSCADPreview hands us a new exporter — `setDxfExporter(fn)`
+  // would make React treat the function as an updater and call it
+  // immediately, which fires `exportScad`/`writeFile` and queues
+  // requests onto the worker that get rejected as "Worker terminated"
+  // on the next cleanup.
+  const handleDxfExporterChange = useCallback(
+    (exporter: DxfExporter | null) => {
+      setDxfExporter(() => exporter);
+    },
+    [],
+  );
+
+  // ── Source of truth: DB messages → tree → branch ───────────────────────
+  const { data: dbMessages = [], isFetched: areMessagesFetched } =
+    useMessagesQuery();
+  const chatMessages = useMemo(
+    () => dbMessages.map(messageRowToChatMessage),
+    [dbMessages],
+  );
+  const dbTree = useMemo(() => new Tree(chatMessages), [chatMessages]);
+  const branchForLeaf = useCallback(
+    (leafId: string): AppUIMessage[] =>
+      dbTree.getPath(leafId).map((node) => ({
+        id: node.id,
+        role: node.role,
+        parts: node.parts,
+        metadata: node.metadata,
+      })),
+    [dbTree],
+  );
+  const leafId =
+    conversation.current_message_leaf_id ?? dbMessages.at(-1)?.id ?? '';
+  const initialBranch = useMemo(
+    () => branchForLeaf(leafId),
+    [branchForLeaf, leafId],
+  );
+
+  const updateSelectedModel = useCallback(
+    (nextModel: Model) => {
+      setModel(nextModel);
+      updateConversation?.({
+        id: conversation.id,
+        patch: { settings: { model: nextModel } },
+      });
+    },
+    [conversation, updateConversation],
+  );
+
+  // ── Action handlers — single responsibility: write the DB rows that
+  // describe the next tree state, then return whatever ChatSession needs
+  // to keep `chat.messages` aligned. ──────────────────────────────────
+  const handleSendParts = useCallback(
+    async (parts: AppUIMessage['parts']) => {
+      if (!user?.id) throw new Error('User must be authenticated');
+      await ensureInputRecords({
+        parts,
+        conversationId: conversation.id,
+        userId: user.id,
+      });
+      const parentMessageId = conversation.current_message_leaf_id ?? null;
+      const userMessageId = await persistUserMessage({
+        conversationId: conversation.id,
+        parts,
+        metadata: { model },
+        parentMessageId,
+      });
+      // The `update_leaf_trigger` advances the DB leaf to `userMessageId`;
+      // mirror that in the cache so the next render shows the user bubble
+      // immediately even before the messages query refetches.
+      queryClient.setQueryData(
+        ['conversation', conversation.id],
+        (old: Conversation | undefined) =>
+          old ? { ...old, current_message_leaf_id: userMessageId } : old,
+      );
+      return { userMessageId };
+    },
+    [conversation, model, queryClient, user?.id],
+  );
+
+  const handleRetry = useCallback(
+    async (assistant: ChatMessage) => {
+      const parentId = assistant.parent_message_id;
+      if (!parentId) return;
+      await setConversationLeafAsync?.({
+        id: conversation.id,
+        leafId: parentId,
+      });
+    },
+    [conversation.id, setConversationLeafAsync],
+  );
+
+  const handleEdit = useCallback(
+    async (original: ChatMessage, parts: AppUIMessage['parts']) => {
+      if (!user?.id) throw new Error('User must be authenticated');
+      await ensureInputRecords({
+        parts,
+        conversationId: conversation.id,
+        userId: user.id,
+      });
+      const parentId = original.parent_message_id;
+      const newUserMessageId = await persistUserMessage({
+        conversationId: conversation.id,
+        parts,
+        metadata: { model },
+        parentMessageId: parentId,
+      });
+      queryClient.setQueryData(
+        ['conversation', conversation.id],
+        (old: Conversation | undefined) =>
+          old ? { ...old, current_message_leaf_id: newUserMessageId } : old,
+      );
+      const parentPath = parentId ? branchForLeaf(parentId) : [];
+      return { newUserMessageId, parentPath };
+    },
+    [branchForLeaf, conversation, model, queryClient, user?.id],
+  );
+
+  const handleRestore = useCallback(
+    async (assistant: ChatMessage) => {
+      const newId = crypto.randomUUID();
+      const parts = JSON.parse(JSON.stringify(assistant.parts));
+      const metadata = JSON.parse(JSON.stringify(assistant.metadata ?? {}));
+      // Restore only fires for assistants in the UI, so the role is
+      // narrowed here for the strict `messages` row type ('user' |
+      // 'assistant'); the broader `'system'` slot on UIMessage is
+      // never legitimate to copy.
+      const role: Message['role'] = 'assistant';
+      const { error } = await supabase.from('messages').insert({
+        id: newId,
+        conversation_id: conversation.id,
+        role,
+        parts,
+        metadata,
+        parent_message_id: assistant.parent_message_id,
+        rating: 0,
+      });
+      if (error) throw error;
+
+      // Mirror the trigger's leaf advance + add the copy to the messages
+      // cache optimistically so the new branch resolves before refetch.
+      queryClient.setQueryData(
+        ['conversation', conversation.id],
+        (old: Conversation | undefined) =>
+          old ? { ...old, current_message_leaf_id: newId } : old,
+      );
+      queryClient.setQueryData(
+        ['messages', conversation.id],
+        (old: Message[] | undefined): Message[] => [
+          ...(old ?? []),
+          {
+            id: newId,
+            conversation_id: conversation.id,
+            role,
+            parts,
+            metadata,
+            parent_message_id: assistant.parent_message_id,
+            rating: 0,
+            created_at: new Date().toISOString(),
+          },
+        ],
+      );
+      queryClient.invalidateQueries({
+        queryKey: ['messages', conversation.id],
+      });
+
+      const parentPath = assistant.parent_message_id
+        ? branchForLeaf(assistant.parent_message_id)
+        : [];
+      const newBranch: AppUIMessage[] = [
+        ...parentPath,
+        { id: newId, role, parts, metadata },
+      ];
+      return { newBranch };
+    },
+    [branchForLeaf, conversation.id, queryClient],
+  );
+
+  const handleSelectLeaf = useCallback(
+    async (messageId: string) => {
+      await setConversationLeafAsync?.({
+        id: conversation.id,
+        leafId: messageId,
+      });
+    },
+    [conversation.id, setConversationLeafAsync],
+  );
+
+  const handleToolOutput = useCallback(
+    async (messageId: string, nextParts: AppUIMessage['parts']) => {
+      await persistAssistantParts({
+        conversationId: conversation.id,
+        messageId,
+        parts: nextParts,
+      });
+      queryClient.setQueryData(
+        ['messages', conversation.id],
+        (old: Message[] | undefined): Message[] =>
+          (old ?? []).map((row) =>
+            row.id === messageId ? { ...row, parts: nextParts } : row,
+          ),
+      );
+    },
+    [conversation.id, queryClient],
+  );
+
+  const { mutate: changeRatingMutation } = useChangeRatingMutation({
+    conversationId: conversation.id,
+  });
+  const handleChangeRating = useCallback(
+    (messageId: string, rating: number) => {
+      changeRatingMutation({ messageId, rating });
+    },
+    [changeRatingMutation],
+  );
+
+  // ── Preview-pane callbacks (called by ChatSession when a new artifact /
+  // mesh lands, or by the user clicking the Eye icon on a bubble). ──────
+  const handleViewArtifact = useCallback(
+    (artifact: ParametricArtifact, messageId: string) => {
+      const code = getParametricArtifactEntrypointCode(artifact);
+      baseCodeRef.current = code;
+      // Parameters are derived from the OpenSCAD source — same code always
+      // yields the same `<ParameterSection>`, no matter which model wrote
+      // it. Current values come from the live artifact code; `defaultValue`
+      // comes from the parameter baseline stored in `metadata.originalCode`.
+      // Direct entrypoint saves deliberately rebase that metadata to the
+      // newly authored source, while parameter-control edits preserve it.
+      const originalCode = queryClient
+        .getQueryData<Message[]>(['messages', conversation.id])
+        ?.find((row) => row.id === messageId)?.metadata?.originalCode;
+      setParameters(mergeParameterDefaults(code, originalCode));
+      setCurrentOutput(undefined);
+      setDxfExporter(() => null);
+      setActivePreview({ type: 'artifact', messageId, artifact });
+      setMobilePreviewVersion((version) => version + 1);
+    },
+    [conversation.id, queryClient],
+  );
+  const handleViewMesh = useCallback((meshId: string, messageId: string) => {
+    setCurrentOutput(undefined);
+    setDxfExporter(() => null);
+    setActivePreview({ type: 'mesh', messageId, meshId });
+    setMobilePreviewVersion((version) => version + 1);
+  }, []);
+
+  // Serialize parameter writes (see `drainParameterWrites`): one queued
+  // snapshot per message id, plus a flag so at most one persist is ever in
+  // flight. Keying by message means switching artifacts mid-write can't drop
+  // the other artifact's pending edit.
+  const pendingWritesRef = useRef<
+    Map<string, { artifact: ParametricArtifact; originalCode: string | null }>
+  >(new Map());
+  const writeInFlightRef = useRef(false);
+
+  // Persist an in-place parameter edit back onto the assistant message's
+  // `tool-build_parametric_model` part so it survives the `key={conversation.id}`
+  // remount and a fresh `useMessagesQuery` fetch. Parameters are derived from
+  // the artifact code, so writing the updated code is all that's needed — no
+  // schema change. Mirrors `handleToolOutput`: DB write first, then cache, so a
+  // post-stream `['messages']` invalidation refetches the already-edited row
+  // instead of reverting. Reads `dbMessages` live (not a captured snapshot) so
+  // `replaceBuildParametricModelOutput` indexes into the current parts array.
+  const persistParameterEdit = useCallback(
+    async (
+      messageId: string,
+      artifact: ParametricArtifact,
+      originalCode: string | null,
+    ) => {
+      const row = dbMessages.find((message) => message.id === messageId);
+      if (!row) return;
+      const nextParts = replaceBuildParametricModelOutput(row.parts, artifact);
+      // Lazily capture the current authored baseline the first time a
+      // parameter control edits it. Direct source saves rebase originalCode
+      // explicitly, so subsequent slider/input edits keep Reset / slider home /
+      // auto-range anchored to the latest manually authored entrypoint.
+      const nextMetadata =
+        originalCode && !row.metadata?.originalCode
+          ? { ...row.metadata, originalCode }
+          : undefined;
+      try {
+        await persistAssistantParts({
+          conversationId: conversation.id,
+          messageId,
+          parts: nextParts,
+          metadata: nextMetadata,
+        });
+      } catch (error) {
+        // A failed write must never break the live preview — the edit stays
+        // in local state and the next change retries the persist.
+        console.warn('Failed to persist parameter edit:', error);
+        return;
+      }
+      queryClient.setQueryData(
+        ['messages', conversation.id],
+        (old: Message[] | undefined): Message[] =>
+          (old ?? []).map((message) =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  parts: nextParts,
+                  ...(nextMetadata ? { metadata: nextMetadata } : {}),
+                }
+              : message,
+          ),
+      );
+    },
+    [conversation.id, dbMessages, queryClient],
+  );
+
+  // Flush queued parameter writes one at a time. Each `changeParameters`
+  // rebuilds the full code from `baseCodeRef`, so coalescing to the latest
+  // queued snapshot per message never drops an edit — but two overlapping
+  // writes could commit out of order and leave stale code in the row, so we
+  // never let them run concurrently.
+  const drainParameterWrites = useCallback(async () => {
+    if (writeInFlightRef.current) return;
+    writeInFlightRef.current = true;
+    try {
+      while (pendingWritesRef.current.size > 0) {
+        const entry = pendingWritesRef.current.entries().next().value;
+        if (!entry) break;
+        const [messageId, write] = entry;
+        pendingWritesRef.current.delete(messageId);
+        await persistParameterEdit(
+          messageId,
+          write.artifact,
+          write.originalCode,
+        );
+      }
+    } finally {
+      writeInFlightRef.current = false;
+    }
+  }, [persistParameterEdit]);
+
+  const changeParameters = useCallback(
+    (nextParameters: Parameter[]) => {
+      if (!baseCodeRef.current || activePreview?.type !== 'artifact') return;
+      let nextCode = baseCodeRef.current;
+      for (const parameter of nextParameters) {
+        nextCode = updateParameter(nextCode, parameter);
+      }
+      setParameters(nextParameters);
+      const updatedArtifact = replaceParametricArtifactEntrypointCode(
+        activePreview.artifact,
+        nextCode,
+      );
+      setActivePreview({
+        ...activePreview,
+        artifact: updatedArtifact,
+      });
+      // Skip the DB write while a stream is landing on this branch —
+      // `handleToolOutput` owns the row's parts during a stream and would
+      // clobber (or be clobbered by) a concurrent parameter write. The live
+      // preview above still updates regardless.
+      if (!isChatStreamingRef.current) {
+        // Pin the baseline code at enqueue time — `baseCodeRef` is mutated by
+        // direct entrypoint saves and preview switches, and an in-flight drain
+        // must not read a later artifact's code for this message.
+        pendingWritesRef.current.set(activePreview.messageId, {
+          artifact: updatedArtifact,
+          originalCode: baseCodeRef.current,
+        });
+        void drainParameterWrites();
+      }
+    },
+    [activePreview, drainParameterWrites],
+  );
+
+  const waitForParameterWrites = useCallback(async () => {
+    while (writeInFlightRef.current || pendingWritesRef.current.size > 0) {
+      await drainParameterWrites();
+      if (writeInFlightRef.current) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 10);
+        });
+      }
+    }
+  }, [drainParameterWrites]);
+
+  const handleProjectFileSave = useCallback(
+    async (path: string, content: string) => {
+      if (activePreview?.type !== 'artifact') {
+        throw new Error('No OpenSCAD project is active.');
+      }
+      if (isChatStreamingRef.current) {
+        throw new Error(
+          'Project file editing is disabled while the current AI turn is streaming.',
+        );
+      }
+
+      await waitForParameterWrites();
+
+      // A stream can start while queued parameter writes are draining. Re-check
+      // the live ref before touching the assistant row so tool-output persistence
+      // and direct project-file persistence can never race each other.
+      if (isChatStreamingRef.current) {
+        throw new Error(
+          'Project file editing is disabled while the current AI turn is streaming.',
+        );
+      }
+
+      const isEntrypoint =
+        path === activePreview.artifact.project.entrypointPath;
+      const updatedArtifact: ParametricArtifact = {
+        ...activePreview.artifact,
+        project: replaceOpenScadProjectFileContent(
+          activePreview.artifact.project,
+          path,
+          content,
+        ),
+      };
+      const row = queryClient
+        .getQueryData<Message[]>(['messages', conversation.id])
+        ?.find((message) => message.id === activePreview.messageId);
+      if (!row) {
+        throw new Error('The project message is no longer available.');
+      }
+
+      const nextParts = replaceBuildParametricModelOutput(
+        row.parts,
+        updatedArtifact,
+      );
+      // A direct entrypoint edit is an authored source change, not a parameter
+      // control mutation. Rebase the parameter-default anchor to exactly the
+      // saved source. Support-file saves remain parts-only and therefore leave
+      // message metadata untouched.
+      const nextMetadata = isEntrypoint
+        ? { ...row.metadata, originalCode: content }
+        : undefined;
+      await persistAssistantParts({
+        conversationId: conversation.id,
+        messageId: activePreview.messageId,
+        parts: nextParts,
+        metadata: nextMetadata,
+      });
+      queryClient.setQueryData(
+        ['messages', conversation.id],
+        (old: Message[] | undefined): Message[] =>
+          (old ?? []).map((message) =>
+            message.id === activePreview.messageId
+              ? {
+                  ...message,
+                  parts: nextParts,
+                  ...(nextMetadata ? { metadata: nextMetadata } : {}),
+                }
+              : message,
+          ),
+      );
+      setActivePreview((current) =>
+        current?.type === 'artifact' &&
+        current.messageId === activePreview.messageId
+          ? { ...current, artifact: updatedArtifact }
+          : current,
+      );
+      if (isEntrypoint) {
+        // Parameter controls must build future edits from the newly authored
+        // source, never from the pre-save entrypoint held by baseCodeRef.
+        baseCodeRef.current = content;
+        setParameters(parseParameters(content));
+      }
+      setCurrentOutput(undefined);
+      setDxfExporter(() => null);
+    },
+    [activePreview, conversation.id, queryClient, waitForParameterWrites],
+  );
+
+  const updatePrivacy = useCallback(
+    (privacy: 'public' | 'private') => {
+      updateConversation?.({
+        id: conversation.id,
+        patch: { privacy },
+      });
+    },
+    [conversation, updateConversation],
+  );
+
+  // Latest preview in the *persisted* branch — used as the share-popover
+  // fallback before the user has clicked any artifact and before any
+  // streaming completes (ChatSession's onToolCall auto-switches once a
+  // fresher preview arrives, which updates activePreview directly).
+  const persistedLatestPreview = useMemo(
+    () => findLatestPreview(initialBranch),
+    [initialBranch],
+  );
+  const sharePreview = activePreview ?? persistedLatestPreview;
+
+  const hasArtifact = activePreview?.type === 'artifact';
+  const activeArtifactCode =
+    activePreview?.type === 'artifact'
+      ? getParametricArtifactEntrypointCode(activePreview.artifact)
+      : undefined;
+
+  // `useCachedAiChat` captures `initialBranch` once at Chat construction;
+  // if the messages query hasn't completed its first fetch yet the
+  // branch is `[]` and the Chat gets locked in empty for this
+  // conversation. Hold the render at a spinner until the messages query
+  // settles so the Chat is constructed with the real branch on its
+  // first frame.
+  if (!areMessagesFetched) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-adam-bg-secondary-dark text-adam-text-primary">
+        <ActivityIndicator label="Loading messages" />
+      </div>
+    );
+  }
+
+  return (
+    <ConversationView
+      hasParameters={hasArtifact}
+      mobilePreviewKey={
+        activePreview
+          ? activePreview.type === 'artifact'
+            ? `artifact:${activePreview.messageId}`
+            : `mesh:${activePreview.messageId}:${activePreview.meshId}`
+          : null
+      }
+      mobilePreviewVersion={mobilePreviewVersion}
+      chatPanelSlot={
+        <>
+          {/* `pl-12` reserves space for the rotated "Chat" expand button
+              that sits in the left gutter when the chat panel is collapsed,
+              so the title and share button don't get covered. */}
+          <div className="flex w-full items-center justify-between bg-transparent p-3 md:pl-12">
+            <div className="flex min-w-0 flex-1 items-center space-x-2">
+              <div className="min-w-0 flex-1">
+                <ChatTitle
+                  activeMeshId={
+                    sharePreview?.type === 'mesh'
+                      ? sharePreview.meshId
+                      : undefined
+                  }
+                  activeOpenscadProject={
+                    sharePreview?.type === 'artifact'
+                      ? sharePreview.artifact.project
+                      : undefined
+                  }
+                />
+              </div>
+            </div>
+            <div className="hidden items-center gap-3 md:flex">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="flex h-8 items-center gap-2 rounded-full px-3 text-adam-text-primary hover:bg-adam-neutral-950 hover:text-adam-neutral-10 focus-visible:ring-0"
+                  >
+                    <Share className="h-[14px] w-[14px] min-w-[14px]" />
+                    <span>Share</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-72 rounded-xl bg-adam-background-1 p-3"
+                >
+                  <ShareContent
+                    conversationId={conversation.id}
+                    privacy={conversation.privacy}
+                    onPrivacyChange={updatePrivacy}
+                    meshId={
+                      sharePreview?.type === 'mesh'
+                        ? sharePreview.meshId
+                        : undefined
+                    }
+                    openscadProject={
+                      sharePreview?.type === 'artifact'
+                        ? sharePreview.artifact.project
+                        : undefined
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex items-center gap-3 md:hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-transparent p-0 hover:bg-transparent"
+                onClick={() => {
+                  navigate({ to: '/app' });
+                }}
+                aria-label="New Creation"
+              >
+                <CreateIcon className="h-5 w-5 text-adam-text-primary" />
+              </Button>
+            </div>
+          </div>
+
+          <ChatSession
+            conversation={conversation}
+            dbMessages={dbMessages as Message[]}
+            initialBranch={initialBranch}
+            model={model}
+            setModel={updateSelectedModel}
+            executionMode={executionMode}
+            onExecutionModeChange={handleExecutionModeChange}
+            onSendParts={handleSendParts}
+            onRetry={handleRetry}
+            onEdit={handleEdit}
+            onRestore={handleRestore}
+            onSelectLeaf={handleSelectLeaf}
+            branchForLeaf={branchForLeaf}
+            onToolOutput={handleToolOutput}
+            onChangeRating={handleChangeRating}
+            onViewArtifact={handleViewArtifact}
+            onViewMesh={handleViewMesh}
+            onLoadingChange={handleChatLoadingChange}
+          />
+        </>
+      }
+      previewSlot={
+        <div className="flex h-full w-full items-center justify-center bg-adam-neutral-700">
+          {isChatStreaming ? (
+            <Loader showLoadingText />
+          ) : activePreview?.type === 'artifact' ? (
+            <OpenSCADPreview
+              project={activePreview.artifact.project}
+              color="#00A6FF"
+              onOutputChange={setCurrentOutput}
+              onDxfExportChange={handleDxfExporterChange}
+            />
+          ) : activePreview?.type === 'mesh' ? (
+            <MeshPreview meshId={activePreview.meshId} />
+          ) : (
+            <div className="text-sm text-adam-text-secondary">
+              Send a message to start creating
+            </div>
+          )}
+        </div>
+      }
+      mobilePreviewSlot={
+        <div className="flex h-full w-full items-center justify-center bg-adam-bg-secondary-dark">
+          {isChatStreaming ? (
+            <Loader showLoadingText />
+          ) : activePreview?.type === 'artifact' ? (
+            <OpenSCADPreview
+              project={activePreview.artifact.project}
+              color="#00A6FF"
+              onOutputChange={setCurrentOutput}
+              onDxfExportChange={handleDxfExporterChange}
+              isMobile={true}
+              backgroundColor="#212121"
+            />
+          ) : activePreview?.type === 'mesh' ? (
+            <MeshPreview meshId={activePreview.meshId} />
+          ) : (
+            <div className="text-sm text-adam-text-secondary">
+              Send a message to start creating
+            </div>
+          )}
+        </div>
+      }
+      parametersSlot={
+        <div className="flex h-full min-h-0 flex-col">
+          <ProjectFilesEditor
+            key={
+              activePreview?.type === 'artifact'
+                ? `desktop:${activePreview.messageId}`
+                : 'desktop:none'
+            }
+            project={
+              activePreview?.type === 'artifact'
+                ? activePreview.artifact.project
+                : undefined
+            }
+            onSaveFile={handleProjectFileSave}
+            disabled={isChatStreaming}
+          />
+          <div className="min-h-0 flex-1">
+            <ParameterSection
+              parameters={parameters}
+              onParameterChange={changeParameters}
+              currentOutput={currentOutput}
+              dxfExporter={dxfExporter}
+              project={
+                activePreview?.type === 'artifact'
+                  ? activePreview.artifact.project
+                  : undefined
+              }
+              code={activeArtifactCode}
+            />
+          </div>
+        </div>
+      }
+      mobileParametersSlot={
+        <div className="flex h-full min-h-0 flex-col">
+          <ProjectFilesEditor
+            key={
+              activePreview?.type === 'artifact'
+                ? `mobile:${activePreview.messageId}`
+                : 'mobile:none'
+            }
+            project={
+              activePreview?.type === 'artifact'
+                ? activePreview.artifact.project
+                : undefined
+            }
+            onSaveFile={handleProjectFileSave}
+            disabled={isChatStreaming}
+          />
+          <div className="min-h-0 flex-1">
+            <ParameterSheetContent
+              parameters={parameters}
+              onParameterChange={changeParameters}
+              currentOutput={currentOutput}
+              dxfExporter={dxfExporter}
+              project={
+                activePreview?.type === 'artifact'
+                  ? activePreview.artifact.project
+                  : undefined
+              }
+              code={activeArtifactCode}
+            />
+          </div>
+        </div>
+      }
+    />
+  );
+}
+
+/**
+ * Derive the parameter list from the live artifact code, but anchor each
+ * parameter's `defaultValue` to the current authored baseline when present.
+ *
+ * Parameter-control edits rewrite `name = value;` in the live code without
+ * redefining Reset / slider-home / auto-range defaults. Direct entrypoint
+ * source saves deliberately rebase `metadata.originalCode` to the newly
+ * authored source, so their declarations become the new defaults. Falls back
+ * to the live code for messages that do not yet have a baseline snapshot.
+ */
+function mergeParameterDefaults(
+  code: string,
+  originalCode: string | undefined,
+): Parameter[] {
+  const parameters = parseParameters(code);
+  if (!originalCode || originalCode === code) return parameters;
+  const defaults = new Map(
+    parseParameters(originalCode).map((param) => [
+      param.name,
+      param.defaultValue,
+    ]),
+  );
+  return parameters.map((param) =>
+    defaults.has(param.name)
+      ? { ...param, defaultValue: defaults.get(param.name)! }
+      : param,
+  );
+}
+
+type LatestPreview =
+  | { type: 'artifact'; messageId: string; artifact: ParametricArtifact }
+  | { type: 'mesh'; messageId: string; meshId: string }
+  | null;
+
+function findLatestPreview(messages: AppUIMessage[]): LatestPreview {
+  for (
+    let messageIndex = messages.length - 1;
+    messageIndex >= 0;
+    messageIndex -= 1
+  ) {
+    const message = messages[messageIndex];
+    for (
+      let partIndex = message.parts.length - 1;
+      partIndex >= 0;
+      partIndex -= 1
+    ) {
+      const part = message.parts[partIndex];
+      if (
+        part.type === 'tool-build_parametric_model' &&
+        part.state !== 'input-streaming' &&
+        isParametricArtifact(part.input)
+      ) {
+        return {
+          type: 'artifact',
+          messageId: message.id,
+          artifact: part.input,
+        };
+      }
+      if (
+        part.type === 'tool-create_mesh' &&
+        part.state === 'output-available'
+      ) {
+        return {
+          type: 'mesh',
+          messageId: message.id,
+          meshId: part.output.id,
+        };
+      }
+    }
+  }
+  return null;
+}

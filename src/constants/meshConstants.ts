@@ -1,0 +1,141 @@
+import { CREATIVE_MESH_MODEL_IDS } from '@shared/creativeMeshModels';
+import { CreativeModel, Model } from '@shared/types';
+
+// Mesh generation constants
+
+// Polygon count limits
+export const POLYGON_COUNTS = {
+  // Topology defaults
+  QUADS_DEFAULT: 100000,
+  POLYS_DEFAULT: 100000,
+
+  // Model-specific maximums
+  STANDARD_MAX: 0, // backend decides automatically / does not expose a limit
+  ULTRA_MAX: 300000, // Meshy v6 API limit is 300k
+  TEXTURELESS_MAX: 50000,
+
+  // Model-specific defaults
+  STANDARD_DEFAULT: 0,
+  TEXTURELESS_DEFAULT: 50000,
+  ULTRA_DEFAULT: 300000,
+
+  // UI limits
+  MIN_POLYGON_COUNT: 1000,
+} as const;
+
+// Material defaults
+export const MATERIAL_DEFAULTS = {
+  BRIGHTNESS: 50 as number,
+  BRIGHTNESS_TEXTURELESS: 100 as number,
+  ROUGHNESS: 100 as number,
+  NORMAL_INTENSITY: 0 as number,
+};
+
+// Model-specific configuration
+export interface ModelConfig {
+  brightness: number;
+  roughness: number;
+  normalIntensity: number;
+  polygonCount: {
+    quads: number;
+    polys: number;
+  };
+  showPolygonControls: boolean;
+  showNormalIntensity: boolean;
+  maxPolygonCount?: number;
+}
+
+const LOCAL_MODEL_CONFIG: ModelConfig = {
+  brightness: MATERIAL_DEFAULTS.BRIGHTNESS,
+  roughness: MATERIAL_DEFAULTS.ROUGHNESS,
+  normalIntensity: MATERIAL_DEFAULTS.NORMAL_INTENSITY,
+  polygonCount: {
+    quads: POLYGON_COUNTS.STANDARD_DEFAULT,
+    polys: POLYGON_COUNTS.STANDARD_DEFAULT,
+  },
+  showPolygonControls: false,
+  showNormalIntensity: true,
+  maxPolygonCount: POLYGON_COUNTS.STANDARD_MAX,
+};
+
+export const MODEL_CONFIGS: Record<CreativeModel, ModelConfig> = {
+  'local/native': { ...LOCAL_MODEL_CONFIG },
+  fast: {
+    brightness: MATERIAL_DEFAULTS.BRIGHTNESS_TEXTURELESS,
+    roughness: MATERIAL_DEFAULTS.ROUGHNESS,
+    normalIntensity: MATERIAL_DEFAULTS.NORMAL_INTENSITY,
+    polygonCount: {
+      quads: POLYGON_COUNTS.TEXTURELESS_DEFAULT,
+      polys: POLYGON_COUNTS.TEXTURELESS_DEFAULT,
+    },
+    showPolygonControls: false,
+    showNormalIntensity: false,
+    maxPolygonCount: POLYGON_COUNTS.TEXTURELESS_MAX,
+  },
+  quality: {
+    brightness: MATERIAL_DEFAULTS.BRIGHTNESS,
+    roughness: MATERIAL_DEFAULTS.ROUGHNESS,
+    normalIntensity: MATERIAL_DEFAULTS.NORMAL_INTENSITY,
+    polygonCount: {
+      quads: POLYGON_COUNTS.STANDARD_DEFAULT,
+      polys: POLYGON_COUNTS.STANDARD_DEFAULT,
+    },
+    showPolygonControls: false,
+    showNormalIntensity: true,
+    maxPolygonCount: POLYGON_COUNTS.STANDARD_MAX,
+  },
+  ultra: {
+    brightness: MATERIAL_DEFAULTS.BRIGHTNESS,
+    roughness: MATERIAL_DEFAULTS.ROUGHNESS,
+    normalIntensity: MATERIAL_DEFAULTS.NORMAL_INTENSITY,
+    polygonCount: {
+      quads: POLYGON_COUNTS.ULTRA_DEFAULT,
+      polys: POLYGON_COUNTS.ULTRA_DEFAULT,
+    },
+    showPolygonControls: true,
+    showNormalIntensity: true,
+    maxPolygonCount: POLYGON_COUNTS.ULTRA_MAX,
+  },
+};
+
+const CREATIVE_MODEL_LOOKUP = new Set<string>(CREATIVE_MESH_MODEL_IDS);
+
+export const isCreativeModel = (model: Model): model is CreativeModel => {
+  return CREATIVE_MODEL_LOOKUP.has(model);
+};
+
+// Helper functions for model configuration
+export const getModelConfig = (model: CreativeModel): ModelConfig => {
+  return MODEL_CONFIGS[model];
+};
+
+export const getModelDefaultBrightness = (model: CreativeModel): number => {
+  return MODEL_CONFIGS[model].brightness;
+};
+
+export const getModelDefaultPolygonCount = (
+  model: CreativeModel,
+  topology: 'quads' | 'polys',
+): number => {
+  return MODEL_CONFIGS[model].polygonCount[topology];
+};
+
+export const shouldShowPolygonControls = (model: CreativeModel): boolean => {
+  return MODEL_CONFIGS[model].showPolygonControls;
+};
+
+export const shouldShowNormalIntensity = (model: CreativeModel): boolean => {
+  return MODEL_CONFIGS[model].showNormalIntensity;
+};
+
+export const getMaxPolygonCount = (
+  model: CreativeModel,
+  _topology: 'quads' | 'polys',
+): number => {
+  return MODEL_CONFIGS[model].maxPolygonCount || POLYGON_COUNTS.STANDARD_MAX;
+};
+
+// Legacy exports for backward compatibility
+export const DEFAULT_BRIGHTNESS = MATERIAL_DEFAULTS.BRIGHTNESS;
+export const DEFAULT_ROUGHNESS = MATERIAL_DEFAULTS.ROUGHNESS;
+export const DEFAULT_NORMAL_INTENSITY = MATERIAL_DEFAULTS.NORMAL_INTENSITY;

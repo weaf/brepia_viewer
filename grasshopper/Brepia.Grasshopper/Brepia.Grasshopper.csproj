@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Brepia.Grasshopper</AssemblyName>
+    <RootNamespace>Brepia.Grasshopper</RootNamespace>
+    <TargetExt>.gha</TargetExt>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RhinoCommon" Version="8.34.26223.11001" ExcludeAssets="runtime" />
+    <PackageReference Include="Grasshopper" Version="8.34.26223.11001" ExcludeAssets="runtime" />
+  </ItemGroup>
+</Project>

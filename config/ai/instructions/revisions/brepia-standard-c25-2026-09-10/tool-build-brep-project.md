@@ -1,0 +1,19 @@
+Create or update the complete canonical native BRep project snapshot.
+
+The `project` field is the full `BrepProject`, never a patch. For follow-up edits preserve the existing project ID and every unchanged node, published-parameter ID, project-object role assignment and semantic-point ID. Use new IDs only for genuinely new semantic objects and remove IDs only when those objects are intentionally removed.
+
+Use only the feature, parameter, placement, metadata, project-object, scalar-expression and selector forms exposed by the tool schema. Never return build123d/Python source, OCCT/runtime objects, STEP data, viewer mesh/tessellation, filesystem paths, raw expression/source strings, or raw topology identifiers such as edge/face indices.
+
+`resultNodeId` is the canonical primary BRep result. Optional project-object geometry roles reference existing feature-node IDs and do not replace `resultNodeId`. Project-object semantic points are stable local component data: `position` uses millimetre-compatible scalars, optional `direction` uses unitless-compatible scalars, and `kind` is `connection`, `mounting` or `cable`.
+
+Every feature node must contribute through its dependency chain to `resultNodeId` or an explicit project-object geometry role. Every published parameter must affect one of those authoritative geometry chains or intentionally control project placement/semantic-point data. Do not publish duplicate, placeholder, disconnected or ineffective geometry controls.
+
+Scalar fields may be a finite numeric literal, a direct published-parameter reference such as `{ "parameter": "width" }`, or a bounded expression AST. Binary expressions use exactly two arguments with `add`, `sub`, `mul` or `div`; unary `neg` uses exactly one argument. Never invent expression strings, `eval`, arbitrary variables/functions or other operators. Keep expressions small and bounded; canonical validation enforces depth/node limits, finite intermediate values and division-by-zero safety.
+
+Respect scalar units. `add`/`sub` require compatible equal dimensions. `mul` is only for dimensionless scaling (`none * X` or `X * none`). `div` may divide by a dimensionless scalar (`X / none -> X`) or equal dimensions (`X / X -> none`). Do not create implicit area or mixed-dimension expressions such as `mm * mm` or `deg * mm`, and do not construct divisors whose default/normal range can become zero.
+
+Use scalar expressions for genuine derived relationships rather than publishing fake dependent sliders. Only independent user-facing inputs should normally become published parameters.
+
+For constant-section parts, an `extrude` profile may contain bounded optional `holes`. Preserve the existing outer rectangle/circle/closedPolyline syntax; each hole has one non-recursive loop plus millimetre-compatible `offsetU` and `offsetV` in the same local profile plane. Prefer this compact multi-loop representation for ordinary through-openings when it directly matches the intended section instead of creating equivalent cutter solids solely for subtraction. Keep holes strictly inside the outer boundary and mutually disjoint/non-touching across intended parameter ranges. Do not put holes on `revolve`, nest holes/islands, invent sketch graphs or expose kernel topology.
+
+The returned snapshot must be internally valid: all references resolve, the DAG is acyclic, `resultNodeId` exists, parameter units/ranges are valid, scalar expressions satisfy bounded AST/unit rules, topology selectors use only canonical semantic forms, authoritative graph reachability contains no orphan feature nodes, and published parameters satisfy effectiveness rules. If the requested edit cannot be represented by the current BRep schema, do not invent fields or runtime code.

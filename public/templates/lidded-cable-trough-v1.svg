@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Open lidded cable trough inspection preview">
+  <rect width="640" height="360" fill="#eef1f3"/>
+  <g fill="#55636b" stroke="#26333a" stroke-width="4">
+    <path d="M100 245h440v45H100z"/>
+    <path d="M100 245 165 115h70l-40 130z"/>
+    <path d="M540 245 475 115h-70l40 130z"/>
+    <path d="M165 115h70l170 0h70l-30 35H195z" fill="#b9c3c8"/>
+    <path d="M195 150h250l60 95H135z" fill="#cad4d8"/>
+    <path d="M195 150 250 65h45l-55 85z" fill="#d9e0e3"/>
+    <path d="M445 150 390 65h-45l55 85z" fill="#d9e0e3"/>
+    <path d="M250 65h140l55 85H195z" fill="#f6f7f7"/>
+  </g>
+  <text x="28" y="330" font-family="sans-serif" font-size="22" fill="#26333a">LIDDED CABLE TROUGH · OPEN INSPECTION</text>
+</svg>

@@ -1,0 +1,423 @@
+{
+  "schemaVersion": 1,
+  "id": "straight-perforated-cable-tray",
+  "name": "Straight Perforated Cable Tray",
+  "units": "mm",
+  "placement": {
+    "origin": [0, 0, 0],
+    "xAxis": [1, 0, 0],
+    "yAxis": [0, 1, 0]
+  },
+  "metadata": {
+    "objectType": "cable-tray",
+    "classification": "electrical-cable-management"
+  },
+  "parameters": [
+    {
+      "id": "L",
+      "label": "Length",
+      "type": "number",
+      "unit": "mm",
+      "default": 2000,
+      "min": 300,
+      "max": 6000,
+      "step": 100,
+      "description": "Overall straight tray length."
+    },
+    {
+      "id": "W",
+      "label": "Width",
+      "type": "number",
+      "unit": "mm",
+      "default": 200,
+      "min": 50,
+      "max": 600,
+      "step": 10,
+      "description": "Overall tray width."
+    },
+    {
+      "id": "H",
+      "label": "Side height",
+      "type": "number",
+      "unit": "mm",
+      "default": 60,
+      "min": 20,
+      "max": 150,
+      "step": 5,
+      "description": "Overall height from tray bottom to side-wall top."
+    },
+    {
+      "id": "sheet_t",
+      "label": "Material thickness",
+      "type": "number",
+      "unit": "mm",
+      "default": 2,
+      "min": 1,
+      "max": 5,
+      "step": 0.5,
+      "description": "Uniform sheet thickness of the U-channel."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "channel",
+      "type": "extrude",
+      "axis": "x",
+      "depth": {
+        "parameter": "L"
+      },
+      "profile": {
+        "type": "closedPolyline",
+        "points": [
+          {
+            "u": {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    2
+                  ]
+                }
+              ]
+            },
+            "v": {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "H"
+                    },
+                    2
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "W"
+                },
+                2
+              ]
+            },
+            "v": {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "H"
+                    },
+                    2
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "W"
+                },
+                2
+              ]
+            },
+            "v": {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                2
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    2
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            },
+            "v": {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                2
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    2
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            },
+            "v": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "neg",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "parameter": "H"
+                        },
+                        2
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "neg",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "parameter": "W"
+                        },
+                        2
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            },
+            "v": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "neg",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "parameter": "H"
+                        },
+                        2
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "neg",
+                  "args": [
+                    {
+                      "op": "div",
+                      "args": [
+                        {
+                          "parameter": "W"
+                        },
+                        2
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            },
+            "v": {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                2
+              ]
+            }
+          },
+          {
+            "u": {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    2
+                  ]
+                }
+              ]
+            },
+            "v": {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                2
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "slot",
+      "type": "box",
+      "width": 24,
+      "depth": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "W"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "sheet_t"
+              },
+              4
+            ]
+          }
+        ]
+      },
+      "height": {
+        "op": "add",
+        "args": [
+          {
+            "parameter": "sheet_t"
+          },
+          2
+        ]
+      }
+    },
+    {
+      "id": "slot_start",
+      "type": "transform",
+      "input": "slot",
+      "translate": [
+        {
+          "op": "mul",
+          "args": [
+            {
+              "parameter": "L"
+            },
+            -0.375
+          ]
+        },
+        0,
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "div",
+                  "args": [
+                    {
+                      "parameter": "H"
+                    },
+                    2
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "div",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                2
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slots",
+      "type": "linearPattern",
+      "input": "slot_start",
+      "axis": "x",
+      "count": 7,
+      "spacing": {
+        "op": "div",
+        "args": [
+          {
+            "parameter": "L"
+          },
+          8
+        ]
+      }
+    },
+    {
+      "id": "tray",
+      "type": "subtract",
+      "base": "channel",
+      "tools": ["slots"]
+    }
+  ],
+  "resultNodeId": "tray"
+}

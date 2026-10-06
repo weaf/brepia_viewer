@@ -1,0 +1,28 @@
+<svg width="240" height="64" viewBox="0 0 240 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">Brepia</title>
+  <defs>
+    <linearGradient id="brepia-watermark-gradient" x1="8" y1="8" x2="55" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00A6FF"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(1 0)" stroke="url(#brepia-watermark-gradient)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 7 53 19 32 31 11 19 32 7Z"/>
+    <path d="M11 19v25l21 13V31"/>
+    <path d="M53 19v16"/>
+    <path d="M32 57 53 44"/>
+  </g>
+  <g transform="translate(1 0)" fill="url(#brepia-watermark-gradient)">
+    <circle cx="32" cy="7" r="2.75"/>
+    <circle cx="53" cy="19" r="2.75"/>
+    <circle cx="11" cy="19" r="2.75"/>
+    <circle cx="32" cy="31" r="2.75"/>
+    <circle cx="11" cy="44" r="2.75"/>
+    <circle cx="32" cy="57" r="2.75"/>
+    <circle cx="53" cy="44" r="2.75"/>
+  </g>
+
+  <text x="72" y="37" fill="white" font-family="Inter, Geist, Arial, sans-serif" font-size="24" font-weight="650" letter-spacing="4">BREPIA</text>
+  <text x="74" y="53" fill="#B8B8B8" font-family="Inter, Geist, Arial, sans-serif" font-size="8" font-weight="500" letter-spacing="1.8">BY NOTY</text>
+</svg>

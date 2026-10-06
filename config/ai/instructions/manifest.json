@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "instructions": [
+    {
+      "key": "parametric",
+      "label": "Generative",
+      "description": "Primary system prompt for Generative/Parametric CAD conversations.",
+      "category": "agent",
+      "template": "generative.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "parametric.openscad",
+      "label": "Parametric OpenSCAD CAD specialization",
+      "description": "Source-kind CAD methodology added automatically for OpenSCAD Parametric conversations.",
+      "category": "agent",
+      "template": "parametric-openscad-compat.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "parametric.brep",
+      "label": "Parametric Native BRep CAD specialization",
+      "description": "Source-kind CAD methodology added automatically for Native BRep Parametric conversations.",
+      "category": "agent",
+      "template": "parametric-brep-compat.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "creative",
+      "label": "Creative",
+      "description": "Primary system prompt for Creative mesh conversations.",
+      "category": "agent",
+      "template": "creative.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "tool.build_parametric_model",
+      "label": "Build CAD tool",
+      "description": "Instruction exposed to the model for build_parametric_model.",
+      "category": "tool",
+      "template": "tool-build-parametric-model.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "tool.build_brep_project",
+      "label": "Build native BRep tool",
+      "description": "Instruction exposed to the model for complete canonical BRep project snapshots.",
+      "category": "tool",
+      "template": "tool-build-brep-project.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "tool.answer_user",
+      "label": "Answer user tool",
+      "description": "Instruction exposed to the model for answer_user.",
+      "category": "tool",
+      "template": "tool-answer-user.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "tool.create_mesh",
+      "label": "Create mesh tool",
+      "description": "Instruction exposed to the Creative agent for create_mesh.",
+      "category": "tool",
+      "template": "tool-create-mesh.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "vision.reference",
+      "label": "Vision reference analysis",
+      "description": "Instructions for analyzing user reference images.",
+      "category": "vision",
+      "template": "vision-reference.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "vision.inspection",
+      "label": "Vision inspection QA",
+      "description": "Instructions for reviewing rendered CAD inspection views.",
+      "category": "vision",
+      "template": "vision-inspection.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "conversation.title",
+      "label": "Conversation title",
+      "description": "Instruction for generating a short conversation title.",
+      "category": "conversation",
+      "template": "conversation-title.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "suggestions.parametric",
+      "label": "Generative suggestions",
+      "description": "Instruction for Generative follow-up suggestions.",
+      "category": "conversation",
+      "template": "suggestions-generative.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "suggestions.creative",
+      "label": "Creative suggestions",
+      "description": "Instruction for Creative follow-up suggestions.",
+      "category": "conversation",
+      "template": "suggestions-creative.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "context.parametric_attachment",
+      "label": "Imported CAD attachment context",
+      "description": "Model-facing context injected for imported CAD/STL assets.",
+      "category": "context",
+      "template": "context-parametric-attachment.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "context.brep_project",
+      "label": "Native BRep project context",
+      "description": "Model-facing context containing the exact active canonical BRep source snapshot.",
+      "category": "context",
+      "template": "context-brep-project.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "context.creative_reference_mesh",
+      "label": "Creative reference mesh context",
+      "description": "Model-facing context injected for reference meshes in Creative conversations.",
+      "category": "context",
+      "template": "context-creative-reference-mesh.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "context.mesh_preferences",
+      "label": "Mesh preferences context",
+      "description": "Model-facing context for topology and polygon-count preferences.",
+      "category": "context",
+      "template": "context-mesh-preferences.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "context.parametric_inspection_output",
+      "label": "CAD inspection result context",
+      "description": "Model-facing context accompanying rendered multi-view inspection output.",
+      "category": "context",
+      "template": "context-parametric-inspection-output.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "transport.opencode",
+      "label": "OpenCode transport",
+      "description": "Behavioral instructions added when Generative requests run through OpenCode.",
+      "category": "transport",
+      "template": "transport-opencode.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "transport.codex",
+      "label": "Codex transport",
+      "description": "Behavioral instructions added when Generative requests run through Codex CLI.",
+      "category": "transport",
+      "template": "transport-codex.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "transport.opencode_brep",
+      "label": "OpenCode native BRep transport",
+      "description": "Behavioral instructions added when native BRep requests run through OpenCode.",
+      "category": "transport",
+      "template": "transport-opencode-brep.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "transport.codex_brep",
+      "label": "Codex native BRep transport",
+      "description": "Behavioral instructions added when native BRep requests run through Codex CLI.",
+      "category": "transport",
+      "template": "transport-codex-brep.md",
+      "supportsOverlay": true
+    },
+    {
+      "key": "provider.fal.image_conditioning",
+      "label": "fal.ai image conditioning",
+      "description": "Instructions used to prepare image-generation prompts for the optional fal.ai Creative provider.",
+      "category": "provider",
+      "template": "provider-fal-image-conditioning.md",
+      "supportsOverlay": true
+    }
+  ]
+}

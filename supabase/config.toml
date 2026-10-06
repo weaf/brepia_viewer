@@ -1,0 +1,49 @@
+# Public Brepia local Supabase configuration.
+# Host-facing ports are allocated per checkout by scripts/supabase-local.sh.
+project_id = "brepia"
+
+[api]
+port = "env(BREPIA_SUPABASE_API_PORT)"
+
+[db]
+port = "env(BREPIA_SUPABASE_DB_PORT)"
+shadow_port = "env(BREPIA_SUPABASE_SHADOW_PORT)"
+
+[db.pooler]
+port = "env(BREPIA_SUPABASE_POOLER_PORT)"
+
+[realtime]
+ip_version = "IPv4"
+
+[edge_runtime]
+enabled = false
+inspector_port = "env(BREPIA_SUPABASE_EDGE_INSPECTOR_PORT)"
+
+[studio]
+port = "env(BREPIA_SUPABASE_STUDIO_PORT)"
+
+[local_smtp]
+port = "env(BREPIA_SUPABASE_LOCAL_SMTP_PORT)"
+smtp_port = "env(BREPIA_SUPABASE_SMTP_PORT)"
+pop3_port = "env(BREPIA_SUPABASE_POP3_PORT)"
+
+[analytics]
+enabled = false
+port = "env(BREPIA_SUPABASE_ANALYTICS_PORT)"
+
+[auth.email]
+enable_signup = true
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_SECRET)"
+
+[storage.buckets.meshes]
+public = false
+
+[storage.buckets.images]
+public = false
+
+[storage.buckets.previews]
+public = false

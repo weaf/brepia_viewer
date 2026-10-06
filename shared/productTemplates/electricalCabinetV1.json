@@ -1,0 +1,1647 @@
+{
+  "id": "wallmounted-control-cabinet",
+  "name": "Wall-Mounted Electrical Control Cabinet",
+  "nodes": [
+    {
+      "id": "body_cavity",
+      "type": "box",
+      "depth": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "D"
+          },
+          {
+            "parameter": "sheet_t"
+          }
+        ]
+      },
+      "width": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "W"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "sheet_t"
+              },
+              2
+            ]
+          }
+        ]
+      },
+      "height": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "H"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "sheet_t"
+              },
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "body_cavity_pos",
+      "type": "transform",
+      "input": "body_cavity",
+      "translate": [
+        0,
+        {
+          "op": "mul",
+          "args": [
+            {
+              "parameter": "sheet_t"
+            },
+            0.5
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "body_outer",
+      "type": "box",
+      "depth": {
+        "parameter": "D"
+      },
+      "width": {
+        "parameter": "W"
+      },
+      "height": {
+        "parameter": "H"
+      }
+    },
+    {
+      "id": "cabinet",
+      "type": "union",
+      "inputs": [
+        "enclosure_open",
+        "door_assembly",
+        "mount_plate_pos",
+        "rail_top_pos",
+        "rail_mid_pos",
+        "rail_bot_pos"
+      ]
+    },
+    {
+      "id": "cable_cut",
+      "type": "box",
+      "depth": 100,
+      "width": 90,
+      "height": {
+        "op": "add",
+        "args": [
+          {
+            "parameter": "sheet_t"
+          },
+          6
+        ]
+      }
+    },
+    {
+      "id": "cable_cut_pos",
+      "type": "transform",
+      "input": "cable_cut",
+      "translate": [
+        -100,
+        0,
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                0.5
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cable_cuts",
+      "axis": "x",
+      "type": "linearPattern",
+      "count": 2,
+      "input": "cable_cut_pos",
+      "spacing": 200
+    },
+    {
+      "id": "door_assembly",
+      "type": "union",
+      "inputs": [
+        "door_pivot_out",
+        "hinge_top_pos",
+        "hinge_bot_pos"
+      ]
+    },
+    {
+      "id": "door_closed",
+      "type": "union",
+      "inputs": [
+        "door_vented",
+        "handle_pos",
+        "lock_pos"
+      ]
+    },
+    {
+      "id": "door_panel",
+      "type": "box",
+      "depth": {
+        "parameter": "sheet_t"
+      },
+      "width": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "W"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "door_clear"
+              },
+              2
+            ]
+          }
+        ]
+      },
+      "height": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "H"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "door_clear"
+              },
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "door_pivot_in",
+      "type": "transform",
+      "input": "door_closed",
+      "translate": [
+        {
+          "op": "sub",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "W"
+                },
+                0.5
+              ]
+            },
+            {
+              "parameter": "door_clear"
+            }
+          ]
+        },
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "mul",
+                      "args": [
+                        {
+                          "parameter": "D"
+                        },
+                        0.5
+                      ]
+                    },
+                    {
+                      "parameter": "door_clear"
+                    }
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "sheet_t"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "door_pivot_out",
+      "type": "transform",
+      "input": "door_pivot_rot",
+      "translate": [
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "door_pivot_rot",
+      "type": "transform",
+      "input": "door_pivot_in",
+      "rotateDeg": [
+        0,
+        0,
+        {
+          "parameter": "doorOpenAngleDeg"
+        }
+      ],
+      "translate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "door_pos",
+      "type": "transform",
+      "input": "door_panel",
+      "translate": [
+        0,
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "door_vented",
+      "base": "door_pos",
+      "type": "subtract",
+      "tools": [
+        "vent_row_top",
+        "vent_row_bot"
+      ]
+    },
+    {
+      "id": "enclosure_open",
+      "base": "enclosure_shell",
+      "type": "subtract",
+      "tools": [
+        "cable_cuts"
+      ]
+    },
+    {
+      "id": "enclosure_shell",
+      "base": "body_outer",
+      "type": "subtract",
+      "tools": [
+        "body_cavity_pos"
+      ]
+    },
+    {
+      "id": "handle",
+      "type": "box",
+      "depth": 18,
+      "width": 16,
+      "height": 70
+    },
+    {
+      "id": "handle_pos",
+      "type": "transform",
+      "input": "handle",
+      "translate": [
+        {
+          "op": "sub",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "W"
+                },
+                0.5
+              ]
+            },
+            60
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "add",
+                  "args": [
+                    {
+                      "op": "mul",
+                      "args": [
+                        {
+                          "parameter": "D"
+                        },
+                        0.5
+                      ]
+                    },
+                    {
+                      "parameter": "door_clear"
+                    }
+                  ]
+                },
+                {
+                  "parameter": "sheet_t"
+                }
+              ]
+            },
+            9
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "hinge_bot",
+      "type": "box",
+      "depth": 12,
+      "width": 12,
+      "height": 70
+    },
+    {
+      "id": "hinge_bot_pos",
+      "type": "transform",
+      "input": "hinge_bot",
+      "translate": [
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "door_clear"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "H"
+                    },
+                    0.5
+                  ]
+                },
+                80
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hinge_top",
+      "type": "box",
+      "depth": 12,
+      "width": 12,
+      "height": 70
+    },
+    {
+      "id": "hinge_top_pos",
+      "type": "transform",
+      "input": "hinge_top",
+      "translate": [
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "W"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "door_clear"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        {
+          "op": "sub",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                0.5
+              ]
+            },
+            80
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lock",
+      "type": "cylinder",
+      "height": 24,
+      "radius": 11
+    },
+    {
+      "id": "lock_pos",
+      "type": "transform",
+      "input": "lock",
+      "rotateDeg": [
+        90,
+        0,
+        0
+      ],
+      "translate": [
+        {
+          "op": "sub",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "W"
+                },
+                0.5
+              ]
+            },
+            60
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        -80
+      ]
+    },
+    {
+      "id": "mount_plate",
+      "type": "box",
+      "depth": {
+        "parameter": "sheet_t"
+      },
+      "width": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "W"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "plate_margin"
+              },
+              2
+            ]
+          }
+        ]
+      },
+      "height": {
+        "op": "sub",
+        "args": [
+          {
+            "parameter": "H"
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "plate_margin"
+              },
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mount_plate_pos",
+      "type": "transform",
+      "input": "mount_plate",
+      "translate": [
+        0,
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                1.5
+              ]
+            }
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "rail_bot",
+      "type": "box",
+      "depth": 8,
+      "width": {
+        "op": "sub",
+        "args": [
+          {
+            "op": "sub",
+            "args": [
+              {
+                "parameter": "W"
+              },
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "plate_margin"
+                  },
+                  2
+                ]
+              }
+            ]
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "rail_inset"
+              },
+              2
+            ]
+          }
+        ]
+      },
+      "height": 35
+    },
+    {
+      "id": "rail_bot_pos",
+      "type": "transform",
+      "input": "rail_bot",
+      "translate": [
+        0,
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "sheet_t"
+                    },
+                    2
+                  ]
+                },
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "op": "neg",
+          "args": [
+            {
+              "parameter": "rail_spacing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rail_mid",
+      "type": "box",
+      "depth": 8,
+      "width": {
+        "op": "sub",
+        "args": [
+          {
+            "op": "sub",
+            "args": [
+              {
+                "parameter": "W"
+              },
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "plate_margin"
+                  },
+                  2
+                ]
+              }
+            ]
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "rail_inset"
+              },
+              2
+            ]
+          }
+        ]
+      },
+      "height": 35
+    },
+    {
+      "id": "rail_mid_pos",
+      "type": "transform",
+      "input": "rail_mid",
+      "translate": [
+        0,
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "sheet_t"
+                    },
+                    2
+                  ]
+                },
+                4
+              ]
+            }
+          ]
+        },
+        0
+      ]
+    },
+    {
+      "id": "rail_top",
+      "type": "box",
+      "depth": 8,
+      "width": {
+        "op": "sub",
+        "args": [
+          {
+            "op": "sub",
+            "args": [
+              {
+                "parameter": "W"
+              },
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "plate_margin"
+                  },
+                  2
+                ]
+              }
+            ]
+          },
+          {
+            "op": "mul",
+            "args": [
+              {
+                "parameter": "rail_inset"
+              },
+              2
+            ]
+          }
+        ]
+      },
+      "height": 35
+    },
+    {
+      "id": "rail_top_pos",
+      "type": "transform",
+      "input": "rail_top",
+      "translate": [
+        0,
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "neg",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "sheet_t"
+                    },
+                    2
+                  ]
+                },
+                4
+              ]
+            }
+          ]
+        },
+        {
+          "parameter": "rail_spacing"
+        }
+      ]
+    },
+    {
+      "id": "vent_row_bot",
+      "axis": "x",
+      "type": "linearPattern",
+      "count": 9,
+      "input": "vent_slot_bot_pos",
+      "spacing": {
+        "parameter": "vent_pitch"
+      }
+    },
+    {
+      "id": "vent_row_top",
+      "axis": "x",
+      "type": "linearPattern",
+      "count": 9,
+      "input": "vent_slot_pos",
+      "spacing": {
+        "parameter": "vent_pitch"
+      }
+    },
+    {
+      "id": "vent_slot",
+      "type": "box",
+      "depth": {
+        "op": "add",
+        "args": [
+          {
+            "parameter": "sheet_t"
+          },
+          4
+        ]
+      },
+      "width": 6,
+      "height": 32
+    },
+    {
+      "id": "vent_slot_bot",
+      "type": "box",
+      "depth": {
+        "op": "add",
+        "args": [
+          {
+            "parameter": "sheet_t"
+          },
+          4
+        ]
+      },
+      "width": 6,
+      "height": 32
+    },
+    {
+      "id": "vent_slot_bot_pos",
+      "type": "transform",
+      "input": "vent_slot_bot",
+      "translate": [
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                4,
+                {
+                  "parameter": "vent_pitch"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "sub",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "H"
+                    },
+                    0.5
+                  ]
+                },
+                30
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vent_slot_pos",
+      "type": "transform",
+      "input": "vent_slot",
+      "translate": [
+        {
+          "op": "neg",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                4,
+                {
+                  "parameter": "vent_pitch"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "add",
+          "args": [
+            {
+              "op": "add",
+              "args": [
+                {
+                  "op": "mul",
+                  "args": [
+                    {
+                      "parameter": "D"
+                    },
+                    0.5
+                  ]
+                },
+                {
+                  "parameter": "door_clear"
+                }
+              ]
+            },
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "sheet_t"
+                },
+                0.5
+              ]
+            }
+          ]
+        },
+        {
+          "op": "sub",
+          "args": [
+            {
+              "op": "mul",
+              "args": [
+                {
+                  "parameter": "H"
+                },
+                0.5
+              ]
+            },
+            30
+          ]
+        }
+      ]
+    }
+  ],
+  "units": "mm",
+  "metadata": {
+    "objectType": "Electrical control cabinet",
+    "properties": {
+      "front": "open, hinged door",
+      "mounting": "wall"
+    },
+    "classification": "Enclosure"
+  },
+  "placement": {
+    "xAxis": [
+      1,
+      0,
+      0
+    ],
+    "yAxis": [
+      0,
+      1,
+      0
+    ],
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "parameters": [
+    {
+      "id": "D",
+      "max": 600,
+      "min": 150,
+      "step": 10,
+      "type": "number",
+      "unit": "mm",
+      "label": "Cabinet depth",
+      "default": 300,
+      "description": "Overall external depth (Y), back wall at -Y, open front at +Y."
+    },
+    {
+      "id": "door_clear",
+      "max": 10,
+      "min": 1,
+      "step": 0.5,
+      "type": "number",
+      "unit": "mm",
+      "label": "Door clearance",
+      "default": 2,
+      "description": "Gap around the door edge and between body front face and door back face."
+    },
+    {
+      "id": "doorOpenAngleDeg",
+      "max": 120,
+      "min": 0,
+      "step": 5,
+      "type": "number",
+      "unit": "deg",
+      "label": "Door open angle",
+      "default": 0,
+      "description": "Door swing angle about the vertical hinge axis on the left door edge; 0 is closed, positive opens outward."
+    },
+    {
+      "id": "H",
+      "max": 2500,
+      "min": 400,
+      "step": 10,
+      "type": "number",
+      "unit": "mm",
+      "label": "Cabinet height",
+      "default": 1200,
+      "description": "Overall external height (Z)."
+    },
+    {
+      "id": "plate_margin",
+      "max": 100,
+      "min": 10,
+      "step": 5,
+      "type": "number",
+      "unit": "mm",
+      "label": "Mounting plate inset",
+      "default": 20,
+      "description": "Distance from enclosure inner walls to the mounting plate edges."
+    },
+    {
+      "id": "rail_inset",
+      "max": 150,
+      "min": 20,
+      "step": 5,
+      "type": "number",
+      "unit": "mm",
+      "label": "DIN rail end inset",
+      "default": 50,
+      "description": "Distance from mounting plate edge to DIN rail ends."
+    },
+    {
+      "id": "rail_spacing",
+      "max": 500,
+      "min": 150,
+      "step": 10,
+      "type": "number",
+      "unit": "mm",
+      "label": "DIN rail spacing",
+      "default": 450,
+      "description": "Vertical spacing between adjacent DIN rails (rails at -spacing, 0, +spacing)."
+    },
+    {
+      "id": "sheet_t",
+      "max": 5,
+      "min": 1,
+      "step": 0.5,
+      "type": "number",
+      "unit": "mm",
+      "label": "Sheet thickness",
+      "default": 2,
+      "description": "Wall, door and mounting plate sheet thickness."
+    },
+    {
+      "id": "vent_pitch",
+      "max": 80,
+      "min": 24,
+      "step": 2,
+      "type": "number",
+      "unit": "mm",
+      "label": "Vent slot pitch",
+      "default": 40,
+      "description": "Horizontal pitch of the repeated ventilation slots on the door."
+    },
+    {
+      "id": "W",
+      "max": 2000,
+      "min": 300,
+      "step": 10,
+      "type": "number",
+      "unit": "mm",
+      "label": "Cabinet width",
+      "default": 800,
+      "description": "Overall external width (X)."
+    }
+  ],
+  "resultNodeId": "cabinet",
+  "projectObject": {
+    "points": [
+      {
+        "id": "cable_entry",
+        "kind": "cable",
+        "label": "Cable entry (bottom wall)",
+        "position": [
+          0,
+          0,
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "H"
+                  },
+                  0.5
+                ]
+              }
+            ]
+          }
+        ],
+        "direction": [
+          0,
+          0,
+          -1
+        ]
+      },
+      {
+        "id": "mount_bl",
+        "kind": "mounting",
+        "label": "Wall mounting bottom-left",
+        "position": [
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "sub",
+                "args": [
+                  {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "parameter": "W"
+                      },
+                      0.5
+                    ]
+                  },
+                  40
+                ]
+              }
+            ]
+          },
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "D"
+                  },
+                  0.5
+                ]
+              }
+            ]
+          },
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "sub",
+                "args": [
+                  {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "parameter": "H"
+                      },
+                      0.5
+                    ]
+                  },
+                  40
+                ]
+              }
+            ]
+          }
+        ],
+        "direction": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "id": "mount_br",
+        "kind": "mounting",
+        "label": "Wall mounting bottom-right",
+        "position": [
+          {
+            "op": "sub",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "W"
+                  },
+                  0.5
+                ]
+              },
+              40
+            ]
+          },
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "D"
+                  },
+                  0.5
+                ]
+              }
+            ]
+          },
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "sub",
+                "args": [
+                  {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "parameter": "H"
+                      },
+                      0.5
+                    ]
+                  },
+                  40
+                ]
+              }
+            ]
+          }
+        ],
+        "direction": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "id": "mount_tl",
+        "kind": "mounting",
+        "label": "Wall mounting top-left",
+        "position": [
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "sub",
+                "args": [
+                  {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "parameter": "W"
+                      },
+                      0.5
+                    ]
+                  },
+                  40
+                ]
+              }
+            ]
+          },
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "D"
+                  },
+                  0.5
+                ]
+              }
+            ]
+          },
+          {
+            "op": "sub",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "H"
+                  },
+                  0.5
+                ]
+              },
+              40
+            ]
+          }
+        ],
+        "direction": [
+          0,
+          -1,
+          0
+        ]
+      },
+      {
+        "id": "mount_tr",
+        "kind": "mounting",
+        "label": "Wall mounting top-right",
+        "position": [
+          {
+            "op": "sub",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "W"
+                  },
+                  0.5
+                ]
+              },
+              40
+            ]
+          },
+          {
+            "op": "neg",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "D"
+                  },
+                  0.5
+                ]
+              }
+            ]
+          },
+          {
+            "op": "sub",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  {
+                    "parameter": "H"
+                  },
+                  0.5
+                ]
+              },
+              40
+            ]
+          }
+        ],
+        "direction": [
+          0,
+          -1,
+          0
+        ]
+      }
+    ],
+    "footprintNodeId": "enclosure_open"
+  },
+  "schemaVersion": 1
+}

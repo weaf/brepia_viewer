@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() { echo "usage: $0 --input <request.json> --output <output-dir>" >&2; exit 64; }
+
+INPUT=""
+OUTPUT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --input) INPUT="$2"; shift 2 ;;
+    --output) OUTPUT="$2"; shift 2 ;;
+    *) usage ;;
+  esac
+done
+[ -n "$INPUT" ] && [ -n "$OUTPUT" ] || usage
+[ -f "$INPUT" ] && [ ! -L "$INPUT" ] || { echo "BREP_SANDBOX_UNAVAILABLE: input must be a regular file" >&2; exit 65; }
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DRIVER="$SCRIPT_DIR/brep_driver.py"
+[ -f "$DRIVER" ] && [ ! -L "$DRIVER" ] || { echo "BREP_SANDBOX_UNAVAILABLE: evaluator driver missing" >&2; exit 69; }
+INPUT="$(realpath "$INPUT")"
+mkdir -p "$OUTPUT"
+OUTPUT="$(cd "$OUTPUT" && pwd -P)"
+
+PODMAN_BIN="${BREPIA_PODMAN_BIN:-podman}"
+IMAGE="${BREPIA_BREP_IMAGE:-localhost/brepia-brep:build123d-0.11.1}"
+MEMORY="${BREPIA_BREP_MEMORY:-2g}"
+CPUS="${BREPIA_BREP_CPUS:-2}"
+PIDS_LIMIT="${BREPIA_BREP_PIDS_LIMIT:-128}"
+RUNTIME_TIMEOUT="${BREPIA_BREP_CONTAINER_TIMEOUT_SECONDS:-40}"
+TMPFS_SIZE="${BREPIA_BREP_TMPFS_SIZE:-256m}"
+
+command -v "$PODMAN_BIN" >/dev/null 2>&1 || { echo "BREP_SANDBOX_UNAVAILABLE: Podman executable not found" >&2; exit 69; }
+"$PODMAN_BIN" image exists "$IMAGE" >/dev/null 2>&1 || { echo "BREP_SANDBOX_UNAVAILABLE: sandbox image is not built" >&2; exit 69; }
+
+CIDFILE="$(mktemp "${TMPDIR:-/tmp}/brepia-brep-cid.XXXXXX")"
+rm -f "$CIDFILE"
+cleanup() { [ ! -s "$CIDFILE" ] || "$PODMAN_BIN" rm -f "$(cat "$CIDFILE")" >/dev/null 2>&1 || true; rm -f "$CIDFILE"; }
+trap cleanup EXIT INT TERM
+
+set +e
+timeout --signal=TERM --kill-after=5 "${RUNTIME_TIMEOUT}s" "$PODMAN_BIN" run --rm --pull=never --cidfile "$CIDFILE" \
+  --network=none --read-only --security-opt=no-new-privileges --cap-drop=all --pids-limit="$PIDS_LIMIT" \
+  --memory="$MEMORY" --cpus="$CPUS" --userns=keep-id --user "$(id -u):$(id -g)" \
+  --tmpfs "/tmp:rw,nosuid,nodev,noexec,size=${TMPFS_SIZE},mode=1777" \
+  --volume "$INPUT:/input/request.json:ro" --volume "$DRIVER:/brepia/brep_driver.py:ro" --volume "$OUTPUT:/output:rw" \
+  --env HOME=/tmp --entrypoint=/opt/brepia-brep-venv/bin/python "$IMAGE" /brepia/brep_driver.py /input/request.json /output
+STATUS=$?
+set -e
+[ "$STATUS" -ne 124 ] && [ "$STATUS" -ne 137 ] || { echo "BREP_SANDBOX_TIMEOUT: evaluation exceeded ${RUNTIME_TIMEOUT}s" >&2; exit 124; }
+exit "$STATUS"

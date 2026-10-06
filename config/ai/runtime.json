@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "settings": {
+    "chat.thinkingBudgetTokens": {
+      "label": "Thinking budget",
+      "description": "Default reasoning token budget for models that expose bounded thinking.",
+      "type": "integer",
+      "default": 9000,
+      "min": 1024,
+      "max": 64000
+    },
+    "chat.parametricMaxSteps": {
+      "label": "Generative max steps",
+      "description": "Maximum tool/reasoning steps allowed in one Generative turn.",
+      "type": "integer",
+      "default": 60,
+      "min": 1,
+      "max": 200
+    },
+    "chat.creativeMaxSteps": {
+      "label": "Creative max steps",
+      "description": "Maximum tool/reasoning steps allowed in one Creative turn.",
+      "type": "integer",
+      "default": 5,
+      "min": 1,
+      "max": 50
+    },
+    "chat.parametricMaxOutputTokens": {
+      "label": "Generative max output tokens",
+      "description": "Maximum output-token budget for Generative turns.",
+      "type": "integer",
+      "default": 64000,
+      "min": 1024,
+      "max": 131072
+    },
+    "chat.creativeMaxOutputTokens": {
+      "label": "Creative max output tokens",
+      "description": "Maximum output-token budget for Creative turns without extended thinking.",
+      "type": "integer",
+      "default": 16000,
+      "min": 1024,
+      "max": 131072
+    },
+    "chat.creativeThinkingMaxOutputTokens": {
+      "label": "Creative thinking max output tokens",
+      "description": "Maximum output-token budget for Creative turns with thinking enabled.",
+      "type": "integer",
+      "default": 32000,
+      "min": 1024,
+      "max": 131072
+    },
+    "vision.timeoutMs": {
+      "label": "Vision timeout",
+      "description": "Maximum time allowed for a vision fallback request.",
+      "type": "integer",
+      "default": 300000,
+      "min": 5000,
+      "max": 1800000
+    },
+    "vision.referenceMaxOutputTokens": {
+      "label": "Vision reference output tokens",
+      "description": "Maximum vision output for reference-image analysis.",
+      "type": "integer",
+      "default": 1800,
+      "min": 256,
+      "max": 16000
+    },
+    "vision.inspectionMaxOutputTokens": {
+      "label": "Vision inspection output tokens",
+      "description": "Maximum vision output for rendered inspection QA.",
+      "type": "integer",
+      "default": 2400,
+      "min": 256,
+      "max": 16000
+    },
+    "vision.temperature": {
+      "label": "Vision temperature",
+      "description": "Sampling temperature used by vision fallback analysis.",
+      "type": "number",
+      "default": 0.1,
+      "min": 0,
+      "max": 2
+    },
+    "creative.healthTimeoutMs": {
+      "label": "Creative runtime health timeout",
+      "description": "Timeout for checking llama-swap Creative runtime availability.",
+      "type": "integer",
+      "default": 5000,
+      "min": 1000,
+      "max": 60000
+    },
+    "creative.imageGenerationTimeoutMs": {
+      "label": "Conditioning image timeout",
+      "description": "Timeout for text-to-image conditioning before TRELLIS.2.",
+      "type": "integer",
+      "default": 600000,
+      "min": 30000,
+      "max": 3600000
+    },
+    "creative.meshGenerationTimeoutMs": {
+      "label": "TRELLIS.2 generation timeout",
+      "description": "Timeout for TRELLIS.2 mesh generation.",
+      "type": "integer",
+      "default": 1800000,
+      "min": 60000,
+      "max": 7200000
+    },
+    "creative.trellisResolution": {
+      "label": "TRELLIS.2 resolution",
+      "description": "Supported TRELLIS.2 generation resolution.",
+      "type": "enum",
+      "default": "1024",
+      "options": ["512", "1024", "1536"]
+    },
+    "transport.openCodeTimeoutMs": {
+      "label": "OpenCode request timeout",
+      "description": "Maximum wall-clock time for one OpenCode-backed Generative request.",
+      "type": "integer",
+      "default": 1200000,
+      "min": 30000,
+      "max": 3600000
+    },
+    "transport.cliTimeoutMs": {
+      "label": "CLI agent timeout",
+      "description": "Maximum wall-clock time for one OpenCode or Codex CLI agent invocation.",
+      "type": "integer",
+      "default": 1200000,
+      "min": 30000,
+      "max": 3600000
+    },
+    "transport.openCodeValidationAttempts": {
+      "label": "OpenCode validation attempts",
+      "description": "Maximum automatic OpenSCAD repair attempts in the streaming OpenCode transport.",
+      "type": "integer",
+      "default": 3,
+      "min": 1,
+      "max": 10
+    }
+  }
+}

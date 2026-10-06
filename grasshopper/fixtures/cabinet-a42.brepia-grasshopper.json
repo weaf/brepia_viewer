@@ -1,0 +1,188 @@
+{
+  "kind": "brepia-grasshopper-contract",
+  "schemaVersion": 1,
+  "model": {
+    "projectId": "cabinetA42",
+    "projectName": "Cabinet A42",
+    "projectSchemaVersion": 1,
+    "sourceRevisionId": "revision-42"
+  },
+  "source": {
+    "schemaVersion": 1,
+    "id": "cabinetA42",
+    "name": "Cabinet A42",
+    "units": "mm",
+    "placement": {
+      "origin": [0, 0, 0],
+      "xAxis": [1, 0, 0],
+      "yAxis": [0, 1, 0]
+    },
+    "metadata": {
+      "objectType": "cabinet",
+      "classification": "equipment",
+      "properties": {
+        "system": "traction"
+      }
+    },
+    "parameters": [
+      {
+        "id": "height",
+        "label": "Cabinet height",
+        "type": "number",
+        "unit": "mm",
+        "default": 2100,
+        "min": 1000
+      },
+      {
+        "id": "width",
+        "label": "Cabinet width",
+        "type": "number",
+        "unit": "mm",
+        "default": 1200,
+        "min": 600,
+        "max": 2400,
+        "step": 50,
+        "description": "Overall cabinet width."
+      }
+    ],
+    "nodes": [
+      {
+        "id": "body",
+        "type": "box",
+        "width": {
+          "parameter": "width"
+        },
+        "depth": 500,
+        "height": {
+          "parameter": "height"
+        }
+      }
+    ],
+    "resultNodeId": "body",
+    "projectObject": {
+      "footprintNodeId": "body",
+      "points": [
+        {
+          "id": "cableEntry",
+          "kind": "cable",
+          "label": "Cable entry",
+          "position": [0, 100, 0],
+          "direction": [0, 0, 1]
+        }
+      ]
+    }
+  },
+  "interface": {
+    "inputs": [
+      {
+        "id": "height",
+        "label": "Cabinet height",
+        "type": "number",
+        "access": "item",
+        "unit": "mm",
+        "default": 2100,
+        "min": 1000,
+        "fallback": "project-default"
+      },
+      {
+        "id": "width",
+        "label": "Cabinet width",
+        "type": "number",
+        "access": "item",
+        "unit": "mm",
+        "default": 1200,
+        "min": 600,
+        "max": 2400,
+        "step": 50,
+        "description": "Overall cabinet width.",
+        "fallback": "project-default"
+      },
+      {
+        "id": "placement",
+        "label": "Plane",
+        "type": "plane",
+        "access": "item",
+        "description": "Target insertion plane. When unconnected, Brepia resolves the project placement under the current parameter values.",
+        "fallback": "project-placement"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "result",
+        "label": "Result",
+        "type": "brep",
+        "access": "item",
+        "optional": false,
+        "semantic": "primary-result"
+      },
+      {
+        "id": "footprint",
+        "label": "Footprint",
+        "type": "brep",
+        "access": "item",
+        "optional": true,
+        "semantic": "footprint"
+      },
+      {
+        "id": "clearanceEnvelope",
+        "label": "Clearance",
+        "type": "brep",
+        "access": "item",
+        "optional": true,
+        "semantic": "clearance-envelope"
+      },
+      {
+        "id": "maintenanceEnvelope",
+        "label": "Maintenance",
+        "type": "brep",
+        "access": "item",
+        "optional": true,
+        "semantic": "maintenance-envelope"
+      },
+      {
+        "id": "connectionPoints",
+        "label": "Connections",
+        "type": "semantic-point",
+        "access": "list",
+        "pointKind": "connection",
+        "optional": false
+      },
+      {
+        "id": "mountingPoints",
+        "label": "Mounting",
+        "type": "semantic-point",
+        "access": "list",
+        "pointKind": "mounting",
+        "optional": false
+      },
+      {
+        "id": "cablePoints",
+        "label": "Cable",
+        "type": "semantic-point",
+        "access": "list",
+        "pointKind": "cable",
+        "optional": false
+      },
+      {
+        "id": "metadata",
+        "label": "Metadata",
+        "type": "project-metadata",
+        "access": "item",
+        "optional": false
+      }
+    ]
+  },
+  "placement": {
+    "inputId": "placement",
+    "unconnected": "resolved-project-placement",
+    "connected": "replace-project-placement",
+    "sourceGeometrySpace": "component-local",
+    "application": "transform-all-project-outputs-to-target-plane",
+    "axisMeaning": "orientation-only"
+  },
+  "diagnostics": {
+    "mode": "grasshopper-runtime-messages",
+    "warningSeverity": "warning",
+    "errorSeverity": "error"
+  }
+}

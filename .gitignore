@@ -1,0 +1,7 @@
+node_modules/
+.output/
+.brepia/
+.env.local
+.env.*.local
+.brepia-credential-key.local
+*.log
