@@ -10,8 +10,11 @@ export type LifecycleEntry = {
   wasDiscarded?: boolean;
 };
 
+import { createUuid } from '@/lib/uuid';
+
 const STORAGE_KEY = 'brepia:lifecycle-log';
 const MAX_ENTRIES = 80;
+
 
 function readEntries(): LifecycleEntry[] {
   try {
@@ -38,7 +41,7 @@ export function startLifecycleDiagnostics(): () => void {
     return () => {};
   }
 
-  const documentId = crypto.randomUUID();
+  const documentId = createUuid();
   const navigation = performance.getEntriesByType('navigation')[0] as
     PerformanceNavigationTiming | undefined;
   const wasDiscarded =

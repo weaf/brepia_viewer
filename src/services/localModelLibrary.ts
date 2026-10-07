@@ -18,6 +18,7 @@ import {
   validateOpenScadProjectSourceReferences,
 } from '@shared/openScadProjectReferences';
 import { OPENSCAD_MAX_SOURCE_BYTES } from '@/lib/openScadLimits';
+import { createUuid } from '@/lib/uuid';
 import type { ScadFolderAssetInput } from '@/lib/scadImport';
 
 export const BUILT_IN_MODELS_REPOSITORY =
@@ -30,6 +31,7 @@ const DATABASE_VERSION = 1;
 const MODEL_STORE = 'models';
 const CACHE_STORE = 'cache';
 const CATALOG_KEY = 'built-in-model-catalog';
+const LAST_OPENED_MODEL_KEY = 'last-opened-local-model';
 const BUNDLED_LIBRARY_ROOTS = new Set(['BOSL', 'BOSL2', 'MCAD']);
 
 export type BuiltInModel = {
@@ -140,6 +142,57 @@ export async function getStoredModel(
   return (await withStore(MODEL_STORE, 'readonly', (store) =>
     store.get(id),
   )) as LocalModelRecord | undefined;
+}
+
+export async function getLastOpenedLocalModel(): Promise<LocalModelRecord | undefined> {
+  const saved = (await withStore(CACHE_STORE, 'readonly', (store) =>
+    store.get(LAST_OPENED_MODEL_KEY),
+  )) as { key: string; modelId?: unknown } | undefined;
+  if (typeof saved?.modelId === 'string') {
+    const record = await getStoredModel(saved.modelId);
+    if (record) return record;
+  }
+
+  const records = (await withStore(MODEL_STORE, 'readonly', (store) =>
+    store.getAll(),
+  )) as LocalModelRecord[];
+  return records.sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  )[0];
+}
+
+export async function setLastOpenedLocalModel(id: string): Promise<void> {
+  await withStore(CACHE_STORE, 'readwrite', (store) =>
+    store.put({ key: LAST_OPENED_MODEL_KEY, modelId: id }),
+  );
+}
+
+export async function clearLocalModelData(): Promise<void> {
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction([MODEL_STORE, CACHE_STORE], 'readwrite');
+      transaction.objectStore(MODEL_STORE).clear();
+      transaction.objectStore(CACHE_STORE).clear();
+    } catch (error) {
+      database.close();
+      reject(error);
+      return;
+    }
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Could not clear local model data.'));
+    };
+    transaction.onabort = () => {
+      database.close();
+      reject(transaction.error ?? new Error('Could not clear local model data.'));
+    };
+  });
 }
 
 export async function saveLocalModel(record: LocalModelRecord): Promise<void> {
@@ -410,7 +463,7 @@ export async function createUploadedModel(input: {
   project: OpenScadProject;
   assets?: readonly ScadFolderAssetInput[];
 }): Promise<LocalModelRecord> {
-  const id = `upload:${crypto.randomUUID()}`;
+  const id = `upload:${createUuid()}`;
   const assetBlobs: Record<string, Blob> = {};
   const descriptors: OpenScadProjectAsset[] = [];
   let totalAssetBytes = 0;

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { createUuid } from '@/lib/uuid';
 import {
   boundedScadCompileError,
   isBlockingScadCompileError,
@@ -59,7 +60,7 @@ function assetStoragePath(input: {
   const dot = input.projectPath.lastIndexOf('.');
   const slash = input.projectPath.lastIndexOf('/');
   const extension = dot > slash ? input.projectPath.slice(dot).toLowerCase() : '';
-  return `${input.userId}/${input.conversationId}/openscad-assets/${crypto.randomUUID()}${extension}`;
+  return `${input.userId}/${input.conversationId}/openscad-assets/${createUuid()}${extension}`;
 }
 
 async function removeUploadedAssets(paths: readonly string[]): Promise<void> {
@@ -149,7 +150,7 @@ export async function createImportedScadProject(
     );
   }
 
-  const conversationId = crypto.randomUUID();
+  const conversationId = createUuid();
   let uploadedStoragePaths: string[] = [];
 
   try {

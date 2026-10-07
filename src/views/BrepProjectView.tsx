@@ -21,6 +21,7 @@ import {
   type ChatMessage,
 } from '@/lib/aiMessages';
 import { UNCONFIGURED_MODEL_ID } from '@/lib/defaultModels';
+import { createUuid } from '@/lib/uuid';
 import { normalizeModelId } from '@shared/models';
 import { supabase } from '@/lib/supabase';
 import {
@@ -415,7 +416,7 @@ function BrepProjectWorkspace() {
 
   const handleRestore = useCallback(
     async (assistant: ChatMessage) => {
-      const newId = crypto.randomUUID();
+      const newId = createUuid();
       const parts = JSON.parse(JSON.stringify(assistant.parts));
       const metadata = JSON.parse(JSON.stringify(assistant.metadata ?? {}));
       const role: Message['role'] = 'assistant';

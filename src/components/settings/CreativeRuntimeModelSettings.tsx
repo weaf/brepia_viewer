@@ -29,6 +29,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { CREATIVE_MODELS, cn } from '@/lib/utils';
+import { createUuid } from '@/lib/uuid';
 import { apiJson } from '@/services/api';
 import {
   getAiPreferences,
@@ -439,7 +440,7 @@ export function CreativeRuntimeModelSettings() {
   };
 
   const newProfile = (name: string): LocalCreativeProfile => ({
-    id: crypto.randomUUID(),
+    id: createUuid(),
     name,
     adapter: 'native-image-mesh-v1',
     imageModelId: null,

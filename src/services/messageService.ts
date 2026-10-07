@@ -1,6 +1,7 @@
 import { useConversation } from '@/contexts/ConversationContext';
 import { isTerminalAssistantMessage } from '@/hooks/chatCompletionReconciliation';
 import { supabase } from '@/lib/supabase';
+import { createUuid } from '@/lib/uuid';
 import type { AppUIMessage } from '@shared/chatAi';
 import type { Conversation, Message } from '@shared/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -89,7 +90,7 @@ export async function persistUserMessage({
   metadata: AppUIMessage['metadata'];
   parentMessageId: string | null;
 }): Promise<string> {
-  const id = crypto.randomUUID();
+  const id = createUuid();
   const { error } = await supabase.from('messages').insert({
     id,
     conversation_id: conversationId,
@@ -320,7 +321,7 @@ export function useRestoreMessageMutation({
         'role' | 'parts' | 'metadata' | 'parent_message_id'
       >;
     }) => {
-      const newId = crypto.randomUUID();
+      const newId = createUuid();
       const { error } = await supabase.from('messages').insert({
         id: newId,
         conversation_id: conversation.id,

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { createUuid } from '@/lib/uuid';
 import type { ParametricArtifact } from '@shared/types';
 import type { ImportedArtifactOrigin } from '@shared/chatAi';
 import {
@@ -23,9 +24,9 @@ export async function persistImportedArtifact({
   origin: ImportedArtifactOrigin;
   baseline: ImportedArtifactBaseline;
 }): Promise<PersistImportedArtifactResult> {
-  const userMessageId = crypto.randomUUID();
-  const assistantMessageId = crypto.randomUUID();
-  const toolCallId = `tool_import_${crypto.randomUUID()}`;
+  const userMessageId = createUuid();
+  const assistantMessageId = createUuid();
+  const toolCallId = `tool_import_${createUuid()}`;
 
   const rows = buildImportedArtifactMessages({
     conversationId,

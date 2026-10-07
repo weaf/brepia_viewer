@@ -72,6 +72,7 @@ import {
   readPromptDraft,
   writePromptDraft,
 } from '@/lib/promptDraft';
+import { createUuid } from '@/lib/uuid';
 
 interface TextAreaChatProps {
   type: 'parametric' | 'creative';
@@ -1076,7 +1077,7 @@ function TextAreaChat({
     }
 
     filteredMeshes.forEach(async (file) => {
-      const tempId = crypto.randomUUID();
+      const tempId = createUuid();
       const fileType = getMeshFileType(file.name);
       setMesh({ id: tempId, isUploading: true, source: 'upload', fileType });
       try {
@@ -1092,7 +1093,7 @@ function TextAreaChat({
           // Generate multi-angle renders and upload as images
           const renders = await renderMultipleAngles(geometry, boundingBox);
           for (const renderBlob of renders) {
-            const renderId = crypto.randomUUID();
+            const renderId = createUuid();
             const renderFile = new File(
               [renderBlob],
               `render-${renderId}.png`,
@@ -1147,7 +1148,7 @@ function TextAreaChat({
 
     // Upload each valid image immediately
     filteredImages.forEach(async (file) => {
-      const tempId = crypto.randomUUID();
+      const tempId = createUuid();
       const url = URL.createObjectURL(file);
       setImages((prevImages) => [
         ...prevImages,

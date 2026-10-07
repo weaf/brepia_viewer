@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { createUuid } from '@/lib/uuid';
 import {
   buildBrepProjectBaselineMessages,
   createBrepProjectArtifact,
@@ -26,7 +27,7 @@ export async function createBrepProjectConversation({
   project: BrepProject;
   projectOrigin?: ProjectOrigin;
 }): Promise<string> {
-  const conversationId = crypto.randomUUID();
+  const conversationId = createUuid();
   const artifact = createBrepProjectArtifact({
     title,
     version: 'v1',
@@ -46,10 +47,10 @@ export async function createBrepProjectConversation({
     });
   if (conversationError) throw conversationError;
 
-  const assistantMessageId = crypto.randomUUID();
+  const assistantMessageId = createUuid();
   const rows = buildBrepProjectBaselineMessages({
     conversationId,
-    userMessageId: crypto.randomUUID(),
+    userMessageId: createUuid(),
     assistantMessageId,
     artifact,
     projectCreation: projectOrigin,
@@ -139,7 +140,7 @@ async function persistNormalizedBrepProjectRevision({
   artifact: BrepProjectArtifactData;
   staleLabel: string;
 }): Promise<{ messageId: string; artifact: BrepProjectArtifactData }> {
-  const messageId = crypto.randomUUID();
+  const messageId = createUuid();
   const { error: messageError } = await supabase.from('messages').insert({
     id: messageId,
     conversation_id: conversationId,
@@ -349,7 +350,7 @@ export async function restoreBrepProjectRevision({
     throw new Error('BRep source revision was not found in this conversation.');
   }
   const restoredArtifact = createBrepProjectArtifact(source.artifact);
-  const restoredMessageId = crypto.randomUUID();
+  const restoredMessageId = createUuid();
   const { error: messageError } = await supabase.from('messages').insert({
     id: restoredMessageId,
     conversation_id: conversationId,

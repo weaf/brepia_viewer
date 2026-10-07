@@ -30,6 +30,7 @@ import { normalizeModelId } from '@shared/models';
 import { replaceOpenScadProjectFileContent } from '@shared/openScadProject';
 import { supabase } from '@/lib/supabase';
 import { updateParameter } from '@/lib/utils';
+import { createUuid } from '@/lib/uuid';
 import {
   persistAssistantParts,
   persistUserMessage,
@@ -327,7 +328,7 @@ function ConversationEditor() {
 
   const handleRestore = useCallback(
     async (assistant: ChatMessage) => {
-      const newId = crypto.randomUUID();
+      const newId = createUuid();
       const parts = JSON.parse(JSON.stringify(assistant.parts));
       const metadata = JSON.parse(JSON.stringify(assistant.metadata ?? {}));
       // Restore only fires for assistants in the UI, so the role is

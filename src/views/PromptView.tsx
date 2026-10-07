@@ -20,6 +20,7 @@ import { conversationTitleFromText } from '@shared/conversationTitle';
 import { MessageItem } from '../types/misc.ts';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { cn } from '@/lib/utils';
+import { createUuid } from '@/lib/uuid';
 import { SelectedItemsContext } from '@/contexts/SelectedItemsContext';
 import posthog from 'posthog-js';
 import * as Sentry from '@sentry/react';
@@ -235,7 +236,7 @@ export function PromptView() {
   };
 
   const [draftConversationId, setDraftConversationId] = useState(() =>
-    crypto.randomUUID(),
+    createUuid(),
   );
   const [homePrompt] = useState(() => pickHomePromptMessage());
 
@@ -451,7 +452,7 @@ export function PromptView() {
 
       const chat = createAndCacheAiChat({
         id: isNativeBrep ? `brep:${conversation.id}` : conversation.id,
-        generateId: () => crypto.randomUUID(),
+        generateId: () => createUuid(),
         messages: [],
         transport: new DefaultChatTransport<AppUIMessage>({
           api: apiUrl(
@@ -571,7 +572,7 @@ export function PromptView() {
     onError: (error) => {
       window.sessionStorage.removeItem(PENDING_BREP_SESSION_KEY);
       setBrepRequestSaved(false);
-      setDraftConversationId(crypto.randomUUID());
+      setDraftConversationId(createUuid());
       Sentry.captureException(error);
       toast({
         title: 'Error',

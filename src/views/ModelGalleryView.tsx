@@ -17,10 +17,13 @@ import {
   BUILT_IN_MODELS_REPOSITORY,
   BUILT_IN_MODELS_REFRESH_INTERVAL_MS,
   builtInModelRecordId,
+  clearLocalModelData,
   createUploadedModel,
   getBuiltInCatalog,
+  getLastOpenedLocalModel,
   getLocalModels,
   getStoredModel,
+  setLastOpenedLocalModel,
   loadBuiltInProject,
   removeUploadedModel,
   saveBuiltInWorkingCopy,
@@ -78,6 +81,26 @@ export function ModelGalleryView() {
 
   const refreshLocalModels = useCallback(async () => {
     setLocalModels(await getLocalModels());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getLastOpenedLocalModel()
+      .then((record) => {
+        if (!cancelled && record) setActiveRecord(record);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Could not restore the last local model.',
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const reloadBuiltIns = useCallback(async (force = false) => {
@@ -149,6 +172,7 @@ export function ModelGalleryView() {
       }
       if (!record) throw new Error('Could not create a local copy of this model.');
       setActiveRecord(record);
+      void setLastOpenedLocalModel(record.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not open the built-in model.';
       setErrorMessage(message);
@@ -161,14 +185,48 @@ export function ModelGalleryView() {
   const openUploadedModel = (record: LocalModelRecord) => {
     setErrorMessage(null);
     setActiveRecord(record);
+    void setLastOpenedLocalModel(record.id);
   };
 
   const persistRecord = async (next: LocalModelRecord) => {
-    setActiveRecord(next);
     const saved = { ...next, updatedAt: new Date().toISOString() };
     await saveLocalModel(saved);
+    await setLastOpenedLocalModel(saved.id);
     setActiveRecord(saved);
     if (next.origin === 'upload') await refreshLocalModels();
+  };
+
+  const saveActiveRecord = async () => {
+    if (!activeRecord) return;
+    try {
+      const saved = { ...activeRecord, updatedAt: new Date().toISOString() };
+      await saveLocalModel(saved);
+      await setLastOpenedLocalModel(saved.id);
+      setActiveRecord(saved);
+      if (saved.origin === 'upload') await refreshLocalModels();
+      toast({ title: 'Sparat lokalt', description: `${saved.name} och dess filer finns kvar i den här webbläsaren.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kunde inte spara lokalt.';
+      setErrorMessage(message);
+      toast({ title: 'Kunde inte spara', description: message, variant: 'destructive' });
+    }
+  };
+
+  const clearViewerData = async () => {
+    if (!window.confirm('Rensa alla lokalt sparade modeller, uppladdade filer och ändringar i den här webbläsaren?')) return;
+    try {
+      await clearLocalModelData();
+      setActiveRecord(null);
+      setLocalModels([]);
+      setBuiltIns([]);
+      setBuiltInsUpdatedAt(null);
+      setErrorMessage(null);
+      toast({ title: 'Lokal data rensad', description: 'Sparade modeller, filer och ändringar har tagits bort från den här webbläsaren.' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kunde inte rensa lokal data.';
+      setErrorMessage(message);
+      toast({ title: 'Kunde inte rensa lokal data', description: message, variant: 'destructive' });
+    }
   };
 
   const saveProjectFile = async (path: string, content: string) => {
@@ -308,9 +366,17 @@ export function ModelGalleryView() {
               <p className="truncate font-mono text-[10px] text-adam-neutral-400">{activeRecord.project.entrypointPath}</p>
             </div>
           </div>
-          <span className="hidden items-center gap-1.5 text-[11px] text-adam-neutral-400 sm:flex">
-            <Check className="h-3.5 w-3.5 text-emerald-400" /> Changes saved in this browser
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="hidden items-center gap-1.5 text-[11px] text-adam-neutral-400 sm:flex">
+              <Check className="h-3.5 w-3.5 text-emerald-400" /> Sparas lokalt
+            </span>
+            <Button type="button" size="sm" onClick={() => void saveActiveRecord()} className="gap-2">
+              <Check className="h-4 w-4" /> Spara
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void clearViewerData()} className="gap-2 text-adam-neutral-300">
+              <Trash2 className="h-4 w-4" /> Rensa lokalt
+            </Button>
+          </div>
         </header>
 
         {errorMessage && (
@@ -368,6 +434,9 @@ export function ModelGalleryView() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void clearViewerData()} disabled={isLoadingGallery} className="gap-2 border-adam-neutral-700">
+              <Trash2 className="h-4 w-4" /> Rensa lokal data
+            </Button>
             <input
               ref={fileInputRef}
               type="file"

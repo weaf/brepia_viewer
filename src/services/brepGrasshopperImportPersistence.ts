@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { createUuid } from '@/lib/uuid';
 import {
   createBrepProjectArtifact,
   withBrepProjectParameterValues,
@@ -46,7 +47,7 @@ export async function persistBrepGrasshopperImportedRevision({
     artifact,
     parameterValues,
   );
-  const messageId = crypto.randomUUID();
+  const messageId = createUuid();
   const { error } = await supabase.from('messages').insert({
     id: messageId,
     conversation_id: conversationId,
