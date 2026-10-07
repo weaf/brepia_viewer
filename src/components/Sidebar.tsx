@@ -207,7 +207,7 @@ function DesktopSidebar({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
         >
           <button
             type="button"
-            aria-label="Brepia home"
+            aria-label="Brepia-viewer home"
             className="flex w-full cursor-pointer items-center space-x-2"
             onClick={() => sidebarNavigate('/app')}
           >
@@ -220,7 +220,7 @@ function DesktopSidebar({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
                 />
               </div>
             ) : (
-              <BrepiaMark title="Brepia" className="h-8 w-8 min-w-8" />
+              <BrepiaMark title="Brepia-viewer" className="h-8 w-8 min-w-8" />
             )}
           </button>
         </ConditionalWrapper>
@@ -591,7 +591,7 @@ function MobileSidebar({
       <SheetContent side="left" className="bg-adam-bg-dark p-0">
         {/* For aria stuff */}
         <SheetHeader className="hidden">
-          <SheetTitle className="text-adam-text-primary">Brepia</SheetTitle>
+          <SheetTitle className="text-adam-text-primary">Brepia-viewer</SheetTitle>
           <SheetDescription>AI-assisted parametric 3D design</SheetDescription>
         </SheetHeader>
         <DesktopSidebar isSidebarOpen={true} setIsSidebarOpen={setOpen} />

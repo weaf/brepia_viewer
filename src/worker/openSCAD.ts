@@ -510,7 +510,7 @@ class OpenSCADWrapper {
       exitCode = instance.callMain(args);
     } catch (error) {
       throw new OpenSCADError(
-        'Adam exited with an error' +
+        'Brepia exited with an error' +
           (error instanceof Error ? ': ' + error.message : ''),
         entrypoint.content,
         this.log.stdErr,
@@ -522,9 +522,9 @@ class OpenSCADWrapper {
         output = instance.FS.readFile(outputFile, { encoding: 'binary' });
       } catch (error) {
         if (error instanceof Error) {
-          throw new Error('Adam cannot read created file: ' + error.message);
+          throw new Error('Brepia cannot read created file: ' + error.message);
         } else {
-          throw new Error('Adam cannot read created file');
+          throw new Error('Brepia cannot read created file');
         }
       }
 
@@ -537,7 +537,7 @@ class OpenSCADWrapper {
       }
     } else {
       throw new OpenSCADError(
-        'Adam did not exit correctly',
+        'Brepia did not exit correctly',
         entrypoint.content,
         this.log.stdErr,
       );

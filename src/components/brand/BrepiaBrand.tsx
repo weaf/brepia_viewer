@@ -27,7 +27,7 @@ export function BrepiaBrand({
             wordmarkClassName,
           )}
         >
-          Brepia
+          Brepia-viewer
         </span>
         {showByNoty && (
           <span className="mt-1 whitespace-nowrap text-[10px] font-medium tracking-[0.16em] text-adam-text-tertiary">

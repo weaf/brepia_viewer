@@ -1,6 +1,6 @@
 {
-  "name": "Brepia",
-  "short_name": "Brepia",
+  "name": "Brepia-viewer",
+  "short_name": "Brepia-viewer",
   "description": "AI-assisted parametric 3D design",
   "start_url": ".",
   "scope": ".",

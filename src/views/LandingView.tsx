@@ -38,7 +38,7 @@ export function LandingView() {
 
   if (isLoading || user) {
     return (
-      <div className="landing-loading" aria-label="Loading Brepia">
+      <div className="landing-loading" aria-label="Loading Brepia-viewer">
         <BrepiaBrand showByNoty />
       </div>
     );
@@ -47,7 +47,7 @@ export function LandingView() {
   return (
     <div className="landing-shell">
       <header className="landing-nav">
-        <Link to="/" aria-label="Brepia home" className="landing-nav-brand">
+        <Link to="/" aria-label="Brepia-viewer home" className="landing-nav-brand">
           <BrepiaBrand showByNoty wordmarkClassName="landing-wordmark" />
         </Link>
         <nav aria-label="Public navigation" className="landing-nav-links">
@@ -61,7 +61,7 @@ export function LandingView() {
         <Link
           to="/signin"
           className="landing-mobile-signin"
-          aria-label="Open Brepia"
+          aria-label="Open Brepia-viewer"
         >
           <Menu aria-hidden="true" size={20} />
         </Link>
@@ -77,7 +77,7 @@ export function LandingView() {
               Make the shape <em>before</em> you make the file.
             </h1>
             <p className="landing-hero-lede">
-              Brepia is a focused workspace for turning product ideas into
+              Brepia-viewer is a focused workspace for turning product ideas into
               editable 3D geometry. Start with intent, then refine the model
               with tools that keep the result yours.
             </p>
@@ -95,7 +95,7 @@ export function LandingView() {
           </div>
           <div
             className="landing-hero-visual"
-            aria-label="Brepia model preview"
+            aria-label="Brepia-viewer model preview"
           >
             <div className="landing-orbit landing-orbit--one" />
             <div className="landing-orbit landing-orbit--two" />
@@ -188,7 +188,7 @@ export function LandingView() {
             <h2 id="cta-title">Bring a useful idea.</h2>
           </div>
           <Link to="/signin" className="landing-primary-action">
-            Open Brepia <ArrowRight aria-hidden="true" size={18} />
+            Open Brepia-viewer <ArrowRight aria-hidden="true" size={18} />
           </Link>
         </section>
       </main>

@@ -37,9 +37,9 @@ const appearanceBootstrapScript = `
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      { title: 'Brepia' },
+      { title: 'Brepia-viewer' },
       { name: 'theme-color', content: '#191A1A' },
-      { name: 'description', content: 'Bläddra bland, visa och redigera parametriska OpenSCAD-modeller utan inloggning.' },
+      { name: 'description', content: 'Browse, view, and edit parametric OpenSCAD models without signing in.' },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
@@ -64,7 +64,7 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="sv" className="dark" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta charSet="UTF-8" />
         <meta

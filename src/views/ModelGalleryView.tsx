@@ -13,8 +13,8 @@ import {
   type ScadFolderAssetInput,
 } from '@/lib/scadImport';
 import { updateParameter } from '@/lib/utils';
+import { getModelRepositories, modelRepositoryUrl } from '@/lib/modelRepositories';
 import {
-  BUILT_IN_MODELS_REPOSITORY,
   BUILT_IN_MODELS_REFRESH_INTERVAL_MS,
   builtInModelRecordId,
   clearLocalModelData,
@@ -150,7 +150,7 @@ export function ModelGalleryView() {
     setIsOpeningModel(true);
     setErrorMessage(null);
     try {
-      const id = builtInModelRecordId(entry.path);
+      const id = builtInModelRecordId(entry.path, entry.repositoryId);
       const saved = await getStoredModel(id);
       let record = saved;
       if (!saved || saved.origin !== 'built-in' || saved.sourceSha !== entry.sha) {
@@ -204,16 +204,16 @@ export function ModelGalleryView() {
       await setLastOpenedLocalModel(saved.id);
       setActiveRecord(saved);
       if (saved.origin === 'upload') await refreshLocalModels();
-      toast({ title: 'Sparat lokalt', description: `${saved.name} och dess filer finns kvar i den här webbläsaren.` });
+      toast({ title: 'Saved locally', description: `${saved.name} and its files are now stored in this browser.` });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Kunde inte spara lokalt.';
+      const message = error instanceof Error ? error.message : 'Could not save locally.';
       setErrorMessage(message);
-      toast({ title: 'Kunde inte spara', description: message, variant: 'destructive' });
+      toast({ title: 'Could not save', description: message, variant: 'destructive' });
     }
   };
 
   const clearViewerData = async () => {
-    if (!window.confirm('Rensa alla lokalt sparade modeller, uppladdade filer och ändringar i den här webbläsaren?')) return;
+    if (!window.confirm('Clear all locally saved models, uploaded files, and changes from this browser?')) return;
     try {
       await clearLocalModelData();
       setActiveRecord(null);
@@ -221,11 +221,11 @@ export function ModelGalleryView() {
       setBuiltIns([]);
       setBuiltInsUpdatedAt(null);
       setErrorMessage(null);
-      toast({ title: 'Lokal data rensad', description: 'Sparade modeller, filer och ändringar har tagits bort från den här webbläsaren.' });
+      toast({ title: 'Local data cleared', description: 'Saved models, files, and changes have been removed from this browser.' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Kunde inte rensa lokal data.';
+      const message = error instanceof Error ? error.message : 'Could not clear local data.';
       setErrorMessage(message);
-      toast({ title: 'Kunde inte rensa lokal data', description: message, variant: 'destructive' });
+      toast({ title: 'Could not clear local data', description: message, variant: 'destructive' });
     }
   };
 
@@ -368,13 +368,13 @@ export function ModelGalleryView() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="hidden items-center gap-1.5 text-[11px] text-adam-neutral-400 sm:flex">
-              <Check className="h-3.5 w-3.5 text-emerald-400" /> Sparas lokalt
+              <Check className="h-3.5 w-3.5 text-emerald-400" /> Saved locally
             </span>
             <Button type="button" size="sm" onClick={() => void saveActiveRecord()} className="gap-2">
-              <Check className="h-4 w-4" /> Spara
+              <Check className="h-4 w-4" /> Save
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => void clearViewerData()} className="gap-2 text-adam-neutral-300">
-              <Trash2 className="h-4 w-4" /> Rensa lokalt
+              <Trash2 className="h-4 w-4" /> Clear local data
             </Button>
           </div>
         </header>
@@ -427,15 +427,15 @@ export function ModelGalleryView() {
       <section className="mx-auto w-full max-w-[1440px] px-4 pb-16 pt-7 sm:px-8 sm:pt-10">
         <header className="flex flex-col justify-between gap-6 border-b border-adam-neutral-700 pb-7 sm:flex-row sm:items-end">
           <div className="max-w-2xl">
-            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-adam-neutral-400">Brepia / model library</p>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Modellgalleri</h1>
+            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-adam-neutral-400">Brepia-viewer / model library</p>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Model gallery</h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-adam-neutral-400">
-              Visa och redigera OpenSCAD-modeller direkt i webbläsaren. Inloggning behövs inte; uppladdade modeller sparas lokalt på den här enheten.
+              View and edit OpenSCAD models directly in your browser. No sign-in required; uploaded models are saved locally on this device.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" onClick={() => void clearViewerData()} disabled={isLoadingGallery} className="gap-2 border-adam-neutral-700">
-              <Trash2 className="h-4 w-4" /> Rensa lokal data
+              <Trash2 className="h-4 w-4" /> Clear local data
             </Button>
             <input
               ref={fileInputRef}
@@ -481,15 +481,15 @@ export function ModelGalleryView() {
         {pendingFolder && (
           <section className="mt-5 flex flex-col gap-3 rounded-lg border border-adam-neutral-700 bg-adam-background-1 p-4 sm:flex-row sm:items-end sm:justify-between" aria-label="Choose OpenSCAD entrypoint">
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold">Välj projektets startfil</h2>
-              <p className="mt-1 text-xs text-adam-neutral-400">Mappen innehåller flera möjliga modeller. Välj vilken .scad-fil som ska visas.</p>
+              <h2 className="text-sm font-semibold">Choose the project entrypoint</h2>
+              <p className="mt-1 text-xs text-adam-neutral-400">This folder contains multiple possible models. Choose which .scad file to preview.</p>
               <select value={folderEntrypoint} onChange={(event) => setFolderEntrypoint(event.target.value)} className="mt-3 w-full rounded-md border border-adam-neutral-700 bg-adam-bg-dark px-3 py-2 text-xs sm:w-96">
                 {pendingFolder.entrypointCandidates.map((path) => <option key={path} value={path}>{path}</option>)}
               </select>
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={() => { setPendingFolder(null); setFolderEntrypoint(''); }}>Avbryt</Button>
-              <Button type="button" onClick={() => void finishFolderUpload()} disabled={isUploading || !folderEntrypoint}>{isUploading ? 'Sparar…' : 'Ladda upp projekt'}</Button>
+              <Button type="button" variant="ghost" onClick={() => { setPendingFolder(null); setFolderEntrypoint(''); }}>Cancel</Button>
+              <Button type="button" onClick={() => void finishFolderUpload()} disabled={isUploading || !folderEntrypoint}>{isUploading ? 'Saving…' : 'Upload project'}</Button>
             </div>
           </section>
         )}
@@ -497,13 +497,13 @@ export function ModelGalleryView() {
         <div className="mt-6 flex flex-col gap-3 border-b border-adam-neutral-700 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <label className="relative block w-full sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-adam-neutral-400" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök modeller eller kategorier" className="h-10 border-adam-neutral-700 bg-adam-background-1 pl-9 text-sm" aria-label="Search models" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search models or categories" className="h-10 border-adam-neutral-700 bg-adam-background-1 pl-9 text-sm" aria-label="Search models" />
           </label>
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-adam-neutral-400">
             {builtInsUpdatedAt !== null && (
               <span className="inline-flex items-center gap-1.5" title={isBuiltInCache ? 'Visar cachelagrad katalog' : undefined}>
                 <Clock3 className="h-3.5 w-3.5" />
-                {isBuiltInCache ? 'Katalogens senaste uppdatering' : 'Modeller hämtade'}: {refreshTime(builtInsUpdatedAt)}
+                {isBuiltInCache ? 'Catalog last updated' : 'Models fetched'}: {refreshTime(builtInsUpdatedAt)}
               </span>
             )}
             <Button type="button" variant="ghost" size="sm" onClick={() => void reloadBuiltIns(true)} disabled={isReloading} className="h-8 gap-2 px-2 text-xs text-adam-neutral-300">
@@ -520,8 +520,8 @@ export function ModelGalleryView() {
             {filteredUploads.length > 0 && (
               <section className="mt-7" aria-labelledby="uploads-title">
                 <div className="mb-3 flex items-baseline justify-between gap-3">
-                  <h2 id="uploads-title" className="text-sm font-semibold">Uppladdade modeller <span className="ml-1 font-mono text-xs text-adam-neutral-400">{filteredUploads.length}</span></h2>
-                  <span className="text-[10px] text-adam-neutral-500">Sparade i den här webbläsaren</span>
+                  <h2 id="uploads-title" className="text-sm font-semibold">Uploaded models <span className="ml-1 font-mono text-xs text-adam-neutral-400">{filteredUploads.length}</span></h2>
+                  <span className="text-[10px] text-adam-neutral-500">Saved in this browser</span>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {filteredUploads.map((record) => (
@@ -529,7 +529,7 @@ export function ModelGalleryView() {
                       <button type="button" onClick={() => openUploadedModel(record)} className="absolute inset-0 z-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue" aria-label={`Open ${record.name}`} />
                       <div className="relative z-[1] flex items-start justify-between gap-3 pointer-events-none">
                         <div className="flex min-w-0 gap-3"><Box className="mt-0.5 h-4 w-4 shrink-0 text-adam-neutral-300" /><div className="min-w-0"><h3 className="truncate text-sm font-medium">{record.name}</h3><p className="mt-1 truncate font-mono text-[10px] text-adam-neutral-500">{record.project.entrypointPath}</p></div></div>
-                        <button type="button" className="pointer-events-auto relative z-20 -mr-2 -mt-2 rounded p-2 text-adam-neutral-400 transition-colors hover:bg-red-950/50 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400" aria-label={`Remove ${record.name}`} title="Poista ladattu malli" onClick={() => void deleteUpload(record)}><Trash2 className="h-4 w-4" /></button>
+                        <button type="button" className="pointer-events-auto relative z-20 -mr-2 -mt-2 rounded p-2 text-adam-neutral-400 transition-colors hover:bg-red-950/50 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400" aria-label={`Remove ${record.name}`} title="Remove uploaded model" onClick={() => void deleteUpload(record)}><Trash2 className="h-4 w-4" /></button>
                       </div>
                       <div className="relative z-[1] mt-5 flex items-center justify-between text-[10px] text-adam-neutral-500 pointer-events-none"><span>{record.project.files.length} source {record.project.files.length === 1 ? 'file' : 'files'}{record.project.assets?.length ? ` · ${record.project.assets.length} assets` : ''}</span><span className="inline-flex items-center gap-1"><Code2 className="h-3 w-3" /> Open editor</span></div>
                     </article>
@@ -540,8 +540,20 @@ export function ModelGalleryView() {
 
             <section className="mt-8" aria-labelledby="builtins-title">
               <div className="mb-3 flex items-baseline justify-between gap-3">
-                <h2 id="builtins-title" className="text-sm font-semibold">Inbyggda modeller <span className="ml-1 font-mono text-xs text-adam-neutral-400">{filteredBuiltIns.length}</span></h2>
-                <a href={BUILT_IN_MODELS_REPOSITORY} target="_blank" rel="noreferrer" className="text-[10px] text-adam-neutral-400 underline decoration-adam-neutral-600 underline-offset-4 hover:text-adam-text-primary">GitHub-källa</a>
+                <h2 id="builtins-title" className="text-sm font-semibold">Built-in models <span className="ml-1 font-mono text-xs text-adam-neutral-400">{filteredBuiltIns.length}</span></h2>
+                <div className="flex flex-wrap gap-3 text-[10px]">
+                  {getModelRepositories().map((repository) => (
+                    <a
+                      key={repository.id}
+                      href={modelRepositoryUrl(repository)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-adam-neutral-400 underline decoration-adam-neutral-600 underline-offset-4 hover:text-adam-text-primary"
+                    >
+                      {repository.label} · GitHub
+                    </a>
+                  ))}
+                </div>
               </div>
               {filteredBuiltIns.length ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -559,14 +571,28 @@ export function ModelGalleryView() {
               ) : (
                 <div className="flex min-h-48 flex-col items-center justify-center border border-dashed border-adam-neutral-700 px-6 text-center">
                   <Box className="h-6 w-6 text-adam-neutral-500" />
-                  <p className="mt-3 text-sm text-adam-neutral-300">{builtIns.length ? 'Inga modeller matchar sökningen.' : 'Inga inbyggda OpenSCAD-modeller hittades.'}</p>
-                  {builtIns.length === 0 && <a className="mt-2 text-xs text-adam-neutral-400 underline underline-offset-4" href={BUILT_IN_MODELS_REPOSITORY} target="_blank" rel="noreferrer">Öppna modellkällan på GitHub</a>}
+                  <p className="mt-3 text-sm text-adam-neutral-300">{builtIns.length ? 'No models match your search.' : 'No built-in OpenSCAD models found.'}</p>
+                  {builtIns.length === 0 && (
+                    <div className="mt-2 flex flex-wrap justify-center gap-3">
+                      {getModelRepositories().map((repository) => (
+                        <a
+                          key={repository.id}
+                          className="text-xs text-adam-neutral-400 underline underline-offset-4"
+                          href={modelRepositoryUrl(repository)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open {repository.label} on GitHub
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
 
             {!filteredUploads.length && !search && (
-              <p className="mt-8 text-center text-xs text-adam-neutral-500">Ladda upp en .scad-fil eller en hel OpenSCAD-projektmapp för att lägga till en egen modell.</p>
+              <p className="mt-8 text-center text-xs text-adam-neutral-500">Upload a .scad file or an entire OpenSCAD project folder to add your own model.</p>
             )}
           </>
         )}

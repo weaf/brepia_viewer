@@ -14,9 +14,9 @@ type ProfileUpdate = Database['public']['Tables']['profiles']['Update'] & {
   avatar_preset?: AvatarPresetId | null;
 };
 
-// Under SSO the display name is owned by the identity provider (Adam): the live
+// Under SSO the display name is owned by the identity provider: the live
 // `name` claim from ssoClaims (GoTrue refreshes it every sign-in). NOT the
-// `full_name` claim — Adam's identity_data carries a stale full_name while
+// `full_name` claim — the identity_data carries a stale full_name while
 // `name` is current. undefined off-SSO → the local profiles mirror wins.
 function ssoDisplayName(user: User | null): string | undefined {
   return ssoClaims(user)?.name || undefined;
