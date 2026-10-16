@@ -804,8 +804,8 @@ export function ModelGalleryView() {
   if (activeRecord) {
     return (
       <main className="flex h-full min-h-0 flex-col bg-[#191a1a] text-adam-text-primary">
-        <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-adam-neutral-700 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+        <header className="flex min-h-16 shrink-0 flex-col items-stretch gap-3 border-b border-adam-neutral-700 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
+          <div className="flex min-w-0 items-center gap-3 sm:flex-1">
             <Button
               type="button"
               variant="ghost"
