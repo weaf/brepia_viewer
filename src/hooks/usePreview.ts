@@ -26,7 +26,7 @@ export function usePreview({
   const userId = userIdProp ?? user?.id;
 
   return useQuery({
-    queryKey: ['preview', conversationId, id],
+    queryKey: ['preview', conversationId, id, userId ?? null],
     queryFn: async () => {
       if (!userId || !id) throw new Error('usePreview: missing userId or id');
       const storagePath = `${userId}/${conversationId}/preview-${id}`;

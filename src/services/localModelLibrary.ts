@@ -9,17 +9,17 @@ import {
   openScadProjectAssetMediaTypeForPath,
   type OpenScadProject,
   type OpenScadProjectAsset,
-} from '@shared/openScadProject';
+} from "@shared/openScadProject";
 import {
   collectOpenScadProjectAssetReferences,
   collectOpenScadProjectSourceReferences,
   resolveOpenScadProjectReference,
   validateOpenScadProjectAssetReferences,
   validateOpenScadProjectSourceReferences,
-} from '@shared/openScadProjectReferences';
-import { OPENSCAD_MAX_SOURCE_BYTES } from '@/lib/openScadLimits';
-import { createUuid } from '@/lib/uuid';
-import type { ScadFolderAssetInput } from '@/lib/scadImport';
+} from "@shared/openScadProjectReferences";
+import { OPENSCAD_MAX_SOURCE_BYTES } from "@/lib/openScadLimits";
+import { createUuid } from "@/lib/uuid";
+import type { ScadFolderAssetInput } from "@/lib/scadImport";
 import {
   getModelRepositories,
   getModelRepository,
@@ -28,18 +28,18 @@ import {
   modelRepositoryRawUrl,
   modelRepositoryTreeUrl,
   type ModelRepositoryConfig,
-} from '@/lib/modelRepositories';
+} from "@/lib/modelRepositories";
 
 export const BUILT_IN_MODELS_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-const DEFAULT_REPOSITORY_ID = 'parametric-designs';
-const DEFAULT_CATALOG_KEY = 'built-in-model-catalog';
-const DATABASE_NAME = 'brepia-local-models';
+const DEFAULT_REPOSITORY_ID = "parametric-designs";
+const DEFAULT_CATALOG_KEY = "built-in-model-catalog";
+const DATABASE_NAME = "brepia-local-models";
 const DATABASE_VERSION = 1;
-const MODEL_STORE = 'models';
-const CACHE_STORE = 'cache';
-const LAST_OPENED_MODEL_KEY = 'last-opened-local-model';
-const BUNDLED_LIBRARY_ROOTS = new Set(['BOSL', 'BOSL2', 'MCAD']);
+const MODEL_STORE = "models";
+const CACHE_STORE = "cache";
+const LAST_OPENED_MODEL_KEY = "last-opened-local-model";
+const BUNDLED_LIBRARY_ROOTS = new Set(["BOSL", "BOSL2", "MCAD"]);
 
 export type BuiltInModel = {
   repositoryId: string;
@@ -54,7 +54,7 @@ export type BuiltInModel = {
 export type LocalModelRecord = {
   id: string;
   name: string;
-  origin: 'upload' | 'built-in';
+  origin: "upload" | "built-in";
   project: OpenScadProject;
   assetBlobs: Record<string, Blob>;
   updatedAt: string;
@@ -71,9 +71,9 @@ type CatalogCache = {
 };
 
 function openDatabase(): Promise<IDBDatabase> {
-  if (typeof indexedDB === 'undefined') {
+  if (typeof indexedDB === "undefined") {
     return Promise.reject(
-      new Error('This browser does not support local model storage.'),
+      new Error("This browser does not support local model storage."),
     );
   }
   return new Promise((resolve, reject) => {
@@ -81,15 +81,15 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(MODEL_STORE)) {
-        database.createObjectStore(MODEL_STORE, { keyPath: 'id' });
+        database.createObjectStore(MODEL_STORE, { keyPath: "id" });
       }
       if (!database.objectStoreNames.contains(CACHE_STORE)) {
-        database.createObjectStore(CACHE_STORE, { keyPath: 'key' });
+        database.createObjectStore(CACHE_STORE, { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () =>
-      reject(request.error ?? new Error('Could not open local model storage.'));
+      reject(request.error ?? new Error("Could not open local model storage."));
   });
 }
 
@@ -106,7 +106,7 @@ async function withStore<T>(
       if (settled) return;
       settled = true;
       database.close();
-      reject(error ?? new Error('Local model storage transaction failed.'));
+      reject(error ?? new Error("Local model storage transaction failed."));
     };
 
     let transaction: IDBTransaction;
@@ -117,7 +117,7 @@ async function withStore<T>(
         result = request.result;
       };
       request.onerror = () => {
-        fail(request.error ?? new Error('Local model storage failed.'));
+        fail(request.error ?? new Error("Local model storage failed."));
       };
     } catch (error) {
       database.close();
@@ -137,32 +137,61 @@ async function withStore<T>(
 }
 
 export async function getLocalModels(): Promise<LocalModelRecord[]> {
-  const records = await withStore(MODEL_STORE, 'readonly', (store) =>
+  const records = await withStore(MODEL_STORE, "readonly", (store) =>
     store.getAll(),
   );
   return (records as LocalModelRecord[])
-    .filter((record) => record.origin === 'upload')
+    .filter((record) => record.origin === "upload")
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
 export async function getStoredModel(
   id: string,
 ): Promise<LocalModelRecord | undefined> {
-  return (await withStore(MODEL_STORE, 'readonly', (store) =>
+  return (await withStore(MODEL_STORE, "readonly", (store) =>
     store.get(id),
   )) as LocalModelRecord | undefined;
 }
 
-export async function getLastOpenedLocalModel(): Promise<LocalModelRecord | undefined> {
-  const saved = (await withStore(CACHE_STORE, 'readonly', (store) =>
+export async function getCachedModelThumbnail(
+  modelId: string,
+  revision: string,
+): Promise<Blob | undefined> {
+  const cached = (await withStore(CACHE_STORE, "readonly", (store) =>
+    store.get(`model-thumbnail:${modelId}`),
+  )) as { revision?: unknown; blob?: unknown } | undefined;
+  return cached?.revision === revision && cached.blob instanceof Blob
+    ? cached.blob
+    : undefined;
+}
+
+export async function saveCachedModelThumbnail(
+  modelId: string,
+  revision: string,
+  blob: Blob,
+): Promise<void> {
+  await withStore(CACHE_STORE, "readwrite", (store) =>
+    store.put({
+      key: `model-thumbnail:${modelId}`,
+      revision,
+      blob,
+      updatedAt: Date.now(),
+    }),
+  );
+}
+
+export async function getLastOpenedLocalModel(): Promise<
+  LocalModelRecord | undefined
+> {
+  const saved = (await withStore(CACHE_STORE, "readonly", (store) =>
     store.get(LAST_OPENED_MODEL_KEY),
   )) as { key: string; modelId?: unknown } | undefined;
-  if (typeof saved?.modelId === 'string') {
+  if (typeof saved?.modelId === "string") {
     const record = await getStoredModel(saved.modelId);
     if (record) return record;
   }
 
-  const records = (await withStore(MODEL_STORE, 'readonly', (store) =>
+  const records = (await withStore(MODEL_STORE, "readonly", (store) =>
     store.getAll(),
   )) as LocalModelRecord[];
   return records.sort((left, right) =>
@@ -171,7 +200,7 @@ export async function getLastOpenedLocalModel(): Promise<LocalModelRecord | unde
 }
 
 export async function setLastOpenedLocalModel(id: string): Promise<void> {
-  await withStore(CACHE_STORE, 'readwrite', (store) =>
+  await withStore(CACHE_STORE, "readwrite", (store) =>
     store.put({ key: LAST_OPENED_MODEL_KEY, modelId: id }),
   );
 }
@@ -181,7 +210,10 @@ export async function clearLocalModelData(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     let transaction: IDBTransaction;
     try {
-      transaction = database.transaction([MODEL_STORE, CACHE_STORE], 'readwrite');
+      transaction = database.transaction(
+        [MODEL_STORE, CACHE_STORE],
+        "readwrite",
+      );
       transaction.objectStore(MODEL_STORE).clear();
       transaction.objectStore(CACHE_STORE).clear();
     } catch (error) {
@@ -195,25 +227,29 @@ export async function clearLocalModelData(): Promise<void> {
     };
     transaction.onerror = () => {
       database.close();
-      reject(transaction.error ?? new Error('Could not clear local model data.'));
+      reject(
+        transaction.error ?? new Error("Could not clear local model data."),
+      );
     };
     transaction.onabort = () => {
       database.close();
-      reject(transaction.error ?? new Error('Could not clear local model data.'));
+      reject(
+        transaction.error ?? new Error("Could not clear local model data."),
+      );
     };
   });
 }
 
 export async function saveLocalModel(record: LocalModelRecord): Promise<void> {
-  await withStore(MODEL_STORE, 'readwrite', (store) => store.put(record));
+  await withStore(MODEL_STORE, "readwrite", (store) => store.put(record));
 }
 
 export async function removeUploadedModel(id: string): Promise<void> {
   const record = await getStoredModel(id);
-  if (!record || record.origin !== 'upload') {
-    throw new Error('Only uploaded models can be removed from this gallery.');
+  if (!record || record.origin !== "upload") {
+    throw new Error("Only uploaded models can be removed from this gallery.");
   }
-  await withStore(MODEL_STORE, 'readwrite', (store) => store.delete(id));
+  await withStore(MODEL_STORE, "readwrite", (store) => store.delete(id));
 }
 
 export async function getBuiltInCatalog(
@@ -221,19 +257,19 @@ export async function getBuiltInCatalog(
 ): Promise<{ models: BuiltInModel[]; updatedAt: number; fromCache: boolean }> {
   const repositories = getModelRepositories();
   if (repositories.length === 0) {
-    throw new Error('No GitHub model repositories are configured.');
+    throw new Error("No GitHub model repositories are configured.");
   }
 
   const results = await Promise.allSettled(
     repositories.map((source) => getRepositoryCatalog(source, forceRefresh)),
   );
   const successful = results.flatMap((result) =>
-    result.status === 'fulfilled' ? [result.value] : [],
+    result.status === "fulfilled" ? [result.value] : [],
   );
   if (successful.length === 0) {
-    const failure = results.find((result) => result.status === 'rejected');
-    if (failure?.status === 'rejected') throw failure.reason;
-    throw new Error('Could not load any configured GitHub model repository.');
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+    throw new Error("Could not load any configured GitHub model repository.");
   }
 
   return {
@@ -251,7 +287,7 @@ async function getRepositoryCatalog(
     source.id === DEFAULT_REPOSITORY_ID
       ? DEFAULT_CATALOG_KEY
       : modelRepositoryCacheKey(source);
-  const cached = (await withStore(CACHE_STORE, 'readonly', (store) =>
+  const cached = (await withStore(CACHE_STORE, "readonly", (store) =>
     store.get(cacheKey),
   )) as CatalogCache | undefined;
 
@@ -272,7 +308,7 @@ async function getRepositoryCatalog(
 
   try {
     const response = await fetch(modelRepositoryApiTreeUrl(source), {
-      headers: { Accept: 'application/vnd.github+json' },
+      headers: { Accept: "application/vnd.github+json" },
     });
     if (!response.ok) {
       throw new Error(
@@ -291,38 +327,43 @@ async function getRepositoryCatalog(
       }>;
     };
     if (payload.truncated || !Array.isArray(payload.tree)) {
-      throw new Error(`GitHub returned an incomplete model list for ${source.label}.`);
+      throw new Error(
+        `GitHub returned an incomplete model list for ${source.label}.`,
+      );
     }
 
-    const prefix = source.path ? `${source.path}/` : '';
+    const prefix = source.path ? `${source.path}/` : "";
     const models = payload.tree
       .flatMap((entry) => {
         if (
-          entry.type !== 'blob' ||
-          typeof entry.path !== 'string' ||
+          entry.type !== "blob" ||
+          typeof entry.path !== "string" ||
           !/\.scad$/i.test(entry.path)
         ) {
           return [];
         }
-        const repositoryPath = entry.path.replace(/\\/g, '/');
+        const repositoryPath = entry.path.replace(/\\/g, "/");
         if (prefix && !repositoryPath.startsWith(prefix)) return [];
-        const path = prefix ? repositoryPath.slice(prefix.length) : repositoryPath;
-        if (!path || path.split('/').some((segment) => segment === '..')) return [];
-        const parts = path.split('/');
+        const path = prefix
+          ? repositoryPath.slice(prefix.length)
+          : repositoryPath;
+        if (!path || path.split("/").some((segment) => segment === ".."))
+          return [];
+        const parts = path.split("/");
         const filename = parts.at(-1) ?? path;
         const title = filename
-          .replace(/\.scad$/i, '')
-          .replace(/[_-]+/g, ' ')
+          .replace(/\.scad$/i, "")
+          .replace(/[_-]+/g, " ")
           .trim();
-        const folder = parts.length > 1 ? parts.slice(0, -1).join(' / ') : '';
+        const folder = parts.length > 1 ? parts.slice(0, -1).join(" / ") : "";
         return [
           {
             repositoryId: source.id,
             path,
             name: title || filename,
-            category: [source.label, folder].filter(Boolean).join(' / '),
-            size: typeof entry.size === 'number' ? entry.size : 0,
-            sha: typeof entry.sha === 'string' ? entry.sha : '',
+            category: [source.label, folder].filter(Boolean).join(" / "),
+            size: typeof entry.size === "number" ? entry.size : 0,
+            sha: typeof entry.sha === "string" ? entry.sha : "",
             url: modelRepositoryTreeUrl(source, path),
           },
         ];
@@ -334,7 +375,7 @@ async function getRepositoryCatalog(
       );
 
     const updatedAt = Date.now();
-    await withStore(CACHE_STORE, 'readwrite', (store) =>
+    await withStore(CACHE_STORE, "readwrite", (store) =>
       store.put({ key: cacheKey, updatedAt, models } satisfies CatalogCache),
     );
     return { models, updatedAt, fromCache: false };
@@ -376,25 +417,27 @@ async function fetchRepoBytes(
 
 function decodeSource(path: string, bytes: Uint8Array): string {
   if (bytes.byteLength > OPENSCAD_MAX_SOURCE_BYTES) {
-    throw new Error(`${path} is larger than the supported OpenSCAD source limit.`);
+    throw new Error(
+      `${path} is larger than the supported OpenSCAD source limit.`,
+    );
   }
   let source: string;
   try {
-    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     throw new Error(`${path} is not valid UTF-8 OpenSCAD source.`);
   }
   if (source.charCodeAt(0) === 0xfeff) source = source.slice(1);
-  if (source.includes('\0')) {
+  if (source.includes("\0")) {
     throw new Error(`${path} contains binary data, not OpenSCAD source.`);
   }
   return source;
 }
 
 function repoProjectPath(sourcePath: string, target: string): string {
-  const root = target.replace(/\\/g, '/').split('/', 1)[0];
+  const root = target.replace(/\\/g, "/").split("/", 1)[0];
   if (BUNDLED_LIBRARY_ROOTS.has(root)) {
-    throw new Error('Bundled OpenSCAD libraries are resolved by the viewer.');
+    throw new Error("Bundled OpenSCAD libraries are resolved by the viewer.");
   }
   return resolveOpenScadProjectReference(sourcePath, target);
 }
@@ -422,7 +465,9 @@ export async function loadBuiltInProject(entry: BuiltInModel): Promise<{
     );
     totalSourceBytes += bytes.byteLength;
     if (totalSourceBytes > OPENSCAD_PROJECT_MAX_TOTAL_BYTES) {
-      throw new Error('This model exceeds the total OpenSCAD project size limit.');
+      throw new Error(
+        "This model exceeds the total OpenSCAD project size limit.",
+      );
     }
     const content = decodeSource(path, bytes);
     files.set(path, content);
@@ -436,8 +481,7 @@ export async function loadBuiltInProject(entry: BuiltInModel): Promise<{
       })),
     });
     const references = collectOpenScadProjectSourceReferences(project).filter(
-      (reference) =>
-        reference.sourcePath === path && !reference.bundledLibrary,
+      (reference) => reference.sourcePath === path && !reference.bundledLibrary,
     );
     for (const reference of references) {
       const dependencyPath = repoProjectPath(path, reference.target);
@@ -497,7 +541,9 @@ export async function loadBuiltInProject(entry: BuiltInModel): Promise<{
     }
     totalAssetBytes += bytes.byteLength;
     if (totalAssetBytes > OPENSCAD_PROJECT_MAX_TOTAL_ASSET_BYTES) {
-      throw new Error('This model exceeds the total external asset size limit.');
+      throw new Error(
+        "This model exceeds the total external asset size limit.",
+      );
     }
     const blob = new Blob([bytes]);
     assetBlobs[path] = blob;
@@ -531,7 +577,9 @@ export async function createUploadedModel(input: {
     const blob = new Blob([asset.bytes]);
     totalAssetBytes += blob.size;
     if (totalAssetBytes > OPENSCAD_PROJECT_MAX_TOTAL_ASSET_BYTES) {
-      throw new Error('The uploaded project exceeds the total asset size limit.');
+      throw new Error(
+        "The uploaded project exceeds the total asset size limit.",
+      );
     }
     assetBlobs[asset.path] = blob;
     descriptors.push(
@@ -552,8 +600,8 @@ export async function createUploadedModel(input: {
 
   const record: LocalModelRecord = {
     id,
-    name: input.name.trim() || 'Uploaded model',
-    origin: 'upload',
+    name: input.name.trim() || "Uploaded model",
+    origin: "upload",
     project,
     assetBlobs,
     updatedAt: new Date().toISOString(),
@@ -576,12 +624,12 @@ async function createLocalAssetDescriptor(input: {
     throw new Error(`Unsupported or oversized OpenSCAD asset: ${input.path}`);
   }
   const digest = await crypto.subtle.digest(
-    'SHA-256',
+    "SHA-256",
     await input.blob.arrayBuffer(),
   );
   const sha256 = Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('');
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
   return {
     path: input.path,
     storagePath: input.storagePath,
@@ -607,14 +655,11 @@ export async function saveBuiltInWorkingCopy(input: {
   assetBlobs: Record<string, Blob>;
   baseProject: OpenScadProject;
 }): Promise<LocalModelRecord> {
-  const id = builtInModelRecordId(
-    input.entry.path,
-    input.entry.repositoryId,
-  );
+  const id = builtInModelRecordId(input.entry.path, input.entry.repositoryId);
   const record: LocalModelRecord = {
     id,
     name: input.entry.name,
-    origin: 'built-in',
+    origin: "built-in",
     sourcePath: input.entry.path,
     sourceRepositoryId: input.entry.repositoryId,
     project: input.project,

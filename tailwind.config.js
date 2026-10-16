@@ -42,10 +42,6 @@ export default {
           'rgb(var(--brepia-text-tertiary) / <alpha-value>)',
         'secondary-tan': '#E5E5E3',
         'background-color': 'rgb(var(--brepia-canvas) / <alpha-value>)',
-        'adam-neutral-100': 'rgb(var(--brepia-neutral-100) / <alpha-value>)',
-        'adam-neutral-200': 'rgb(var(--brepia-neutral-200) / <alpha-value>)',
-        'adam-neutral-700': 'rgb(var(--brepia-neutral-700) / <alpha-value>)',
-        'adam-neutral-900': 'rgb(var(--brepia-neutral-900) / <alpha-value>)',
         'white-16%': 'rgba(255,255,255,0.16)',
         'white-700': 'rgb(var(--brepia-neutral-100) / <alpha-value>)',
         'white-500': 'rgb(var(--brepia-neutral-300) / <alpha-value>)',
@@ -155,5 +151,5 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [import('tailwindcss-animate')],
 };

@@ -1,4 +1,4 @@
-import type { Database } from '@shared/database';
+import type { Database } from "@shared/database";
 import {
   isGenerationRunTerminal,
   type GenerationRunExecutionMode,
@@ -6,16 +6,16 @@ import {
   type GenerationRunSnapshot,
   type GenerationRunStatus,
   type GenerationRunTransportKind,
-} from '@shared/generationRun';
+} from "@shared/generationRun";
 import {
   GENERATION_RUN_EVENT_MAX_COUNT,
   type GenerationRunEventKind,
   type GenerationRunEventSnapshot,
-} from '@shared/generationRunEvent';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+} from "@shared/generationRunEvent";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 
-type GenerationRunRow = Database['public']['Tables']['generation_runs']['Row'];
+type GenerationRunRow = Database["public"]["Tables"]["generation_runs"]["Row"];
 
 type GenerationRunEventRow = {
   id: string;
@@ -50,7 +50,7 @@ type GenerationRunEventQuery = {
 };
 
 type GenerationRunEventClient = {
-  from: (table: 'generation_run_events') => GenerationRunEventQuery;
+  from: (table: "generation_run_events") => GenerationRunEventQuery;
 };
 
 const GENERATION_RUN_POLL_MS = 1_000;
@@ -84,7 +84,7 @@ export function generationRunRowToClientSnapshot(
       ? { executionMode: row.execution_mode as GenerationRunExecutionMode }
       : {}),
     status: row.status as GenerationRunStatus,
-    phase: row.phase as GenerationRunSnapshot['phase'],
+    phase: row.phase as GenerationRunSnapshot["phase"],
     ...(row.detail ? { detail: row.detail } : {}),
     sequence: row.sequence,
     createdAt: row.created_at,
@@ -182,17 +182,17 @@ export async function getLatestBrepGenerationRun({
   requestMessageId?: string;
 }): Promise<GenerationRunSnapshot | undefined> {
   let query = supabase
-    .from('generation_runs')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .eq('kind', 'brep');
+    .from("generation_runs")
+    .select("*")
+    .eq("conversation_id", conversationId)
+    .eq("kind", "brep");
 
   if (requestMessageId) {
-    query = query.eq('request_message_id', requestMessageId);
+    query = query.eq("request_message_id", requestMessageId);
   }
 
   const { data, error } = await query
-    .order('created_at', { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -206,10 +206,10 @@ export async function getGenerationRunEvents(
   generationRunId: string,
 ): Promise<GenerationRunEventSnapshot[]> {
   const { data, error } = await generationRunEventClient()
-    .from('generation_run_events')
-    .select('*')
-    .eq('generation_run_id', generationRunId)
-    .order('sequence', { ascending: true });
+    .from("generation_run_events")
+    .select("*")
+    .eq("generation_run_id", generationRunId)
+    .order("sequence", { ascending: true });
 
   if (error) throw new Error(error.message);
   return reconcileGenerationRunEvents(
@@ -234,14 +234,14 @@ export function useLatestBrepGenerationRun({
 }) {
   return useQuery<GenerationRunSnapshot | undefined>({
     queryKey: [
-      'generation-run',
-      'brep',
+      "generation-run",
+      "brep",
       conversationId,
       requestMessageId ?? null,
       baselineRunId ?? null,
     ],
     enabled: enabled && Boolean(conversationId),
-    refetchOnWindowFocus: 'always',
+    refetchOnWindowFocus: "always",
     refetchIntervalInBackground: true,
     refetchInterval: (query) =>
       shouldPollGenerationRun(query.state.data, pollWhenMissing)
@@ -267,11 +267,11 @@ export function useGenerationRunEvents({
   enabled?: boolean;
 }) {
   return useQuery<GenerationRunEventSnapshot[]>({
-    queryKey: ['generation-run-events', run?.id ?? null],
+    queryKey: ["generation-run-events", run ?? null],
     enabled: enabled && Boolean(run?.id),
-    refetchOnMount: 'always',
-    refetchOnReconnect: 'always',
-    refetchOnWindowFocus: 'always',
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: "always",
     refetchIntervalInBackground: true,
     refetchInterval: () =>
       shouldPollGenerationRunEvents(run) ? GENERATION_RUN_POLL_MS : false,

@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   lstat,
   mkdir,
@@ -7,19 +7,18 @@ import {
   readFile,
   rm,
   writeFile,
-} from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { promisify } from 'node:util';
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import {
   OPENSCAD_PROJECT_MAX_FILE_BYTES,
   normalizeOpenScadProject,
   type OpenScadProject,
   type OpenScadProjectAsset,
-} from '@shared/openScadProject';
-import { validateOpenScadProjectReferences } from '@shared/openScadProjectReferences';
-import type { ServerOpenScadProjectAssetResolver } from './openScadProjectAssetStorage';
-import { rewriteOpenScadProjectAssetReferencesForStepSandbox } from './stepExportAssetPaths';
+} from "@shared/openScadProject";
+import { validateOpenScadProjectReferences } from "@shared/openScadProjectReferences";
+import { rewriteOpenScadProjectAssetReferencesForStepSandbox } from "./stepExportAssetPaths";
 
 const execFileAsync = promisify(execFile);
 
@@ -27,12 +26,16 @@ const execFileAsync = promisify(execFile);
 export const STEP_EXPORT_SOURCE_LIMIT_BYTES = OPENSCAD_PROJECT_MAX_FILE_BYTES;
 export const STEP_EXPORT_OUTPUT_LIMIT_BYTES = 32 * 1024 * 1024;
 export const STEP_EXPORT_TIMEOUT_MS = 45_000;
-export const STEP_EXPORT_PROVIDER = 'scad123d';
-export const STEP_EXPORT_PROVIDER_VERSION = '0.5.0';
+export const STEP_EXPORT_PROVIDER = "scad123d";
+export const STEP_EXPORT_PROVIDER_VERSION = "0.5.0";
 export const STEP_EXPORT_DEFAULT_MAX_CONCURRENT = 1;
 const STEP_EXPORT_MAX_CONCURRENT_LIMIT = 8;
 
 let activeStepExports = 0;
+
+type StepExportAssetResolver = (
+  asset: OpenScadProjectAsset,
+) => Promise<Uint8Array>;
 
 export type StepExportResult = {
   bytes: Uint8Array;
@@ -43,20 +46,20 @@ export type StepExportResult = {
 export class StepExportError extends Error {
   constructor(
     public readonly code:
-      | 'source_too_large'
-      | 'invalid_project'
-      | 'asset_unavailable'
-      | 'provider_unavailable'
-      | 'capacity_exceeded'
-      | 'conversion_failed'
-      | 'conversion_timeout'
-      | 'output_missing'
-      | 'output_invalid'
-      | 'output_too_large',
+      | "source_too_large"
+      | "invalid_project"
+      | "asset_unavailable"
+      | "provider_unavailable"
+      | "capacity_exceeded"
+      | "conversion_failed"
+      | "conversion_timeout"
+      | "output_missing"
+      | "output_invalid"
+      | "output_too_large",
     message: string,
   ) {
     super(message);
-    this.name = 'StepExportError';
+    this.name = "StepExportError";
   }
 }
 
@@ -65,7 +68,7 @@ function byteLength(value: string): number {
 }
 
 function sha256(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function parseWarnings(stderr: string): string[] {
@@ -80,8 +83,8 @@ function sandboxRunner(): string {
   const runner = process.env.BREPIA_STEP_EXPORT_RUNNER?.trim();
   if (!runner) {
     throw new StepExportError(
-      'provider_unavailable',
-      'STEP export is not configured on this server.',
+      "provider_unavailable",
+      "STEP export is not configured on this server.",
     );
   }
   return runner;
@@ -89,7 +92,7 @@ function sandboxRunner(): string {
 
 function configuredMaxConcurrent(): number {
   const configured = Number.parseInt(
-    process.env.BREPIA_STEP_EXPORT_MAX_CONCURRENT ?? '',
+    process.env.BREPIA_STEP_EXPORT_MAX_CONCURRENT ?? "",
     10,
   );
   if (!Number.isFinite(configured) || configured < 1) {
@@ -102,8 +105,8 @@ function acquireStepExportSlot(): () => void {
   const maxConcurrent = configuredMaxConcurrent();
   if (activeStepExports >= maxConcurrent) {
     throw new StepExportError(
-      'capacity_exceeded',
-      'STEP export capacity is currently busy. Try again shortly.',
+      "capacity_exceeded",
+      "STEP export capacity is currently busy. Try again shortly.",
     );
   }
 
@@ -117,28 +120,28 @@ function acquireStepExportSlot(): () => void {
 }
 
 function stderrText(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
-  if (Buffer.isBuffer(value)) return value.toString('utf8').trim();
-  return '';
+  if (typeof value === "string") return value.trim();
+  if (Buffer.isBuffer(value)) return value.toString("utf8").trim();
+  return "";
 }
 
 function providerUnavailableMessage(detail: string): string {
   const normalized = detail
-    .replace(/^STEP_SANDBOX_UNAVAILABLE:\s*/i, '')
+    .replace(/^STEP_SANDBOX_UNAVAILABLE:\s*/i, "")
     .trim();
-  return normalized || 'STEP export sandbox is unavailable on this server.';
+  return normalized || "STEP export sandbox is unavailable on this server.";
 }
 
 async function resolveAndVerifyAsset(
   asset: OpenScadProjectAsset,
-  resolveAsset: ServerOpenScadProjectAssetResolver,
+  resolveAsset: StepExportAssetResolver,
 ): Promise<Uint8Array> {
   let bytes: Uint8Array;
   try {
     bytes = await resolveAsset(asset);
   } catch (error) {
     throw new StepExportError(
-      'asset_unavailable',
+      "asset_unavailable",
       error instanceof Error
         ? error.message
         : `Could not load OpenSCAD project asset ${asset.path}.`,
@@ -147,7 +150,7 @@ async function resolveAndVerifyAsset(
 
   if (bytes.byteLength !== asset.byteLength || sha256(bytes) !== asset.sha256) {
     throw new StepExportError(
-      'asset_unavailable',
+      "asset_unavailable",
       `OpenSCAD project asset integrity check failed for ${asset.path}.`,
     );
   }
@@ -156,50 +159,50 @@ async function resolveAndVerifyAsset(
 
 async function convertProjectToStep(
   project: OpenScadProject,
-  resolveAsset?: ServerOpenScadProjectAssetResolver,
+  resolveAsset?: StepExportAssetResolver,
 ): Promise<StepExportResult> {
-  const workspace = await mkdtemp(path.join(tmpdir(), 'brepia-step-'));
-  const inputDir = path.join(workspace, 'input');
-  const outputDir = path.join(workspace, 'output');
-  const outputPath = path.join(outputDir, 'model.step');
+  const workspace = await mkdtemp(path.join(tmpdir(), "brepia-step-"));
+  const inputDir = path.join(workspace, "input");
+  const outputDir = path.join(workspace, "output");
+  const outputPath = path.join(outputDir, "model.step");
 
   try {
     await mkdir(inputDir, { recursive: true });
     await mkdir(outputDir, { recursive: true });
 
     for (const file of project.files) {
-      const target = path.join(inputDir, ...file.path.split('/'));
+      const target = path.join(inputDir, ...file.path.split("/"));
       await mkdir(path.dirname(target), { recursive: true });
-      await writeFile(target, file.content, 'utf8');
+      await writeFile(target, file.content, "utf8");
     }
 
     if (project.assets?.length) {
       if (!resolveAsset) {
         throw new StepExportError(
-          'asset_unavailable',
-          'STEP export requires a conversation-scoped resolver for project assets.',
+          "asset_unavailable",
+          "STEP export requires a conversation-scoped resolver for project assets.",
         );
       }
       for (const asset of project.assets) {
         const bytes = await resolveAndVerifyAsset(asset, resolveAsset);
-        const target = path.join(inputDir, ...asset.path.split('/'));
+        const target = path.join(inputDir, ...asset.path.split("/"));
         await mkdir(path.dirname(target), { recursive: true });
         await writeFile(target, bytes);
       }
     }
 
-    let stderr = '';
+    let stderr = "";
     try {
       const result = await execFileAsync(
         sandboxRunner(),
         [
-          '--project',
+          "--project",
           inputDir,
-          '--entrypoint',
+          "--entrypoint",
           project.entrypointPath,
-          '-o',
+          "-o",
           outputPath,
-          ...(project.assets?.length ? ['--mesh-scope', 'hoist'] : []),
+          ...(project.assets?.length ? ["--mesh-scope", "hoist"] : []),
         ],
         {
           timeout: STEP_EXPORT_TIMEOUT_MS,
@@ -207,7 +210,7 @@ async function convertProjectToStep(
           env: process.env,
         },
       );
-      stderr = result.stderr ?? '';
+      stderr = result.stderr ?? "";
     } catch (error) {
       if (error instanceof StepExportError) throw error;
 
@@ -219,27 +222,27 @@ async function convertProjectToStep(
       };
       const detail = stderrText(record.stderr);
 
-      if (record.code === 'ENOENT' || record.code === 69) {
+      if (record.code === "ENOENT" || record.code === 69) {
         throw new StepExportError(
-          'provider_unavailable',
-          record.code === 'ENOENT'
-            ? 'Configured STEP export runner was not found on the server.'
+          "provider_unavailable",
+          record.code === "ENOENT"
+            ? "Configured STEP export runner was not found on the server."
             : providerUnavailableMessage(detail),
         );
       }
 
-      if (record.code === 124 || record.killed || record.signal === 'SIGTERM') {
+      if (record.code === 124 || record.killed || record.signal === "SIGTERM") {
         throw new StepExportError(
-          'conversion_timeout',
-          'STEP conversion exceeded the server time limit.',
+          "conversion_timeout",
+          "STEP conversion exceeded the server time limit.",
         );
       }
 
       throw new StepExportError(
-        'conversion_failed',
+        "conversion_failed",
         detail
           ? `STEP conversion failed: ${detail.slice(0, 1200)}`
-          : 'STEP conversion failed.',
+          : "STEP conversion failed.",
       );
     }
 
@@ -248,21 +251,21 @@ async function convertProjectToStep(
       outputStat = await lstat(outputPath);
     } catch {
       throw new StepExportError(
-        'output_missing',
-        'STEP converter completed without producing an output file.',
+        "output_missing",
+        "STEP converter completed without producing an output file.",
       );
     }
 
     if (outputStat.isSymbolicLink() || !outputStat.isFile()) {
       throw new StepExportError(
-        'output_invalid',
-        'STEP converter produced an invalid output object.',
+        "output_invalid",
+        "STEP converter produced an invalid output object.",
       );
     }
 
     if (outputStat.size > STEP_EXPORT_OUTPUT_LIMIT_BYTES) {
       throw new StepExportError(
-        'output_too_large',
+        "output_too_large",
         `STEP output exceeds the ${STEP_EXPORT_OUTPUT_LIMIT_BYTES}-byte server limit.`,
       );
     }
@@ -270,16 +273,16 @@ async function convertProjectToStep(
     const output = await readFile(outputPath);
     if (output.byteLength > STEP_EXPORT_OUTPUT_LIMIT_BYTES) {
       throw new StepExportError(
-        'output_too_large',
+        "output_too_large",
         `STEP output exceeds the ${STEP_EXPORT_OUTPUT_LIMIT_BYTES}-byte server limit.`,
       );
     }
 
-    const header = output.subarray(0, 128).toString('ascii');
-    if (!header.includes('ISO-10303-21')) {
+    const header = output.subarray(0, 128).toString("ascii");
+    if (!header.includes("ISO-10303-21")) {
       throw new StepExportError(
-        'output_invalid',
-        'STEP converter output is not an ISO 10303-21 Part 21 file.',
+        "output_invalid",
+        "STEP converter output is not an ISO 10303-21 Part 21 file.",
       );
     }
 
@@ -303,7 +306,7 @@ async function convertProjectToStep(
  */
 export async function exportOpenScadProjectToStep(
   project: OpenScadProject,
-  resolveAsset?: ServerOpenScadProjectAssetResolver,
+  resolveAsset?: StepExportAssetResolver,
 ): Promise<StepExportResult> {
   let normalized: OpenScadProject;
   try {
@@ -313,15 +316,15 @@ export async function exportOpenScadProjectToStep(
       rewriteOpenScadProjectAssetReferencesForStepSandbox(normalized);
   } catch (error) {
     throw new StepExportError(
-      'invalid_project',
-      error instanceof Error ? error.message : 'Invalid OpenSCAD project.',
+      "invalid_project",
+      error instanceof Error ? error.message : "Invalid OpenSCAD project.",
     );
   }
 
   if (normalized.assets?.length && !resolveAsset) {
     throw new StepExportError(
-      'asset_unavailable',
-      'STEP export requires access to the project assets.',
+      "asset_unavailable",
+      "STEP export requires access to the project assets.",
     );
   }
 
@@ -344,14 +347,14 @@ export async function exportScadToStep(
   const sourceBytes = byteLength(sourceCode);
   if (sourceBytes > STEP_EXPORT_SOURCE_LIMIT_BYTES) {
     throw new StepExportError(
-      'source_too_large',
+      "source_too_large",
       `OpenSCAD source exceeds the ${STEP_EXPORT_SOURCE_LIMIT_BYTES}-byte STEP export limit.`,
     );
   }
 
   return exportOpenScadProjectToStep({
     schemaVersion: 1,
-    entrypointPath: 'model.scad',
-    files: [{ path: 'model.scad', content: sourceCode }],
+    entrypointPath: "model.scad",
+    files: [{ path: "model.scad", content: sourceCode }],
   });
 }

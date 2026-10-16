@@ -1,40 +1,40 @@
-import { ChatTitle } from '@/components/chat/ChatTitle';
-import { BrepChatSession } from '@/components/brep/BrepChatSession';
-import { BrepCreationProgress } from '@/components/brep/BrepCreationProgress';
+import { ChatTitle } from "@/components/chat/ChatTitle";
+import { BrepChatSession } from "@/components/brep/BrepChatSession";
+import { BrepCreationProgress } from "@/components/brep/BrepCreationProgress";
 import {
   BrepProjectEditorProvider,
   BrepProjectParametersPanel,
-} from '@/components/brep/BrepProjectEditor';
-import { BrepFeatureWorkspaceProvider } from '@/components/brep/BrepFeatureWorkspace';
-import { BrepProjectWorkspacePanel } from '@/components/brep/BrepProjectWorkspacePanel';
-import { ActivityIndicator } from '@/components/brand';
-import { Button } from '@/components/ui/button';
+} from "@/components/brep/BrepProjectEditor";
+import { BrepFeatureWorkspaceProvider } from "@/components/brep/BrepFeatureWorkspace";
+import { BrepProjectWorkspacePanel } from "@/components/brep/BrepProjectWorkspacePanel";
+import { ActivityIndicator } from "@/components/brand";
+import { Button } from "@/components/ui/button";
 import {
   ConversationContext,
   useConversation,
-} from '@/contexts/ConversationContext';
-import { SelectedItemsContext } from '@/contexts/SelectedItemsContext';
-import { useAuth } from '@/contexts/AuthContext';
+} from "@/contexts/ConversationContext";
+import { SelectedItemsContext } from "@/contexts/SelectedItemsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ensureInputRecords,
   messageRowToChatMessage,
   type ChatMessage,
-} from '@/lib/aiMessages';
-import { UNCONFIGURED_MODEL_ID } from '@/lib/defaultModels';
-import { createUuid } from '@/lib/uuid';
-import { normalizeModelId } from '@shared/models';
-import { supabase } from '@/lib/supabase';
+} from "@/lib/aiMessages";
+import { UNCONFIGURED_MODEL_ID } from "@/lib/defaultModels";
+import { createUuid } from "@/lib/uuid";
+import { normalizeModelId } from "@shared/models";
+import { supabase } from "@/lib/supabase";
 import {
   getLatestBrepGenerationRun,
   useLatestBrepGenerationRun,
-} from '@/services/generationRunService';
+} from "@/services/generationRunService";
 import {
   isRecentPendingBrepCreation,
   persistUserMessage,
   useChangeRatingMutation,
   useMessagesQuery,
-} from '@/services/messageService';
-import { useConversationMutations } from '@/services/conversationMutations';
+} from "@/services/messageService";
+import { useConversationMutations } from "@/services/conversationMutations";
 import {
   hiddenBrepRevisionIds,
   persistBrepProjectParameterRevision,
@@ -42,46 +42,46 @@ import {
   removeBrepProjectRevisionFromHistory,
   restoreBrepProjectRevision,
   selectBrepProjectRevision,
-} from '@/services/brepProjectService';
+} from "@/services/brepProjectService";
 import {
   brepRevisionLabels,
   renameBrepProjectRevision,
-} from '@/services/brepRevisionLabelService';
-import { getBrepProjectArtifact } from '@shared/brepProjectArtifact';
-import { resolveActiveBrepAiSourceForLeaf } from '@shared/brepAiContext';
-import type { BrepProject } from '@shared/brepProject';
-import type { BrepParameterValues } from '@shared/brepProvider';
-import type { AppUIMessage } from '@shared/chatAi';
+} from "@/services/brepRevisionLabelService";
+import { getBrepProjectArtifact } from "@shared/brepProjectArtifact";
+import { resolveActiveBrepAiSourceForLeaf } from "@shared/brepAiContext";
+import type { BrepProject } from "@shared/brepProject";
+import type { BrepParameterValues } from "@shared/brepProvider";
+import type { AppUIMessage } from "@shared/chatAi";
 import {
   isGenerationRunAiEditing,
   isGenerationRunTerminal,
-} from '@shared/generationRun';
-import Tree from '@shared/Tree';
-import type { Conversation, Message, Model } from '@shared/types';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
-import { Box } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MessageItem } from '../types/misc.ts';
-import { ConversationView } from './ConversationView';
+} from "@shared/generationRun";
+import Tree from "@shared/Tree";
+import type { Conversation, Message, Model } from "@shared/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams } from "@tanstack/react-router";
+import { Box } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MessageItem } from "../types/misc.ts";
+import { ConversationView } from "./ConversationView";
 
 function hasEmptyMetadata(metadata: unknown): boolean {
   return (
     metadata === undefined ||
     metadata === null ||
-    (typeof metadata === 'object' &&
+    (typeof metadata === "object" &&
       !Array.isArray(metadata) &&
       Object.keys(metadata).length === 0)
   );
 }
 
 function isLifecycleOnlyBrepRevision(
-  message: Pick<ChatMessage, 'role' | 'parts' | 'metadata'>,
+  message: Pick<ChatMessage, "role" | "parts" | "metadata">,
 ): boolean {
   return (
-    message.role === 'assistant' &&
+    message.role === "assistant" &&
     message.parts.length === 1 &&
-    message.parts[0]?.type === 'data-brep-project' &&
+    message.parts[0]?.type === "data-brep-project" &&
     hasEmptyMetadata(message.metadata)
   );
 }
@@ -92,7 +92,7 @@ type BrepGenerationAttempt = {
 };
 
 export default function BrepProjectView() {
-  const { id } = useParams({ from: '/_layout/_auth/brep/$id' });
+  const { id } = useParams({ from: "/_layout/_auth/brep/$id" });
   const { user } = useAuth();
   const [images, setImages] = useState<MessageItem[]>([]);
   const [mesh, setMesh] = useState<MessageItem | null>(null);
@@ -102,19 +102,19 @@ export default function BrepProjectView() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['conversation', id],
+    queryKey: ["conversation", id, user?.id ?? null],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error: conversationError } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user?.id ?? '')
+        .from("conversations")
+        .select("*")
+        .eq("id", id)
+        .eq("user_id", user?.id ?? "")
         .single();
       if (conversationError) throw conversationError;
       const typedConversation = data as Conversation;
-      if (typedConversation.type !== 'parametric') {
-        throw new Error('This is not a persisted BRep project.');
+      if (typedConversation.type !== "parametric") {
+        throw new Error("This is not a persisted BRep project.");
       }
       return typedConversation;
     },
@@ -137,7 +137,7 @@ export default function BrepProjectView() {
   if (error || !conversation) {
     return (
       <main className="p-6 text-destructive">
-        {error instanceof Error ? error.message : 'BRep project not found.'}
+        {error instanceof Error ? error.message : "BRep project not found."}
       </main>
     );
   }
@@ -170,8 +170,8 @@ function BrepProjectWorkspace() {
       ? normalizeModelId(conversation.settings.model)
       : UNCONFIGURED_MODEL_ID,
   );
-  const [executionMode, setExecutionMode] = useState<'cli' | 'streaming'>(
-    conversation.settings?.openCodeExecutionMode ?? 'cli',
+  const [executionMode, setExecutionMode] = useState<"cli" | "streaming">(
+    conversation.settings?.openCodeExecutionMode ?? "cli",
   );
   const [isChatStreaming, setIsChatStreaming] = useState(false);
   const [generationAttempt, setGenerationAttempt] =
@@ -204,7 +204,7 @@ function BrepProjectWorkspace() {
     [dbTree],
   );
   const leafId =
-    conversation.current_message_leaf_id ?? dbMessages.at(-1)?.id ?? '';
+    conversation.current_message_leaf_id ?? dbMessages.at(-1)?.id ?? "";
   const leafPresentInMessages =
     !leafId || dbMessages.some((message) => message.id === leafId);
   const initialBranch = useMemo(
@@ -222,7 +222,7 @@ function BrepProjectWorkspace() {
   const revisions = useMemo(
     () =>
       dbMessages.flatMap((message) => {
-        if (message.role !== 'assistant') return [];
+        if (message.role !== "assistant") return [];
         const artifact = getBrepProjectArtifact(message.parts);
         return artifact
           ? [
@@ -266,7 +266,7 @@ function BrepProjectWorkspace() {
     const revision = revisions.find((item) => item.id === viewedRevisionId);
     return revision
       ? {
-          kind: 'source' as const,
+          kind: "source" as const,
           messageId: revision.id,
           artifact: revision.artifact,
           project: revision.artifact.source.source,
@@ -312,12 +312,12 @@ function BrepProjectWorkspace() {
   const refreshWorkspace = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({
-        queryKey: ['messages', conversation.id],
+        queryKey: ["messages", conversation.id],
       }),
       queryClient.invalidateQueries({
-        queryKey: ['conversation', conversation.id],
+        queryKey: ["conversation", conversation.id],
       }),
-      queryClient.invalidateQueries({ queryKey: ['conversations'] }),
+      queryClient.invalidateQueries({ queryKey: ["conversations"] }),
     ]);
   }, [conversation.id, queryClient]);
 
@@ -333,7 +333,7 @@ function BrepProjectWorkspace() {
   );
 
   const handleExecutionModeChange = useCallback(
-    (nextMode: 'cli' | 'streaming') => {
+    (nextMode: "cli" | "streaming") => {
       setExecutionMode(nextMode);
       updateConversation?.({
         id: conversation.id,
@@ -358,8 +358,8 @@ function BrepProjectWorkspace() {
   );
 
   const handleSendParts = useCallback(
-    async (parts: AppUIMessage['parts']) => {
-      if (!user?.id) throw new Error('User must be authenticated');
+    async (parts: AppUIMessage["parts"]) => {
+      if (!user?.id) throw new Error("User must be authenticated");
       await ensureInputRecords({
         parts,
         conversationId: conversation.id,
@@ -391,8 +391,8 @@ function BrepProjectWorkspace() {
   );
 
   const handleEdit = useCallback(
-    async (original: ChatMessage, parts: AppUIMessage['parts']) => {
-      if (!user?.id) throw new Error('User must be authenticated');
+    async (original: ChatMessage, parts: AppUIMessage["parts"]) => {
+      if (!user?.id) throw new Error("User must be authenticated");
       await ensureInputRecords({
         parts,
         conversationId: conversation.id,
@@ -419,8 +419,8 @@ function BrepProjectWorkspace() {
       const newId = createUuid();
       const parts = JSON.parse(JSON.stringify(assistant.parts));
       const metadata = JSON.parse(JSON.stringify(assistant.metadata ?? {}));
-      const role: Message['role'] = 'assistant';
-      const { error } = await supabase.from('messages').insert({
+      const role: Message["role"] = "assistant";
+      const { error } = await supabase.from("messages").insert({
         id: newId,
         conversation_id: conversation.id,
         role,
@@ -432,12 +432,12 @@ function BrepProjectWorkspace() {
       if (error) throw error;
 
       queryClient.setQueryData(
-        ['conversation', conversation.id],
+        ["conversation", conversation.id],
         (old: Conversation | undefined) =>
           old ? { ...old, current_message_leaf_id: newId } : old,
       );
       queryClient.setQueryData(
-        ['messages', conversation.id],
+        ["messages", conversation.id],
         (old: Message[] | undefined): Message[] => [
           ...(old ?? []),
           {
@@ -453,7 +453,7 @@ function BrepProjectWorkspace() {
         ],
       );
       queryClient.invalidateQueries({
-        queryKey: ['messages', conversation.id],
+        queryKey: ["messages", conversation.id],
       });
 
       const parentPath = assistant.parent_message_id
@@ -520,7 +520,7 @@ function BrepProjectWorkspace() {
   const durableCreationWithoutSource =
     !activeSource &&
     Boolean(generationRun) &&
-    generationRun?.status !== 'completed';
+    generationRun?.status !== "completed";
   const generationRunLookupPending = !activeSource && !isGenerationRunFetched;
   const creationWorkspacePending =
     !activeSource &&
@@ -534,7 +534,7 @@ function BrepProjectWorkspace() {
       (generationRun &&
         (!isGenerationRunTerminal(generationRun.status) ||
           (Boolean(generationAttempt) &&
-            generationRun.status !== 'completed')))),
+            generationRun.status !== "completed")))),
   );
 
   if (!areMessagesFetched || !leafPresentInMessages) {
@@ -557,11 +557,11 @@ function BrepProjectWorkspace() {
                   <ChatTitle />
                 </div>
                 <span className="hidden shrink-0 text-xs text-adam-text-tertiary sm:inline">
-                  {generationRun?.status === 'failed'
-                    ? 'Generation failed'
-                    : generationRun?.status === 'cancelled'
-                      ? 'Generation stopped'
-                      : 'AI creating…'}
+                  {generationRun?.status === "failed"
+                    ? "Generation failed"
+                    : generationRun?.status === "cancelled"
+                      ? "Generation stopped"
+                      : "AI creating…"}
                 </span>
               </div>
               <BrepCreationProgress
@@ -635,12 +635,12 @@ function BrepProjectWorkspace() {
       onParameterValuesCommit={async (parameterValues: BrepParameterValues) => {
         if (viewingHistorical) {
           throw new Error(
-            'Restore this historical BRep revision before editing its parameters.',
+            "Restore this historical BRep revision before editing its parameters.",
           );
         }
         if (isAiEditingRef.current) {
           throw new Error(
-            'BRep parameter editing is disabled while AI is creating a new immutable revision.',
+            "BRep parameter editing is disabled while AI is creating a new immutable revision.",
           );
         }
         await persistBrepProjectParameterRevision({
@@ -654,12 +654,12 @@ function BrepProjectWorkspace() {
       onProjectSourceCommit={async (project: BrepProject) => {
         if (viewingHistorical) {
           throw new Error(
-            'Restore this historical BRep revision before editing its features.',
+            "Restore this historical BRep revision before editing its features.",
           );
         }
         if (isAiEditingRef.current) {
           throw new Error(
-            'BRep feature editing is disabled while AI is creating a new immutable revision.',
+            "BRep feature editing is disabled while AI is creating a new immutable revision.",
           );
         }
         await persistBrepProjectSourceRevision({
@@ -722,7 +722,7 @@ function BrepProjectWorkspace() {
                       onClick={returnToActiveRevision}
                       className="hidden text-xs text-adam-neutral-300 sm:inline-flex"
                     >
-                      {displayedRevisionLabel ?? 'Historical revision'} · read
+                      {displayedRevisionLabel ?? "Historical revision"} · read
                       only
                       <span className="ml-2 text-adam-blue">
                         Back to active
@@ -743,10 +743,10 @@ function BrepProjectWorkspace() {
                   </Button>
                   <span className="hidden text-xs text-adam-text-tertiary sm:inline">
                     {isAiEditing
-                      ? 'AI editing…'
+                      ? "AI editing…"
                       : viewingHistorical
-                        ? 'Historical preview'
-                        : 'Native BRep'}
+                        ? "Historical preview"
+                        : "Native BRep"}
                   </span>
                 </div>
               </div>

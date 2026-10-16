@@ -34,7 +34,7 @@ export function parseColoredOff(text: string): ParsedOff {
   if (lines.length === 0) throw new Error('Empty OFF file');
 
   let headerLine: string;
-  let cursor = 0;
+  let cursor: number;
   if (/^OFF(\s|$)/.test(lines[0])) {
     const rest = lines[0].substring(3).trim();
     if (rest.length > 0) {

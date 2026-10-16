@@ -32,7 +32,13 @@ export const useMeshData = ({ id }: { id: string }) => {
   });
 
   const blobQuery = useQuery({
-    queryKey: ['mesh', id],
+    queryKey: [
+      'mesh',
+      id,
+      conversation.user_id,
+      conversation.id,
+      dataQuery.data?.file_type ?? null,
+    ],
     enabled:
       !!id &&
       !dataQuery.isLoading &&

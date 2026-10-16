@@ -894,9 +894,8 @@ export async function handleAiChatRequest(req: Request) {
     collectAuthoritativeOpenScadAssets(branchMessages);
 
   let providers: ChatProviders;
-  let builtinProviderOverrides: BuiltinProviderRuntimeOverrides = {};
   try {
-    builtinProviderOverrides = await loadBuiltinProviderRuntimeOverrides(
+    const builtinProviderOverrides = await loadBuiltinProviderRuntimeOverrides(
       user.id,
     );
     providers = createChatProviders(builtinProviderOverrides);

@@ -26,8 +26,9 @@ import type {
  *     name = "label"; // 20             ← maxLength for strings, step for numbers
  *     \/* [Group Name] *\/              ← starts a new group section
  *
- * Variable declarations after the first `module` or `function` keyword
- * are NOT exposed (they're implementation, not API).
+ * Customizer declarations are collected across the entire source file, so
+ * helper functions placed between parameter groups do not hide later controls.
+ * Derived expressions and declarations without literal values are ignored.
  *
  * TODO: Use AST parser instead of regex.  Regex breaks on multi-line
  * expressions, nested arrays, and any clever OpenSCAD trick. An AST
@@ -35,11 +36,8 @@ import type {
  * shapes the model actually emits.
  */
 export default function parseParameters(script: string): Parameter[] {
-  // Limit to the top of the file. Anything below the first `module` or
-  // `function` is internal logic that the user shouldn't tweak as a
-  // parameter.
-  script = script.split(/^(module |function )/m)[0];
-
+  // Scan the entire file: OpenSCAD files may interleave helper functions
+  // with additional Customizer parameter groups.
   const parameters: Record<string, Parameter> = {};
   const parameterRegex =
     /^([a-z0-9A-Z_$]+)\s*=\s*([^;]+);[\t\f\cK ]*(\/\/[^\n]*)?/gm;

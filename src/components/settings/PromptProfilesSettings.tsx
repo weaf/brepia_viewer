@@ -715,10 +715,14 @@ export function PromptProfilesSettings() {
   );
 
   // Mutations
-  const setDefaultMutation = useSetDefaultPromptProfile();
-  const createMutation = useCreateProfile();
-  const updateMutation = useUpdateProfile();
-  const archiveMutation = useArchiveProfile();
+  const { mutate: setDefaultProfile, isPending: isSettingDefault } =
+    useSetDefaultPromptProfile();
+  const { mutate: createProfile, isPending: isCreatingProfile } =
+    useCreateProfile();
+  const { mutate: updateProfile, isPending: isUpdatingProfile } =
+    useUpdateProfile();
+  const { mutate: archiveProfile, isPending: isArchivingProfile } =
+    useArchiveProfile();
 
   // Handlers
   const handleSelectProfile = useCallback((id: string) => {
@@ -730,9 +734,9 @@ export function PromptProfilesSettings() {
 
   const handleSetDefault = useCallback(
     (profileId: string | null) => {
-      setDefaultMutation.mutate(profileId);
+      setDefaultProfile(profileId);
     },
-    [setDefaultMutation],
+    [setDefaultProfile],
   );
 
   const handleEdit = useCallback((profile: PromptProfileDetail) => {
@@ -782,7 +786,7 @@ export function PromptProfilesSettings() {
       baseRevision?: string | null;
     }) => {
       if (showEditor && editorMode === 'edit' && selectedDetail) {
-        updateMutation.mutate({ profileId: selectedDetail.id, input });
+        updateProfile({ profileId: selectedDetail.id, input });
       } else if (isBuiltInEdit()) {
         // Creating overlay or fork from Brepia Original
         // Overlay: store only custom instructions, baseRevision = null
@@ -792,7 +796,7 @@ export function PromptProfilesSettings() {
             ? ((builtinDetailFromApi as PromptProfileDetail | undefined)
                 ?.fingerprint ?? null)
             : null;
-        createMutation.mutate({
+        createProfile({
           name: input.name,
           promptTemplate: input.promptTemplate,
           description: input.description ?? null,
@@ -800,7 +804,7 @@ export function PromptProfilesSettings() {
           baseRevision,
         } as CreatePromptProfileInput);
       } else {
-        createMutation.mutate(input);
+        createProfile(input);
       }
       setShowEditor(false);
       setPendingMode(null); // FIX 3: Reset create-flow state after save
@@ -810,8 +814,8 @@ export function PromptProfilesSettings() {
       editorMode,
       selectedDetail,
       pendingMode,
-      createMutation,
-      updateMutation,
+      createProfile,
+      updateProfile,
       builtinDetailFromApi,
       isBuiltInEdit,
     ],
@@ -819,9 +823,9 @@ export function PromptProfilesSettings() {
 
   const handleArchiveSelected = useCallback(() => {
     if (!selectedDetail) return;
-    archiveMutation.mutate(selectedDetail.id);
+    archiveProfile(selectedDetail.id);
     setSelectedProfileId(null);
-  }, [selectedDetail, archiveMutation]);
+  }, [selectedDetail, archiveProfile]);
 
   // Loading state
   const isLoading = isProfilesLoading;
@@ -877,9 +881,7 @@ export function PromptProfilesSettings() {
             defaultId={defaultPromptProfileId}
             onSelect={() => handleSelectProfile(profile.id)}
             onArchive={() => handleArchiveSelected()}
-            isArchiving={
-              archiveMutation.isPending && selectedProfileId === profile.id
-            }
+            isArchiving={isArchivingProfile && selectedProfileId === profile.id}
             builtInFingerprint={builtInFingerprint}
           />
         ))}
@@ -980,7 +982,7 @@ export function PromptProfilesSettings() {
                 }
                 disabled={
                   defaultPromptProfileId === selectedDetail.id ||
-                  setDefaultMutation.isPending
+                  isSettingDefault
                 }
                 className="h-7 rounded-full px-2 text-xs"
               >
@@ -1087,7 +1089,7 @@ export function PromptProfilesSettings() {
             setShowEditor(false);
             setPendingMode(null);
           }}
-          isSaving={createMutation.isPending || updateMutation.isPending}
+          isSaving={isCreatingProfile || isUpdatingProfile}
         />
       )}
     </section>

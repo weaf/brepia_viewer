@@ -148,22 +148,14 @@ export function updateParameter(code: string, param: Parameter): string {
 }
 
 export function getDiffString(param: Parameter) {
-  let diffString: string = '';
-  let diffNumber: number = 0;
-  // Default to assuming the type is number
-  if (!param.type) {
-    diffNumber =
+  if (!param.type || param.type === 'number') {
+    const diffNumber =
       Math.round((Number(param.value) - Number(param.defaultValue)) * 10) / 10;
-    diffString = diffNumber > 0 ? `+${diffNumber}` : `${diffNumber}`;
-    return diffString;
+    return diffNumber > 0 ? `+${diffNumber}` : `${diffNumber}`;
   }
+
+  let diffString: string;
   switch (param.type) {
-    case 'number':
-      diffNumber =
-        Math.round((Number(param.value) - Number(param.defaultValue)) * 10) /
-        10;
-      diffString = diffNumber > 0 ? `+${diffNumber}` : `${diffNumber}`;
-      break;
     case 'boolean':
       diffString = param.value ? 'true' : 'false';
       break;
@@ -207,7 +199,7 @@ export function getDiffString(param: Parameter) {
         .join('\n');
       break;
     default:
-      diffString = '';
+      return '';
   }
   return diffString;
 }

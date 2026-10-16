@@ -28,5 +28,13 @@
       "@shared/*": ["./shared/*"]
     }
   },
-  "include": ["src", "shared"]
+  "include": [
+    "src/App.tsx",
+    "src/client.tsx",
+    "src/router.tsx",
+    "src/routeTree.gen.ts",
+    "src/vite-env.d.ts",
+    "src/routes/**/*.ts",
+    "src/routes/**/*.tsx"
+  ]
 }

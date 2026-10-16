@@ -9,6 +9,7 @@ import {
   OpenSCADWorkerResponseData,
 } from './types';
 import OpenSCADError from '@/lib/OpenSCADError';
+import { getOpenScadExportFormat } from '@/lib/openScadExportFormats';
 import { libraries } from '@/lib/libraries.ts';
 import {
   getOpenScadEntrypoint,
@@ -26,12 +27,6 @@ const fontsConf = `<?xml version="1.0" encoding="UTF-8"?>
 
 // Credit
 // https://github.com/seasick/openscad-web-gui/blob/main/src/worker/openSCAD.ts
-
-// OpenSCAD CLI --export-format values, keyed by the fileType the worker receives.
-const EXPORT_FORMAT_FLAGS: Record<string, string> = {
-  stl: 'binstl',
-  dxf: 'dxf',
-};
 
 /**
  * Blank out string literals and comments so library detection only sees
@@ -186,11 +181,10 @@ class OpenSCADWrapper {
       return `-D${name}=${value}`;
     });
 
-    const exportFormat = EXPORT_FORMAT_FLAGS[data.fileType] ?? 'binstl';
+    const { exportFormat } = getOpenScadExportFormat(data.fileType);
 
     parameters.push(`--export-format=${exportFormat}`);
-    parameters.push(`--enable=manifold`);
-    parameters.push(`--enable=fast-csg`);
+    parameters.push(`--backend=manifold`);
     parameters.push(`--enable=lazy-union`);
 
     return await this.executeOpenscad(data.project, data.fileType, parameters);
@@ -247,11 +241,12 @@ class OpenSCADWrapper {
       '--enable=roof',
     ];
 
+    const includeColorData = data.includeColorData !== false;
     const render = await this.executeOpenscad(
       data.project,
       data.fileType,
       parameters.concat(exportParams),
-      [{ path: '/out.off', key: 'off' }],
+      includeColorData ? [{ path: '/out.off', key: 'off' }] : [],
     );
 
     // Check `render.log.stdErr` for "Current top level object is not a 3d object."

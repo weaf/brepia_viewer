@@ -233,7 +233,9 @@ function modelOriginText(entry: CatalogEntry): string | undefined {
 }
 
 async function fetchPreferences(): Promise<AiPreferences> {
-  const data = (await apiJson('ai-settings/preferences')) as Partial<AiPreferences>;
+  const data = (await apiJson(
+    'ai-settings/preferences',
+  )) as Partial<AiPreferences>;
   return {
     hiddenModelIds: data.hiddenModelIds ?? [],
     enabledOpenCodeModelIds: data.enabledOpenCodeModelIds ?? [],
@@ -418,16 +420,16 @@ export function AiModelsSettings() {
       hiddenIds.filter((modelId) => !isDynamicOpenCodeModelId(modelId)),
     );
     for (const entry of allEntries) {
-      if (
-        isDynamicOpenCodeEntry(entry) &&
-        !enabledOpenCodeSet.has(entry.id)
-      ) {
+      if (isDynamicOpenCodeEntry(entry) && !enabledOpenCodeSet.has(entry.id)) {
         effective.add(entry.id);
       }
     }
     return effective;
   }, [allEntries, enabledOpenCodeSet, hiddenIds]);
-  const updateMutation = useUpdateModelVisibility();
+  const {
+    mutate: updateModelVisibility,
+    isPending: isUpdatingModelVisibility,
+  } = useUpdateModelVisibility();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [visibilityFilter, setVisibilityFilter] =
@@ -496,7 +498,7 @@ export function AiModelsSettings() {
     (entry: CatalogEntry) => {
       if (isDynamicOpenCodeEntry(entry)) {
         const isEnabled = enabledOpenCodeSet.has(entry.id);
-        updateMutation.mutate({
+        updateModelVisibility({
           hiddenModelIds: hiddenIds.filter((id) => id !== entry.id),
           enabledOpenCodeModelIds: isEnabled
             ? enabledOpenCodeIds.filter((id) => id !== entry.id)
@@ -506,18 +508,13 @@ export function AiModelsSettings() {
       }
 
       const isCurrentlyHidden = hiddenIds.includes(entry.id);
-      updateMutation.mutate({
+      updateModelVisibility({
         hiddenModelIds: isCurrentlyHidden
           ? hiddenIds.filter((id) => id !== entry.id)
           : [...new Set([...hiddenIds, entry.id])],
       });
     },
-    [
-      enabledOpenCodeIds,
-      enabledOpenCodeSet,
-      hiddenIds,
-      updateMutation,
-    ],
+    [enabledOpenCodeIds, enabledOpenCodeSet, hiddenIds, updateModelVisibility],
   );
 
   const setEntriesVisible = useCallback(
@@ -541,20 +538,20 @@ export function AiModelsSettings() {
         ? [...new Set([...enabledOpenCodeIds, ...openCodeIds])]
         : enabledOpenCodeIds.filter((id) => !openCodeIds.has(id));
 
-      updateMutation.mutate({
+      updateModelVisibility({
         hiddenModelIds: nextHidden,
         enabledOpenCodeModelIds: nextEnabledOpenCode,
       });
     },
-    [enabledOpenCodeIds, hiddenIds, updateMutation],
+    [enabledOpenCodeIds, hiddenIds, updateModelVisibility],
   );
 
   const handleRestoreDefaults = useCallback(() => {
-    updateMutation.mutate({
+    updateModelVisibility({
       hiddenModelIds: [],
       enabledOpenCodeModelIds: [],
     });
-  }, [updateMutation]);
+  }, [updateModelVisibility]);
 
   const handleClearFilters = useCallback(() => {
     setSearchQuery('');
@@ -727,7 +724,7 @@ export function AiModelsSettings() {
           variant="light"
           onClick={() => setEntriesVisible(filteredEntries, true)}
           disabled={
-            updateMutation.isPending ||
+            isUpdatingModelVisibility ||
             filteredEntries.length === 0 ||
             shownHiddenModels === 0
           }
@@ -741,7 +738,7 @@ export function AiModelsSettings() {
           variant="dark"
           onClick={() => setEntriesVisible(filteredEntries, false)}
           disabled={
-            updateMutation.isPending ||
+            isUpdatingModelVisibility ||
             filteredEntries.length === 0 ||
             shownVisibleModels === 0
           }
@@ -755,7 +752,7 @@ export function AiModelsSettings() {
           variant="dark"
           onClick={handleRestoreDefaults}
           disabled={
-            updateMutation.isPending ||
+            isUpdatingModelVisibility ||
             (hiddenIds.length === 0 && enabledOpenCodeIds.length === 0)
           }
           className="h-7 rounded-full px-2 text-xs"
@@ -830,7 +827,7 @@ export function AiModelsSettings() {
                       size="sm"
                       variant="dark"
                       onClick={() => setEntriesVisible(group.models, true)}
-                      disabled={updateMutation.isPending || groupHidden === 0}
+                      disabled={isUpdatingModelVisibility || groupHidden === 0}
                       className="h-7 rounded-full px-2 text-[10px]"
                     >
                       Enable
@@ -840,7 +837,7 @@ export function AiModelsSettings() {
                       size="sm"
                       variant="dark"
                       onClick={() => setEntriesVisible(group.models, false)}
-                      disabled={updateMutation.isPending || groupVisible === 0}
+                      disabled={isUpdatingModelVisibility || groupVisible === 0}
                       className="h-7 rounded-full px-2 text-[10px]"
                     >
                       Hide
@@ -859,7 +856,7 @@ export function AiModelsSettings() {
                         entry={entry}
                         isHidden={hiddenSet.has(entry.id)}
                         onToggle={() => handleToggle(entry)}
-                        isUpdating={updateMutation.isPending}
+                        isUpdating={isUpdatingModelVisibility}
                       />
                     ))}
                   </div>

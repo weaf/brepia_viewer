@@ -55,7 +55,6 @@ export function calculateParameterRange(param: Parameter): {
       rangeMultiplier = 10;
     } else {
       rangeMultiplier = 10;
-      maxValue = Math.pow(10, magnitude + 1);
     }
     maxValue = rangeMultiplier * Math.pow(10, magnitude);
   }

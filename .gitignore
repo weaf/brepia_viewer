@@ -5,3 +5,7 @@ node_modules/
 .env.*.local
 .brepia-credential-key.local
 *.log
+
+dist/
+*.tsbuildinfo
+supabase/.branches/

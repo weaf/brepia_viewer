@@ -119,7 +119,7 @@ function DesktopSidebar({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
 
   // Get 10 most recent conversations
   const { data: recentConversations } = useQuery<Conversation[]>({
-    queryKey: ['conversations', 'recent'],
+    queryKey: ['conversations', 'recent', user?.id ?? null],
     initialData: [],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -591,7 +591,9 @@ function MobileSidebar({
       <SheetContent side="left" className="bg-adam-bg-dark p-0">
         {/* For aria stuff */}
         <SheetHeader className="hidden">
-          <SheetTitle className="text-adam-text-primary">Brepia-viewer</SheetTitle>
+          <SheetTitle className="text-adam-text-primary">
+            Brepia-viewer
+          </SheetTitle>
           <SheetDescription>AI-assisted parametric 3D design</SheetDescription>
         </SheetHeader>
         <DesktopSidebar isSidebarOpen={true} setIsSidebarOpen={setOpen} />

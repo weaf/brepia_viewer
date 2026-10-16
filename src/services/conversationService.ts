@@ -25,7 +25,7 @@ export function useConversation() {
 
   const { data: conversation, isLoading: isConversationLoading } =
     useQuery<Conversation>({
-      queryKey: ['conversation', conversationId],
+      queryKey: ['conversation', conversationId, user?.id ?? null],
       enabled: !!conversationId,
       refetchOnMount: false,
       queryFn: async () => {

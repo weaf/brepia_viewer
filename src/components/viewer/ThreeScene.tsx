@@ -1,4 +1,4 @@
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree } from "@react-three/fiber";
 import {
   ArcballControls,
   Stage,
@@ -6,18 +6,18 @@ import {
   OrthographicCamera,
   PerspectiveCamera,
   OrbitControls,
-} from '@react-three/drei';
-import * as THREE from 'three';
-import { Suspense, useEffect, useMemo, useState } from 'react';
-import { Box, Lock, Moon, Sun, Unlock } from 'lucide-react';
-import { OrthographicPerspectiveToggle } from '@/components/viewer/OrthographicPerspectiveToggle';
-import { ViewGizmo } from '@/components/viewer/ViewGizmo';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { cn } from '@/lib/utils';
+} from "@react-three/drei";
+import * as THREE from "three";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { Box, Lock, Moon, Sun, Unlock } from "lucide-react";
+import { OrthographicPerspectiveToggle } from "@/components/viewer/OrthographicPerspectiveToggle";
+import { ViewGizmo } from "@/components/viewer/ViewGizmo";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { cn } from "@/lib/utils";
 
-const DEFAULT_VIEWER_BACKGROUND_COLOR = '#3B3B3B';
-const VIEWER_BACKGROUND_STORAGE_KEY = 'brepia.viewer.backgroundLightness';
+const DEFAULT_VIEWER_BACKGROUND_COLOR = "#3B3B3B";
+const VIEWER_BACKGROUND_STORAGE_KEY = "brepia.viewer.backgroundLightness";
 
 interface ThreeSceneProps {
   geometry: THREE.BufferGeometry | null;
@@ -70,7 +70,7 @@ export function ThreeScene({
     [backgroundColor],
   );
   const [backgroundLightness, setBackgroundLightness] = useState(() => {
-    if (typeof window === 'undefined') return defaultBackgroundLightness;
+    if (typeof window === "undefined") return defaultBackgroundLightness;
     const stored = Number(
       window.localStorage.getItem(VIEWER_BACKGROUND_STORAGE_KEY),
     );
@@ -84,7 +84,7 @@ export function ThreeScene({
   );
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     window.localStorage.setItem(
       VIEWER_BACKGROUND_STORAGE_KEY,
       String(backgroundLightness),
@@ -191,7 +191,7 @@ export function ThreeScene({
           <ViewerControls uprightLocked={uprightLocked} />
           {showViewGizmo && (
             <ViewGizmo
-              alignment={initialIsMobile ? 'top-right' : 'bottom-right'}
+              alignment={initialIsMobile ? "top-right" : "bottom-right"}
               margin={initialIsMobile ? [58, 58] : [80, 80]}
             />
           )}
@@ -200,12 +200,11 @@ export function ThreeScene({
 
       <div
         className={cn(
-          'absolute bottom-2 left-2 z-10 flex items-center gap-2 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 px-2 py-1 backdrop-blur-sm',
-          initialIsMobile ? 'w-36' : 'w-44',
+          "absolute bottom-2 left-2 z-10 flex w-20 items-center gap-0.5 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 px-1 py-1 backdrop-blur-sm sm:w-44 sm:gap-2 sm:px-2",
         )}
         title="Viewer background"
       >
-        <Moon className="h-3.5 w-3.5 shrink-0 text-adam-text-primary/70" />
+        <Moon className="h-3 w-3 shrink-0 text-adam-text-primary/70 sm:h-3.5 sm:w-3.5" />
         <Slider
           value={[backgroundLightness]}
           defaultValue={[defaultBackgroundLightness]}
@@ -218,29 +217,29 @@ export function ThreeScene({
           className="h-6 flex-1"
           aria-label="Viewer background brightness"
         />
-        <Sun className="h-3.5 w-3.5 shrink-0 text-adam-text-primary/70" />
+        <Sun className="h-3 w-3 shrink-0 text-adam-text-primary/70 sm:h-3.5 sm:w-3.5" />
       </div>
 
       <div
         className={cn(
-          'absolute flex flex-col items-center',
-          initialIsMobile ? 'bottom-2 right-2' : 'bottom-2 right-9',
+          "absolute flex flex-col items-center",
+          initialIsMobile ? "bottom-2 right-2" : "bottom-2 right-9",
         )}
       >
         <div className="flex items-center gap-2">
           <Button
             type="button"
-            variant={uprightLocked ? 'secondary' : 'ghost'}
+            variant={uprightLocked ? "secondary" : "ghost"}
             size="icon"
             className="h-8 w-8 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 text-adam-text-primary backdrop-blur-sm"
             aria-label={
               uprightLocked
-                ? 'Unlock viewer rotation'
-                : 'Lock viewer upright like Mesh view'
+                ? "Unlock viewer rotation"
+                : "Lock viewer upright like Mesh view"
             }
             aria-pressed={uprightLocked}
             title={
-              uprightLocked ? 'Free rotate' : 'Lock upright like Mesh view'
+              uprightLocked ? "Free rotate" : "Lock upright like Mesh view"
             }
             onClick={() => setUprightLocked((locked) => !locked)}
           >
@@ -252,15 +251,15 @@ export function ThreeScene({
           </Button>
           <Button
             type="button"
-            variant={showViewGizmo ? 'secondary' : 'ghost'}
+            variant={showViewGizmo ? "secondary" : "ghost"}
             size="icon"
             className="h-8 w-8 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 text-adam-text-primary backdrop-blur-sm"
             aria-label={
-              showViewGizmo ? 'Hide orientation cube' : 'Show orientation cube'
+              showViewGizmo ? "Hide orientation cube" : "Show orientation cube"
             }
             aria-pressed={showViewGizmo}
             title={
-              showViewGizmo ? 'Hide orientation cube' : 'Show orientation cube'
+              showViewGizmo ? "Hide orientation cube" : "Show orientation cube"
             }
             onClick={() => setShowViewGizmo((visible) => !visible)}
           >
@@ -277,7 +276,7 @@ export function ThreeScene({
 }
 
 function hexColorToLightness(color: string) {
-  const normalized = color.trim().replace(/^#/, '');
+  const normalized = color.trim().replace(/^#/, "");
   if (!/^[0-9a-f]{6}$/i.test(normalized)) {
     return 23;
   }
@@ -293,6 +292,6 @@ function lightnessToGrayHex(lightness: number) {
   const clamped = Math.min(100, Math.max(0, lightness));
   const channel = Math.round((clamped / 100) * 255)
     .toString(16)
-    .padStart(2, '0');
+    .padStart(2, "0");
   return `#${channel}${channel}${channel}`;
 }

@@ -1,65 +1,65 @@
-import { ChatTitle } from '@/components/chat/ChatTitle';
-import { ChatSession } from '@/components/chat/ChatSession';
-import { CreateIcon } from '@/components/icons/ui/CreateIcon';
-import { ParameterSection } from '@/components/parameter/ParameterSection';
-import { ParameterSheetContent } from '@/components/parameter/ParameterSheetContent';
-import { ProjectFilesEditor } from '@/components/parameter/ProjectFilesEditor';
-import { ActivityIndicator } from '@/components/brand';
-import { Button } from '@/components/ui/button';
+import { ChatTitle } from "@/components/chat/ChatTitle";
+import { ChatSession } from "@/components/chat/ChatSession";
+import { CreateIcon } from "@/components/icons/ui/CreateIcon";
+import { ParameterSection } from "@/components/parameter/ParameterSection";
+import { ParameterSheetContent } from "@/components/parameter/ParameterSheetContent";
+import { ProjectFilesEditor } from "@/components/parameter/ProjectFilesEditor";
+import { ActivityIndicator } from "@/components/brand";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { ShareContent } from '@/components/ui/ShareContent';
-import { OpenSCADPreview } from '@/components/viewer/OpenSCADViewer';
-import { MeshPreview } from '@/components/viewer/MeshPreview';
-import Loader from '@/components/viewer/Loader';
-import { useAuth } from '@/contexts/AuthContext';
-import { ConversationContext } from '@/contexts/ConversationContext';
-import { SelectedItemsContext } from '@/contexts/SelectedItemsContext';
-import { useConversation } from '@/contexts/ConversationContext';
+} from "@/components/ui/popover";
+import { ShareContent } from "@/components/ui/ShareContent";
+import { OpenSCADPreview } from "@/components/viewer/OpenSCADViewer";
+import { MeshPreview } from "@/components/viewer/MeshPreview";
+import Loader from "@/components/viewer/Loader";
+import { useAuth } from "@/contexts/AuthContext";
+import { ConversationContext } from "@/contexts/ConversationContext";
+import { SelectedItemsContext } from "@/contexts/SelectedItemsContext";
+import { useConversation } from "@/contexts/ConversationContext";
 import {
   ensureInputRecords,
   messageRowToChatMessage,
   type ChatMessage,
-} from '@/lib/aiMessages';
-import { UNCONFIGURED_MODEL_ID } from '@/lib/defaultModels';
-import parseParameters from '@shared/parseParameters';
-import { normalizeModelId } from '@shared/models';
-import { replaceOpenScadProjectFileContent } from '@shared/openScadProject';
-import { supabase } from '@/lib/supabase';
-import { updateParameter } from '@/lib/utils';
-import { createUuid } from '@/lib/uuid';
+} from "@/lib/aiMessages";
+import { UNCONFIGURED_MODEL_ID } from "@/lib/defaultModels";
+import parseParameters from "@shared/parseParameters";
+import { normalizeModelId } from "@shared/models";
+import { replaceOpenScadProjectFileContent } from "@shared/openScadProject";
+import { supabase } from "@/lib/supabase";
+import { updateParameter } from "@/lib/utils";
+import { createUuid } from "@/lib/uuid";
 import {
   persistAssistantParts,
   persistUserMessage,
   useChangeRatingMutation,
   useMessagesQuery,
-} from '@/services/messageService';
-import { useConversationMutations } from '@/services/conversationMutations';
-import type { DxfExporter } from '@/utils/downloadUtils';
-import type { AppUIMessage } from '@shared/chatAi';
+} from "@/services/messageService";
+import { useConversationMutations } from "@/services/conversationMutations";
+import type { DxfExporter } from "@/utils/downloadUtils";
+import type { AppUIMessage } from "@shared/chatAi";
 import {
   getParametricArtifactEntrypointCode,
   isParametricArtifact,
   replaceBuildParametricModelOutput,
   replaceParametricArtifactEntrypointCode,
-} from '@shared/parametricParts';
-import Tree from '@shared/Tree';
+} from "@shared/parametricParts";
+import Tree from "@shared/Tree";
 import type {
   Conversation,
   Message,
   Model,
   Parameter,
   ParametricArtifact,
-} from '@shared/types';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { Share } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MessageItem } from '../types/misc.ts';
-import { ConversationView } from './ConversationView';
+} from "@shared/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "@tanstack/react-router";
+import { Share } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MessageItem } from "../types/misc.ts";
+import { ConversationView } from "./ConversationView";
 
 /**
  * Route-level entry for `/editor/$id`.
@@ -70,7 +70,7 @@ import { ConversationView } from './ConversationView';
  */
 export default function EditorView() {
   const { id: conversationId } = useParams({
-    from: '/_layout/_auth/editor/$id',
+    from: "/_layout/_auth/editor/$id",
   });
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -78,15 +78,15 @@ export default function EditorView() {
   const [mesh, setMesh] = useState<MessageItem | null>(null);
 
   const { data: conversation, isLoading: isConversationLoading } = useQuery({
-    queryKey: ['conversation', conversationId],
+    queryKey: ["conversation", conversationId, user?.id ?? null],
     enabled: !!conversationId,
     queryFn: async () => {
-      if (!conversationId) throw new Error('Conversation ID is required');
+      if (!conversationId) throw new Error("Conversation ID is required");
       const { data, error } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('id', conversationId)
-        .eq('user_id', user?.id ?? '')
+        .from("conversations")
+        .select("*")
+        .eq("id", conversationId)
+        .eq("user_id", user?.id ?? "")
         .limit(1)
         .single();
       if (error) throw error;
@@ -101,7 +101,7 @@ export default function EditorView() {
   } = useConversationMutations();
 
   useEffect(() => {
-    if (!conversationId) navigate({ to: '/app' });
+    if (!conversationId) navigate({ to: "/app" });
   }, [conversationId, navigate]);
 
   if (isConversationLoading) {
@@ -145,8 +145,8 @@ export default function EditorView() {
 }
 
 type ActivePreview =
-  | { type: 'artifact'; messageId: string; artifact: ParametricArtifact }
-  | { type: 'mesh'; messageId: string; meshId: string }
+  | { type: "artifact"; messageId: string; artifact: ParametricArtifact }
+  | { type: "mesh"; messageId: string; meshId: string }
   | null;
 
 /**
@@ -171,16 +171,16 @@ function ConversationEditor() {
   const [model, setModel] = useState<Model>(
     conversation.settings?.model
       ? normalizeModelId(conversation.settings.model)
-      : conversation.type === 'creative'
-        ? 'quality'
+      : conversation.type === "creative"
+        ? "quality"
         : UNCONFIGURED_MODEL_ID,
   );
-  const [executionMode, setExecutionMode] = useState<'cli' | 'streaming'>(
-    conversation.settings?.openCodeExecutionMode ?? 'cli',
+  const [executionMode, setExecutionMode] = useState<"cli" | "streaming">(
+    conversation.settings?.openCodeExecutionMode ?? "cli",
   );
 
   const handleExecutionModeChange = useCallback(
-    (newMode: 'cli' | 'streaming') => {
+    (newMode: "cli" | "streaming") => {
       setExecutionMode(newMode);
       updateConversation?.({
         id: conversation.id,
@@ -240,7 +240,7 @@ function ConversationEditor() {
     [dbTree],
   );
   const leafId =
-    conversation.current_message_leaf_id ?? dbMessages.at(-1)?.id ?? '';
+    conversation.current_message_leaf_id ?? dbMessages.at(-1)?.id ?? "";
   const initialBranch = useMemo(
     () => branchForLeaf(leafId),
     [branchForLeaf, leafId],
@@ -261,8 +261,8 @@ function ConversationEditor() {
   // describe the next tree state, then return whatever ChatSession needs
   // to keep `chat.messages` aligned. ──────────────────────────────────
   const handleSendParts = useCallback(
-    async (parts: AppUIMessage['parts']) => {
-      if (!user?.id) throw new Error('User must be authenticated');
+    async (parts: AppUIMessage["parts"]) => {
+      if (!user?.id) throw new Error("User must be authenticated");
       await ensureInputRecords({
         parts,
         conversationId: conversation.id,
@@ -279,7 +279,7 @@ function ConversationEditor() {
       // mirror that in the cache so the next render shows the user bubble
       // immediately even before the messages query refetches.
       queryClient.setQueryData(
-        ['conversation', conversation.id],
+        ["conversation", conversation.id],
         (old: Conversation | undefined) =>
           old ? { ...old, current_message_leaf_id: userMessageId } : old,
       );
@@ -301,8 +301,8 @@ function ConversationEditor() {
   );
 
   const handleEdit = useCallback(
-    async (original: ChatMessage, parts: AppUIMessage['parts']) => {
-      if (!user?.id) throw new Error('User must be authenticated');
+    async (original: ChatMessage, parts: AppUIMessage["parts"]) => {
+      if (!user?.id) throw new Error("User must be authenticated");
       await ensureInputRecords({
         parts,
         conversationId: conversation.id,
@@ -316,7 +316,7 @@ function ConversationEditor() {
         parentMessageId: parentId,
       });
       queryClient.setQueryData(
-        ['conversation', conversation.id],
+        ["conversation", conversation.id],
         (old: Conversation | undefined) =>
           old ? { ...old, current_message_leaf_id: newUserMessageId } : old,
       );
@@ -335,8 +335,8 @@ function ConversationEditor() {
       // narrowed here for the strict `messages` row type ('user' |
       // 'assistant'); the broader `'system'` slot on UIMessage is
       // never legitimate to copy.
-      const role: Message['role'] = 'assistant';
-      const { error } = await supabase.from('messages').insert({
+      const role: Message["role"] = "assistant";
+      const { error } = await supabase.from("messages").insert({
         id: newId,
         conversation_id: conversation.id,
         role,
@@ -350,12 +350,12 @@ function ConversationEditor() {
       // Mirror the trigger's leaf advance + add the copy to the messages
       // cache optimistically so the new branch resolves before refetch.
       queryClient.setQueryData(
-        ['conversation', conversation.id],
+        ["conversation", conversation.id],
         (old: Conversation | undefined) =>
           old ? { ...old, current_message_leaf_id: newId } : old,
       );
       queryClient.setQueryData(
-        ['messages', conversation.id],
+        ["messages", conversation.id],
         (old: Message[] | undefined): Message[] => [
           ...(old ?? []),
           {
@@ -371,7 +371,7 @@ function ConversationEditor() {
         ],
       );
       queryClient.invalidateQueries({
-        queryKey: ['messages', conversation.id],
+        queryKey: ["messages", conversation.id],
       });
 
       const parentPath = assistant.parent_message_id
@@ -397,14 +397,14 @@ function ConversationEditor() {
   );
 
   const handleToolOutput = useCallback(
-    async (messageId: string, nextParts: AppUIMessage['parts']) => {
+    async (messageId: string, nextParts: AppUIMessage["parts"]) => {
       await persistAssistantParts({
         conversationId: conversation.id,
         messageId,
         parts: nextParts,
       });
       queryClient.setQueryData(
-        ['messages', conversation.id],
+        ["messages", conversation.id],
         (old: Message[] | undefined): Message[] =>
           (old ?? []).map((row) =>
             row.id === messageId ? { ...row, parts: nextParts } : row,
@@ -437,12 +437,12 @@ function ConversationEditor() {
       // Direct entrypoint saves deliberately rebase that metadata to the
       // newly authored source, while parameter-control edits preserve it.
       const originalCode = queryClient
-        .getQueryData<Message[]>(['messages', conversation.id])
+        .getQueryData<Message[]>(["messages", conversation.id])
         ?.find((row) => row.id === messageId)?.metadata?.originalCode;
       setParameters(mergeParameterDefaults(code, originalCode));
       setCurrentOutput(undefined);
       setDxfExporter(() => null);
-      setActivePreview({ type: 'artifact', messageId, artifact });
+      setActivePreview({ type: "artifact", messageId, artifact });
       setMobilePreviewVersion((version) => version + 1);
     },
     [conversation.id, queryClient],
@@ -450,7 +450,7 @@ function ConversationEditor() {
   const handleViewMesh = useCallback((meshId: string, messageId: string) => {
     setCurrentOutput(undefined);
     setDxfExporter(() => null);
-    setActivePreview({ type: 'mesh', messageId, meshId });
+    setActivePreview({ type: "mesh", messageId, meshId });
     setMobilePreviewVersion((version) => version + 1);
   }, []);
 
@@ -498,11 +498,11 @@ function ConversationEditor() {
       } catch (error) {
         // A failed write must never break the live preview — the edit stays
         // in local state and the next change retries the persist.
-        console.warn('Failed to persist parameter edit:', error);
+        console.warn("Failed to persist parameter edit:", error);
         return;
       }
       queryClient.setQueryData(
-        ['messages', conversation.id],
+        ["messages", conversation.id],
         (old: Message[] | undefined): Message[] =>
           (old ?? []).map((message) =>
             message.id === messageId
@@ -545,7 +545,7 @@ function ConversationEditor() {
 
   const changeParameters = useCallback(
     (nextParameters: Parameter[]) => {
-      if (!baseCodeRef.current || activePreview?.type !== 'artifact') return;
+      if (!baseCodeRef.current || activePreview?.type !== "artifact") return;
       let nextCode = baseCodeRef.current;
       for (const parameter of nextParameters) {
         nextCode = updateParameter(nextCode, parameter);
@@ -590,12 +590,12 @@ function ConversationEditor() {
 
   const handleProjectFileSave = useCallback(
     async (path: string, content: string) => {
-      if (activePreview?.type !== 'artifact') {
-        throw new Error('No OpenSCAD project is active.');
+      if (activePreview?.type !== "artifact") {
+        throw new Error("No OpenSCAD project is active.");
       }
       if (isChatStreamingRef.current) {
         throw new Error(
-          'Project file editing is disabled while the current AI turn is streaming.',
+          "Project file editing is disabled while the current AI turn is streaming.",
         );
       }
 
@@ -606,7 +606,7 @@ function ConversationEditor() {
       // and direct project-file persistence can never race each other.
       if (isChatStreamingRef.current) {
         throw new Error(
-          'Project file editing is disabled while the current AI turn is streaming.',
+          "Project file editing is disabled while the current AI turn is streaming.",
         );
       }
 
@@ -621,10 +621,10 @@ function ConversationEditor() {
         ),
       };
       const row = queryClient
-        .getQueryData<Message[]>(['messages', conversation.id])
+        .getQueryData<Message[]>(["messages", conversation.id])
         ?.find((message) => message.id === activePreview.messageId);
       if (!row) {
-        throw new Error('The project message is no longer available.');
+        throw new Error("The project message is no longer available.");
       }
 
       const nextParts = replaceBuildParametricModelOutput(
@@ -645,7 +645,7 @@ function ConversationEditor() {
         metadata: nextMetadata,
       });
       queryClient.setQueryData(
-        ['messages', conversation.id],
+        ["messages", conversation.id],
         (old: Message[] | undefined): Message[] =>
           (old ?? []).map((message) =>
             message.id === activePreview.messageId
@@ -658,7 +658,7 @@ function ConversationEditor() {
           ),
       );
       setActivePreview((current) =>
-        current?.type === 'artifact' &&
+        current?.type === "artifact" &&
         current.messageId === activePreview.messageId
           ? { ...current, artifact: updatedArtifact }
           : current,
@@ -676,7 +676,7 @@ function ConversationEditor() {
   );
 
   const updatePrivacy = useCallback(
-    (privacy: 'public' | 'private') => {
+    (privacy: "public" | "private") => {
       updateConversation?.({
         id: conversation.id,
         patch: { privacy },
@@ -695,9 +695,9 @@ function ConversationEditor() {
   );
   const sharePreview = activePreview ?? persistedLatestPreview;
 
-  const hasArtifact = activePreview?.type === 'artifact';
+  const hasArtifact = activePreview?.type === "artifact";
   const activeArtifactCode =
-    activePreview?.type === 'artifact'
+    activePreview?.type === "artifact"
       ? getParametricArtifactEntrypointCode(activePreview.artifact)
       : undefined;
 
@@ -720,7 +720,7 @@ function ConversationEditor() {
       hasParameters={hasArtifact}
       mobilePreviewKey={
         activePreview
-          ? activePreview.type === 'artifact'
+          ? activePreview.type === "artifact"
             ? `artifact:${activePreview.messageId}`
             : `mesh:${activePreview.messageId}:${activePreview.meshId}`
           : null
@@ -736,12 +736,12 @@ function ConversationEditor() {
               <div className="min-w-0 flex-1">
                 <ChatTitle
                   activeMeshId={
-                    sharePreview?.type === 'mesh'
+                    sharePreview?.type === "mesh"
                       ? sharePreview.meshId
                       : undefined
                   }
                   activeOpenscadProject={
-                    sharePreview?.type === 'artifact'
+                    sharePreview?.type === "artifact"
                       ? sharePreview.artifact.project
                       : undefined
                   }
@@ -768,12 +768,12 @@ function ConversationEditor() {
                     privacy={conversation.privacy}
                     onPrivacyChange={updatePrivacy}
                     meshId={
-                      sharePreview?.type === 'mesh'
+                      sharePreview?.type === "mesh"
                         ? sharePreview.meshId
                         : undefined
                     }
                     openscadProject={
-                      sharePreview?.type === 'artifact'
+                      sharePreview?.type === "artifact"
                         ? sharePreview.artifact.project
                         : undefined
                     }
@@ -787,7 +787,7 @@ function ConversationEditor() {
                 size="icon"
                 className="h-8 w-8 bg-transparent p-0 hover:bg-transparent"
                 onClick={() => {
-                  navigate({ to: '/app' });
+                  navigate({ to: "/app" });
                 }}
                 aria-label="New Creation"
               >
@@ -822,14 +822,14 @@ function ConversationEditor() {
         <div className="flex h-full w-full items-center justify-center bg-adam-neutral-700">
           {isChatStreaming ? (
             <Loader showLoadingText />
-          ) : activePreview?.type === 'artifact' ? (
+          ) : activePreview?.type === "artifact" ? (
             <OpenSCADPreview
               project={activePreview.artifact.project}
               color="#00A6FF"
               onOutputChange={setCurrentOutput}
               onDxfExportChange={handleDxfExporterChange}
             />
-          ) : activePreview?.type === 'mesh' ? (
+          ) : activePreview?.type === "mesh" ? (
             <MeshPreview meshId={activePreview.meshId} />
           ) : (
             <div className="text-sm text-adam-text-secondary">
@@ -842,7 +842,7 @@ function ConversationEditor() {
         <div className="flex h-full w-full items-center justify-center bg-adam-bg-secondary-dark">
           {isChatStreaming ? (
             <Loader showLoadingText />
-          ) : activePreview?.type === 'artifact' ? (
+          ) : activePreview?.type === "artifact" ? (
             <OpenSCADPreview
               project={activePreview.artifact.project}
               color="#00A6FF"
@@ -851,7 +851,7 @@ function ConversationEditor() {
               isMobile={true}
               backgroundColor="#212121"
             />
-          ) : activePreview?.type === 'mesh' ? (
+          ) : activePreview?.type === "mesh" ? (
             <MeshPreview meshId={activePreview.meshId} />
           ) : (
             <div className="text-sm text-adam-text-secondary">
@@ -864,12 +864,12 @@ function ConversationEditor() {
         <div className="flex h-full min-h-0 flex-col">
           <ProjectFilesEditor
             key={
-              activePreview?.type === 'artifact'
+              activePreview?.type === "artifact"
                 ? `desktop:${activePreview.messageId}`
-                : 'desktop:none'
+                : "desktop:none"
             }
             project={
-              activePreview?.type === 'artifact'
+              activePreview?.type === "artifact"
                 ? activePreview.artifact.project
                 : undefined
             }
@@ -883,7 +883,7 @@ function ConversationEditor() {
               currentOutput={currentOutput}
               dxfExporter={dxfExporter}
               project={
-                activePreview?.type === 'artifact'
+                activePreview?.type === "artifact"
                   ? activePreview.artifact.project
                   : undefined
               }
@@ -896,12 +896,12 @@ function ConversationEditor() {
         <div className="flex h-full min-h-0 flex-col">
           <ProjectFilesEditor
             key={
-              activePreview?.type === 'artifact'
+              activePreview?.type === "artifact"
                 ? `mobile:${activePreview.messageId}`
-                : 'mobile:none'
+                : "mobile:none"
             }
             project={
-              activePreview?.type === 'artifact'
+              activePreview?.type === "artifact"
                 ? activePreview.artifact.project
                 : undefined
             }
@@ -915,7 +915,7 @@ function ConversationEditor() {
               currentOutput={currentOutput}
               dxfExporter={dxfExporter}
               project={
-                activePreview?.type === 'artifact'
+                activePreview?.type === "artifact"
                   ? activePreview.artifact.project
                   : undefined
               }
@@ -958,8 +958,8 @@ function mergeParameterDefaults(
 }
 
 type LatestPreview =
-  | { type: 'artifact'; messageId: string; artifact: ParametricArtifact }
-  | { type: 'mesh'; messageId: string; meshId: string }
+  | { type: "artifact"; messageId: string; artifact: ParametricArtifact }
+  | { type: "mesh"; messageId: string; meshId: string }
   | null;
 
 function findLatestPreview(messages: AppUIMessage[]): LatestPreview {
@@ -976,22 +976,22 @@ function findLatestPreview(messages: AppUIMessage[]): LatestPreview {
     ) {
       const part = message.parts[partIndex];
       if (
-        part.type === 'tool-build_parametric_model' &&
-        part.state !== 'input-streaming' &&
+        part.type === "tool-build_parametric_model" &&
+        part.state !== "input-streaming" &&
         isParametricArtifact(part.input)
       ) {
         return {
-          type: 'artifact',
+          type: "artifact",
           messageId: message.id,
           artifact: part.input,
         };
       }
       if (
-        part.type === 'tool-create_mesh' &&
-        part.state === 'output-available'
+        part.type === "tool-create_mesh" &&
+        part.state === "output-available"
       ) {
         return {
-          type: 'mesh',
+          type: "mesh",
           messageId: message.id,
           meshId: part.output.id,
         };

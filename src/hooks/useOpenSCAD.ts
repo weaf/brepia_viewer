@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import OpenSCADError from '@/lib/OpenSCADError';
 import { assertOpenScadOutputWithinLimit } from '@/lib/openScadLimits';
 import { normalizeOpenSCADDxf } from '@/utils/dxfUtils';
+import { getOpenScadExportFormat, isOpenScadExportFormat } from '@/lib/openScadExportFormats';
 import { OpenScadWorkerClient } from '@/worker/openScadWorkerClient';
 import type { OpenSCADWorkerResponseData, WorkerMessage } from '@/worker/types';
 import { WorkerMessageType } from '@/worker/types';
@@ -162,6 +163,7 @@ export function useOpenSCAD() {
   const previewProjectColored = useCallback(
     async (
       project: OpenScadProject,
+      options: { includeColorData?: boolean } = {},
     ): Promise<{ stl: Blob; off: Blob | undefined }> => {
       const normalizedProject = normalizeOpenScadProject(project);
       await ensureCachedFiles();
@@ -169,7 +171,12 @@ export function useOpenSCAD() {
       const message: WorkerMessage & { id: string } = {
         id,
         type: WorkerMessageType.PREVIEW,
-        data: { project: normalizedProject, params: [], fileType: 'stl' },
+        data: {
+          project: normalizedProject,
+          params: [],
+          fileType: 'stl',
+          includeColorData: options.includeColorData,
+        },
       };
       const response =
         await getClient().request<OpenSCADWorkerResponseData>(message);
@@ -194,6 +201,10 @@ export function useOpenSCAD() {
 
   const exportProject = useCallback(
     async (project: OpenScadProject, fileType: string): Promise<Blob> => {
+      if (!isOpenScadExportFormat(fileType)) {
+        throw new Error(`Unsupported OpenSCAD export format: ${fileType}`);
+      }
+      const format = getOpenScadExportFormat(fileType);
       const normalizedProject = normalizeOpenScadProject(project);
       await ensureCachedFiles();
       const id = requestId('export');
@@ -211,12 +222,7 @@ export function useOpenSCAD() {
       }
 
       const outputBytes = new Uint8Array(response.output);
-      const mimeType =
-        response.fileType === 'stl'
-          ? 'model/stl'
-          : response.fileType === 'dxf'
-            ? 'application/dxf'
-            : 'application/octet-stream';
+      const mimeType = format.mimeType;
 
       if (response.fileType === 'dxf') {
         const dxf = new TextDecoder().decode(outputBytes);

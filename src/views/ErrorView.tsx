@@ -1,16 +1,8 @@
-import { Button } from '@/components/ui/button';
-import { useNavigate } from '@tanstack/react-router';
-import * as Sentry from '@sentry/react';
-import { useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "@tanstack/react-router";
 
-export function ErrorView({ error }: { error?: unknown }) {
+export function ErrorView({ error: _error }: { error?: unknown }) {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (error) {
-      Sentry.captureException(error);
-    }
-  }, [error]);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-adam-bg-secondary-dark">
@@ -22,7 +14,7 @@ export function ErrorView({ error }: { error?: unknown }) {
         <br />
         Please feel free to reach out to us so that we can resolve this issue.
       </p>
-      <Button onClick={() => navigate({ to: '/' })}>Go to Home</Button>
+      <Button onClick={() => navigate({ to: "/" })}>Go to Home</Button>
     </div>
   );
 }

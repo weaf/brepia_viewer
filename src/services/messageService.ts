@@ -1,10 +1,10 @@
-import { useConversation } from '@/contexts/ConversationContext';
-import { isTerminalAssistantMessage } from '@/hooks/chatCompletionReconciliation';
-import { supabase } from '@/lib/supabase';
-import { createUuid } from '@/lib/uuid';
-import type { AppUIMessage } from '@shared/chatAi';
-import type { Conversation, Message } from '@shared/types';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConversation } from "@/contexts/ConversationContext";
+import { isTerminalAssistantMessage } from "@/hooks/chatCompletionReconciliation";
+import { supabase } from "@/lib/supabase";
+import { createUuid } from "@/lib/uuid";
+import type { AppUIMessage } from "@shared/chatAi";
+import type { Conversation, Message } from "@shared/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const PENDING_ASSISTANT_POLL_MS = 2_500;
 const PENDING_ASSISTANT_MAX_AGE_MS = 10 * 60_000;
@@ -19,11 +19,11 @@ export function shouldPollForPendingAssistant(
   if (!Number.isFinite(createdAt)) return false;
   if (Date.now() - createdAt >= PENDING_ASSISTANT_MAX_AGE_MS) return false;
 
-  if (last.role === 'user') return true;
-  if (last.role !== 'assistant') return false;
+  if (last.role === "user") return true;
+  if (last.role !== "assistant") return false;
 
   const parts = Array.isArray(last.parts)
-    ? (last.parts as AppUIMessage['parts'])
+    ? (last.parts as AppUIMessage["parts"])
     : [];
   return !isTerminalAssistantMessage({
     id: last.id,
@@ -36,10 +36,10 @@ export function shouldPollForPendingAssistant(
 function hasPersistedBrepSource(messages: Message[]): boolean {
   return messages.some(
     (message) =>
-      message.role === 'assistant' &&
+      message.role === "assistant" &&
       Array.isArray(message.parts) &&
-      (message.parts as AppUIMessage['parts']).some(
-        (part) => part.type === 'data-brep-project',
+      (message.parts as AppUIMessage["parts"]).some(
+        (part) => part.type === "data-brep-project",
       ),
   );
 }
@@ -54,7 +54,7 @@ export function isRecentPendingBrepCreation(
   conversation: Conversation,
   messages: Message[],
 ): boolean {
-  if (conversation.settings?.parametricSourceKind !== 'brep') return false;
+  if (conversation.settings?.parametricSourceKind !== "brep") return false;
   if (hasPersistedBrepSource(messages)) return false;
 
   const latest = messages.at(-1);
@@ -64,7 +64,7 @@ export function isRecentPendingBrepCreation(
   if (!Number.isFinite(createdAtMs)) return false;
   if (Date.now() - createdAtMs >= PENDING_ASSISTANT_MAX_AGE_MS) return false;
 
-  return messages.length === 0 || latest?.role === 'user';
+  return messages.length === 0 || latest?.role === "user";
 }
 
 /**
@@ -86,15 +86,15 @@ export async function persistUserMessage({
   parentMessageId,
 }: {
   conversationId: string;
-  parts: AppUIMessage['parts'];
-  metadata: AppUIMessage['metadata'];
+  parts: AppUIMessage["parts"];
+  metadata: AppUIMessage["metadata"];
   parentMessageId: string | null;
 }): Promise<string> {
   const id = createUuid();
-  const { error } = await supabase.from('messages').insert({
+  const { error } = await supabase.from("messages").insert({
     id,
     conversation_id: conversationId,
-    role: 'user',
+    role: "user",
     parts: JSON.parse(JSON.stringify(parts)),
     metadata: JSON.parse(JSON.stringify(metadata ?? {})),
     parent_message_id: parentMessageId,
@@ -128,12 +128,12 @@ export async function persistAssistantParts({
 }: {
   conversationId: string;
   messageId: string;
-  parts: AppUIMessage['parts'];
+  parts: AppUIMessage["parts"];
   // When provided, written atomically alongside `parts` in the same row
   // update. Used by parameter edits to lazily stash `metadata.originalCode`
   // on the first edit. Omitted by callers that only touch parts (tool
   // output), leaving the existing metadata untouched.
-  metadata?: AppUIMessage['metadata'];
+  metadata?: AppUIMessage["metadata"];
 }) {
   const payload = {
     parts: JSON.parse(JSON.stringify(parts)),
@@ -154,11 +154,11 @@ export async function persistAssistantParts({
   const RETRY_DELAY_MS = 350;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const { data, error } = await supabase
-      .from('messages')
+      .from("messages")
       .update(payload)
-      .eq('id', messageId)
-      .eq('conversation_id', conversationId)
-      .select('id');
+      .eq("id", messageId)
+      .eq("conversation_id", conversationId)
+      .select("id");
     if (error) throw error;
     if (data && data.length > 0) return;
     if (attempt < MAX_ATTEMPTS) {
@@ -177,9 +177,13 @@ export const useMessagesQuery = () => {
 
   return useQuery<Message[]>({
     enabled: !!conversation.id,
-    queryKey: ['messages', conversation.id],
+    queryKey: [
+      "messages",
+      conversation.id,
+      conversation.current_message_leaf_id,
+    ],
     initialData: [],
-    refetchOnWindowFocus: 'always',
+    refetchOnWindowFocus: "always",
     refetchIntervalInBackground: true,
     // Mobile browsers may suspend the foreground fetch/SSE connection when
     // Chrome is backgrounded. The server independently consumes/persists the
@@ -197,11 +201,12 @@ export const useMessagesQuery = () => {
       return false;
     },
     queryFn: async () => {
+      const currentMessageLeafId = conversation.current_message_leaf_id;
       const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversation.id)
-        .order('created_at', { ascending: true })
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversation.id)
+        .order("created_at", { ascending: true })
         .overrideTypes<Message[]>();
 
       if (error) throw error;
@@ -221,26 +226,25 @@ export const useMessagesQuery = () => {
       // intentionally select an older branch, and the authoritative leaf is the
       // only safe way to distinguish that from a stale mobile cache.
       const latest = rows.at(-1);
-      if (latest && latest.id !== conversation.current_message_leaf_id) {
+      if (latest && latest.id !== currentMessageLeafId) {
         const { data: leafState, error: leafError } = await supabase
-          .from('conversations')
-          .select('current_message_leaf_id')
-          .eq('id', conversation.id)
+          .from("conversations")
+          .select("current_message_leaf_id")
+          .eq("id", conversation.id)
           .limit(1)
           .single()
-          .overrideTypes<Pick<Conversation, 'current_message_leaf_id'>>();
+          .overrideTypes<Pick<Conversation, "current_message_leaf_id">>();
 
         if (leafError) {
           console.warn(
-            'Failed to refresh authoritative conversation leaf during message polling:',
+            "Failed to refresh authoritative conversation leaf during message polling:",
             leafError,
           );
         } else if (
-          leafState?.current_message_leaf_id !==
-          conversation.current_message_leaf_id
+          leafState?.current_message_leaf_id !== currentMessageLeafId
         ) {
           queryClient.setQueryData<Conversation>(
-            ['conversation', conversation.id],
+            ["conversation", conversation.id],
             (current) =>
               current
                 ? {
@@ -270,7 +274,7 @@ export function useChangeRatingMutation({
 }) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationKey: ['change-rating', conversationId],
+    mutationKey: ["change-rating", conversationId],
     mutationFn: async ({
       messageId,
       rating,
@@ -279,14 +283,14 @@ export function useChangeRatingMutation({
       rating: number;
     }) => {
       queryClient.setQueryData<Message[]>(
-        ['messages', conversationId],
+        ["messages", conversationId],
         (oldMessages) =>
           oldMessages?.map((m) => (m.id === messageId ? { ...m, rating } : m)),
       );
       const { error } = await supabase
-        .from('messages')
+        .from("messages")
         .update({ rating })
-        .eq('id', messageId);
+        .eq("id", messageId);
       if (error) throw error;
     },
   });
@@ -312,17 +316,17 @@ export function useRestoreMessageMutation({
 }) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationKey: ['restore-message', conversation.id],
+    mutationKey: ["restore-message", conversation.id],
     mutationFn: async ({
       message,
     }: {
       message: Pick<
         Message,
-        'role' | 'parts' | 'metadata' | 'parent_message_id'
+        "role" | "parts" | "metadata" | "parent_message_id"
       >;
     }) => {
       const newId = createUuid();
-      const { error } = await supabase.from('messages').insert({
+      const { error } = await supabase.from("messages").insert({
         id: newId,
         conversation_id: conversation.id,
         role: message.role,
@@ -336,7 +340,7 @@ export function useRestoreMessageMutation({
       // Pull the freshly inserted row into the messages query so the
       // tree merge sees it as a sibling immediately.
       queryClient.invalidateQueries({
-        queryKey: ['messages', conversation.id],
+        queryKey: ["messages", conversation.id],
       });
     },
   });

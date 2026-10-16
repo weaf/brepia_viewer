@@ -21,7 +21,7 @@ export function MeshImagePreview({ meshId }: { meshId: string }) {
   });
 
   const { data: meshPreview } = useQuery({
-    queryKey: ['meshPreview', meshId],
+    queryKey: ['meshPreview', meshId, meshBlob, meshData?.file_type ?? null],
     enabled: !!meshBlob,
     queryFn: async () => {
       if (!meshBlob) {

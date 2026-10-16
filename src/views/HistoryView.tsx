@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import type { MotionProps } from 'framer-motion';
-import { MessageSquare, Plus, LayoutGrid, List, Trash2 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
+import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import type { MotionProps } from "framer-motion";
+import { MessageSquare, Plus, LayoutGrid, List, Trash2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,43 +17,43 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import * as Sentry from '@sentry/react';
-import { Conversation, ConversationSettings } from '@shared/types';
-import type { AppUIMessage } from '@shared/chatAi';
-import { asParametricParts } from '@shared/parametricParts';
-import { HistoryConversation } from '../types/misc.ts';
-import { ConversationCard } from '@/components/history/ConversationCard';
-import { VisualCard } from '@/components/history/VisualCard';
-import { RenameDialogDrawer } from '@/components/history/RenameDialogDrawer';
-import { deleteConversations as deleteConversationRecords } from '@/services/conversationAdminService';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/alert-dialog";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Sentry from "@sentry/react";
+import { Conversation, ConversationSettings } from "@shared/types";
+import type { AppUIMessage } from "@shared/chatAi";
+import { asParametricParts } from "@shared/parametricParts";
+import { HistoryConversation } from "../types/misc.ts";
+import { ConversationCard } from "@/components/history/ConversationCard";
+import { VisualCard } from "@/components/history/VisualCard";
+import { RenameDialogDrawer } from "@/components/history/RenameDialogDrawer";
+import { deleteConversations as deleteConversationRecords } from "@/services/conversationAdminService";
+import { cn } from "@/lib/utils";
 
 const VIEW_TRANSITION_PROPS = {
-  initial: { opacity: 0, y: 10, filter: 'blur(2px)' },
-  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: -8, filter: 'blur(2px)' },
+  initial: { opacity: 0, y: 10, filter: "blur(2px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  exit: { opacity: 0, y: -8, filter: "blur(2px)" },
   transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
-} satisfies Pick<MotionProps, 'initial' | 'animate' | 'exit' | 'transition'>;
+} satisfies Pick<MotionProps, "initial" | "animate" | "exit" | "transition">;
 
 const REDUCED_VIEW_TRANSITION_PROPS = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
   exit: { opacity: 0 },
   transition: { duration: 0 },
-} satisfies Pick<MotionProps, 'initial' | 'animate' | 'exit' | 'transition'>;
+} satisfies Pick<MotionProps, "initial" | "animate" | "exit" | "transition">;
 
 export function HistoryView() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'visual'>('list');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "visual">("list");
   const [editingConversation, setEditingConversation] =
     useState<Conversation | null>(null);
-  const [newTitle, setNewTitle] = useState('');
+  const [newTitle, setNewTitle] = useState("");
   const [open, setOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedConversationIds, setSelectedConversationIds] = useState<
@@ -73,19 +73,19 @@ export function HistoryView() {
   };
 
   const conversationQuery = useQuery<HistoryConversation[]>({
-    queryKey: ['conversations'],
+    queryKey: ["conversations", user?.id ?? null],
     enabled: !!user,
     queryFn: async () => {
       const { data: conversationsData, error: conversationsError } =
         await supabase
-          .from('conversations')
+          .from("conversations")
           .select(
             `*, first_message:messages(parts), messagesCount:messages(count)`,
           )
-          .eq('user_id', user?.id ?? '')
-          .order('updated_at', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1, { referencedTable: 'first_message' })
+          .eq("user_id", user?.id ?? "")
+          .order("updated_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1, { referencedTable: "first_message" })
           .overrideTypes<Array<{ settings: ConversationSettings }>>();
 
       if (conversationsError) throw conversationsError;
@@ -116,9 +116,9 @@ export function HistoryView() {
   useEffect(() => {
     if (conversationQuery.isError) {
       toast({
-        title: 'Error',
-        description: 'Failed to load conversations',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to load conversations",
+        variant: "destructive",
       });
     }
   }, [conversationQuery.isError, toast]);
@@ -129,40 +129,40 @@ export function HistoryView() {
       await deleteConversationRecords(conversationIds);
     },
     onMutate: async (conversationIds) => {
-      await queryClient.cancelQueries({ queryKey: ['conversations'] });
+      await queryClient.cancelQueries({ queryKey: ["conversations"] });
       const previousConversations = queryClient.getQueryData<
         HistoryConversation[]
-      >(['conversations']);
+      >(["conversations"]);
       const deletedIds = new Set(conversationIds);
       queryClient.setQueryData(
-        ['conversations'],
+        ["conversations"],
         (old: HistoryConversation[] | undefined) =>
           old?.filter((conv) => !deletedIds.has(conv.id)) ?? [],
       );
       return { previousConversations };
     },
     onSuccess: (_data, conversationIds) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
       setSelectedConversationIds(new Set());
       setSelectionMode(false);
       toast({
-        title: 'Success',
+        title: "Success",
         description:
           conversationIds.length === 1
-            ? 'Creation deleted successfully'
+            ? "Creation deleted successfully"
             : `${conversationIds.length} creations deleted successfully`,
       });
     },
     onError: (error: unknown, _conversationIds: string[], context) => {
-      console.error('Error deleting conversations:', error);
+      console.error("Error deleting conversations:", error);
       queryClient.setQueryData(
-        ['conversations'],
+        ["conversations"],
         context?.previousConversations,
       );
       toast({
-        title: 'Error',
-        description: 'Failed to delete selected creations',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to delete selected creations",
+        variant: "destructive",
       });
     },
   });
@@ -176,17 +176,17 @@ export function HistoryView() {
       newTitle: string;
     }) => {
       const { error } = await supabase
-        .from('conversations')
+        .from("conversations")
         .update({ title: newTitle })
-        .eq('id', conversationId);
+        .eq("id", conversationId);
 
       if (error) throw error;
     },
     onMutate: async ({ conversationId, newTitle }) => {
-      await queryClient.cancelQueries({ queryKey: ['conversations'] });
-      const previousConversations = queryClient.getQueryData(['conversations']);
+      await queryClient.cancelQueries({ queryKey: ["conversations"] });
+      const previousConversations = queryClient.getQueryData(["conversations"]);
       queryClient.setQueryData(
-        ['conversations'],
+        ["conversations"],
         (old: HistoryConversation[]) =>
           old.map((conv) =>
             conv.id === conversationId ? { ...conv, title: newTitle } : conv,
@@ -195,24 +195,24 @@ export function HistoryView() {
       return { previousConversations };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
       toast({
-        title: 'Success',
-        description: 'Conversation renamed successfully',
+        title: "Success",
+        description: "Conversation renamed successfully",
       });
       setEditingConversation(null);
       setOpen(false);
     },
     onError: (error: unknown, _variables, context) => {
-      console.error('Error renaming conversation:', error);
+      console.error("Error renaming conversation:", error);
       queryClient.setQueryData(
-        ['conversations'],
+        ["conversations"],
         context?.previousConversations,
       );
       toast({
-        title: 'Error',
-        description: 'Failed to rename conversation',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to rename conversation",
+        variant: "destructive",
       });
     },
   });
@@ -223,20 +223,20 @@ export function HistoryView() {
       newPrivacy,
     }: {
       conversationId: string;
-      newPrivacy: 'public' | 'private';
+      newPrivacy: "public" | "private";
     }) => {
       const { error } = await supabase
-        .from('conversations')
+        .from("conversations")
         .update({ privacy: newPrivacy })
-        .eq('id', conversationId);
+        .eq("id", conversationId);
 
       if (error) throw error;
     },
     onMutate: async ({ conversationId, newPrivacy }) => {
-      await queryClient.cancelQueries({ queryKey: ['conversations'] });
-      const previousConversations = queryClient.getQueryData(['conversations']);
+      await queryClient.cancelQueries({ queryKey: ["conversations"] });
+      const previousConversations = queryClient.getQueryData(["conversations"]);
       queryClient.setQueryData(
-        ['conversations'],
+        ["conversations"],
         (old: HistoryConversation[]) =>
           old.map((conv) =>
             conv.id === conversationId
@@ -247,22 +247,22 @@ export function HistoryView() {
       return { previousConversations };
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
       toast({
-        title: 'Success',
-        description: `Conversation is now ${variables.newPrivacy === 'public' ? 'public' : 'private'}`,
+        title: "Success",
+        description: `Conversation is now ${variables.newPrivacy === "public" ? "public" : "private"}`,
       });
     },
     onError: (error: unknown, _variables, context) => {
-      console.error('Error toggling privacy:', error);
+      console.error("Error toggling privacy:", error);
       queryClient.setQueryData(
-        ['conversations'],
+        ["conversations"],
         context?.previousConversations,
       );
       toast({
-        title: 'Error',
-        description: 'Failed to change conversation privacy',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to change conversation privacy",
+        variant: "destructive",
       });
     },
   });
@@ -271,8 +271,8 @@ export function HistoryView() {
     if (!editingConversation) return;
     if (!newTitle.trim()) {
       toast({
-        title: 'Title cannot be empty',
-        variant: 'default',
+        title: "Title cannot be empty",
+        variant: "default",
       });
       return;
     }
@@ -284,8 +284,8 @@ export function HistoryView() {
 
   const filteredConversations =
     conversationQuery.data?.filter((conv: HistoryConversation) => {
-      const messageText = conv.first_message.text ?? '';
-      const title = conv.title?.toLowerCase() ?? '';
+      const messageText = conv.first_message.text ?? "";
+      const title = conv.title?.toLowerCase() ?? "";
       const searchTerm = searchQuery.toLowerCase();
 
       return (
@@ -336,7 +336,7 @@ export function HistoryView() {
     filteredConversations.forEach((conv: HistoryConversation) => {
       const localDate = new Date(
         conv.updated_at || conv.created_at,
-      ).toLocaleDateString('en-CA');
+      ).toLocaleDateString("en-CA");
       if (!groups[localDate]) {
         groups[localDate] = [];
       }
@@ -369,7 +369,7 @@ export function HistoryView() {
                 }
                 className="h-8 px-3 text-adam-neutral-300 hover:bg-adam-neutral-950/40 hover:text-adam-neutral-50"
               >
-                {selectionMode ? 'Cancel' : 'Select'}
+                {selectionMode ? "Cancel" : "Select"}
               </Button>
 
               <div
@@ -379,21 +379,21 @@ export function HistoryView() {
               >
                 <span
                   className={cn(
-                    'pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-adam-neutral-950 shadow-[0_1px_10px_rgba(0,0,0,0.22)] transition-transform ease-out',
-                    shouldReduceMotion ? 'duration-0' : 'duration-300',
-                    viewMode === 'visual' && 'translate-x-full',
+                    "pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-md bg-adam-neutral-950 shadow-[0_1px_10px_rgba(0,0,0,0.22)] transition-transform ease-out",
+                    shouldReduceMotion ? "duration-0" : "duration-300",
+                    viewMode === "visual" && "translate-x-full",
                   )}
                 />
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-pressed={viewMode === 'list'}
+                  aria-pressed={viewMode === "list"}
                   aria-label="List view"
-                  onClick={() => setViewMode('list')}
+                  onClick={() => setViewMode("list")}
                   className={`relative z-10 h-8 px-3 transition-colors duration-200 ${
-                    viewMode === 'list'
-                      ? 'text-adam-neutral-50 hover:bg-transparent hover:text-adam-neutral-50'
-                      : 'text-adam-neutral-400 hover:bg-adam-neutral-950/40 hover:text-adam-neutral-50'
+                    viewMode === "list"
+                      ? "text-adam-neutral-50 hover:bg-transparent hover:text-adam-neutral-50"
+                      : "text-adam-neutral-400 hover:bg-adam-neutral-950/40 hover:text-adam-neutral-50"
                   }`}
                 >
                   <List className="mr-2 h-4 w-4" />
@@ -402,13 +402,13 @@ export function HistoryView() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-pressed={viewMode === 'visual'}
+                  aria-pressed={viewMode === "visual"}
                   aria-label="Visual view"
-                  onClick={() => setViewMode('visual')}
+                  onClick={() => setViewMode("visual")}
                   className={`relative z-10 h-8 px-3 transition-colors duration-200 ${
-                    viewMode === 'visual'
-                      ? 'text-adam-neutral-50 hover:bg-transparent hover:text-adam-neutral-50'
-                      : 'text-adam-neutral-400 hover:bg-adam-neutral-950/40 hover:text-adam-neutral-50'
+                    viewMode === "visual"
+                      ? "text-adam-neutral-50 hover:bg-transparent hover:text-adam-neutral-50"
+                      : "text-adam-neutral-400 hover:bg-adam-neutral-950/40 hover:text-adam-neutral-50"
                   }`}
                 >
                   <LayoutGrid className="mr-2 h-4 w-4" />
@@ -439,7 +439,7 @@ export function HistoryView() {
                   onClick={toggleSelectAllVisible}
                   className="text-adam-neutral-300 hover:bg-adam-neutral-950 hover:text-adam-neutral-50"
                 >
-                  {allVisibleSelected ? 'Deselect all' : 'Select all'}
+                  {allVisibleSelected ? "Deselect all" : "Select all"}
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -461,11 +461,11 @@ export function HistoryView() {
                         Delete selected creations
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        Are you sure you want to delete{' '}
-                        {selectedConversationIds.size}{' '}
+                        Are you sure you want to delete{" "}
+                        {selectedConversationIds.size}{" "}
                         {selectedConversationIds.size === 1
-                          ? 'creation'
-                          : 'creations'}
+                          ? "creation"
+                          : "creations"}
                         ? This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -521,7 +521,7 @@ export function HistoryView() {
                     <p className="mb-4 text-sm">
                       Start a new chat to begin building CAD
                     </p>
-                    <Button onClick={() => navigate({ to: '/app' })}>
+                    <Button onClick={() => navigate({ to: "/app" })}>
                       Start New Chat
                     </Button>
                   </>
@@ -529,7 +529,7 @@ export function HistoryView() {
               </div>
             ) : (
               <AnimatePresence mode="wait" initial={false}>
-                {viewMode === 'visual' ? (
+                {viewMode === "visual" ? (
                   <motion.div
                     key="visual"
                     {...viewTransitionProps}
@@ -566,10 +566,10 @@ export function HistoryView() {
                     {Object.entries(conversationGroups).map(([date, convs]) => {
                       let dateString;
                       try {
-                        const [year, month, day] = date.split('-').map(Number);
+                        const [year, month, day] = date.split("-").map(Number);
                         dateString = format(
                           new Date(year, month - 1, day),
-                          'MMMM d, yyyy',
+                          "MMMM d, yyyy",
                         );
                       } catch (error) {
                         Sentry.captureException(error, { extra: { date } });
@@ -633,7 +633,7 @@ export function HistoryView() {
         <button
           type="button"
           aria-label="Create new item"
-          onClick={() => navigate({ to: '/app' })}
+          onClick={() => navigate({ to: "/app" })}
           className="fixed bottom-8 right-8 flex h-14 w-14 items-center justify-center rounded-full bg-adam-neutral-100 text-adam-neutral-950 shadow-[0_4px_32px_rgba(0,0,0,0.48)] md:hidden"
         >
           <Plus className="h-10 w-10 stroke-[2px]" />
@@ -645,9 +645,9 @@ export function HistoryView() {
 
 function textFromParts(parts: unknown) {
   return asParametricParts(parts)
-    .filter((part) => part.type === 'text')
+    .filter((part) => part.type === "text")
     .map((part) => part.text)
-    .join('')
+    .join("")
     .trim();
 }
 
@@ -656,11 +656,11 @@ function imageIdsFromParts(parts: unknown) {
     .filter(
       (
         part,
-      ): part is Extract<AppUIMessage['parts'][number], { type: 'file' }> =>
-        part.type === 'file' &&
-        typeof part.mediaType === 'string' &&
-        part.mediaType.startsWith('image/'),
+      ): part is Extract<AppUIMessage["parts"][number], { type: "file" }> =>
+        part.type === "file" &&
+        typeof part.mediaType === "string" &&
+        part.mediaType.startsWith("image/"),
     )
-    .map((part) => part.filename?.replace(/\.[^.]+$/, '') ?? '')
+    .map((part) => part.filename?.replace(/\.[^.]+$/, "") ?? "")
     .filter(Boolean);
 }

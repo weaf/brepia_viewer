@@ -972,7 +972,6 @@ function TextAreaChat({
     let hasLargeImages = false;
     let hasInvalidImages = false;
     let hasUnsupportedImages = false;
-    let hasInvalidItems = false;
     const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB limit
 
     const validImages = await Promise.all(
@@ -1036,7 +1035,7 @@ function TextAreaChat({
       (mesh): mesh is File => mesh !== null,
     );
 
-    hasInvalidItems =
+    const hasInvalidItems =
       newItems.length > filteredImages.length + filteredMeshes.length;
 
     // Show specific errors first, then generic error only if there are truly invalid file types

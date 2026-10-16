@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import { GLTF, STLExporter, STLExporterOptionsBinary } from 'three-stdlib';
+import * as THREE from "three";
+import { GLTF, STLExporter, STLExporterOptionsBinary } from "three-stdlib";
 
 // Print processing constants
 const PRINT_CONSTANTS = {
@@ -310,7 +310,7 @@ const removeAdvancedDuplicateVertices = (
   // Only update if we actually removed duplicates
   if (newVertexCount < vertexCount) {
     geometry.setAttribute(
-      'position',
+      "position",
       new THREE.Float32BufferAttribute(newPositions, 3),
     );
 
@@ -452,7 +452,7 @@ const removeIsolatedVertices = (geometry: THREE.BufferGeometry): void => {
 
   // Update geometry
   geometry.setAttribute(
-    'position',
+    "position",
     new THREE.Float32BufferAttribute(newPositions, 3),
   );
 
@@ -481,14 +481,14 @@ export const makeModelWatertight = (container: THREE.Group): void => {
           geometry.mergeVertices(PRINT_CONSTANTS.VERTEX_MERGE_TOLERANCE);
         }
       } catch (e) {
-        console.warn('Could not merge vertices', e);
+        console.warn("Could not merge vertices", e);
       }
 
       // Step 2: Ensure all faces are outward-facing (consistent normals)
       try {
         geometry.computeVertexNormals();
       } catch (e) {
-        console.warn('Could not compute normals', e);
+        console.warn("Could not compute normals", e);
       }
 
       // Step 3: Ensure mesh has proper indices
@@ -503,7 +503,7 @@ export const makeModelWatertight = (container: THREE.Group): void => {
 
           geometry.setIndex(indices);
         } catch (e) {
-          console.warn('Could not create indices', e);
+          console.warn("Could not create indices", e);
         }
       }
     }
@@ -516,7 +516,7 @@ export const makeModelWatertight = (container: THREE.Group): void => {
  */
 const makeModelWatertightForSTL = (container: THREE.Group): void => {
   if (DEBUG) {
-    console.log('Starting advanced mesh repair for STL download...');
+    console.log("Starting advanced mesh repair for STL download...");
   }
 
   container.traverse((node) => {
@@ -533,7 +533,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         removeIsolatedVertices(geometry);
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not remove isolated vertices:', e);
+          console.warn("Could not remove isolated vertices:", e);
         }
       }
 
@@ -542,7 +542,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         removeDegenerateTriangles(geometry);
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not remove degenerate triangles:', e);
+          console.warn("Could not remove degenerate triangles:", e);
         }
       }
 
@@ -551,7 +551,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         removeAdvancedDuplicateVertices(geometry);
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not remove advanced duplicate vertices:', e);
+          console.warn("Could not remove advanced duplicate vertices:", e);
         }
       }
 
@@ -560,7 +560,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         fixNonManifoldEdges(geometry);
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not fix non-manifold edges:', e);
+          console.warn("Could not fix non-manifold edges:", e);
         }
       }
 
@@ -569,7 +569,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         fixFaceOrientations(geometry);
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not check face orientations:', e);
+          console.warn("Could not check face orientations:", e);
         }
       }
 
@@ -580,7 +580,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         }
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not merge vertices in final cleanup:', e);
+          console.warn("Could not merge vertices in final cleanup:", e);
         }
       }
 
@@ -589,7 +589,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
         geometry.computeVertexNormals();
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not compute normals:', e);
+          console.warn("Could not compute normals:", e);
         }
       }
 
@@ -606,7 +606,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
           geometry.setIndex(indices);
         } catch (e) {
           if (DEBUG) {
-            console.warn('Could not create indices:', e);
+            console.warn("Could not create indices:", e);
           }
         }
       }
@@ -620,7 +620,7 @@ const makeModelWatertightForSTL = (container: THREE.Group): void => {
   });
 
   if (DEBUG) {
-    console.log('Advanced mesh repair completed for all meshes');
+    console.log("Advanced mesh repair completed for all meshes");
   }
 };
 
@@ -701,8 +701,8 @@ const hasGeometryMergeVertices = (
   geometry: THREE.BufferGeometry,
 ): geometry is GeometryWithMergeVertices => {
   return (
-    'mergeVertices' in geometry &&
-    typeof (geometry as GeometryWithMergeVertices).mergeVertices === 'function'
+    "mergeVertices" in geometry &&
+    typeof (geometry as GeometryWithMergeVertices).mergeVertices === "function"
   );
 };
 
@@ -719,7 +719,7 @@ const applyFinalGeometryFixes = (scene: THREE.Scene): void => {
         }
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not merge vertices in final pass', e);
+          console.warn("Could not merge vertices in final pass", e);
         }
       }
 
@@ -727,7 +727,7 @@ const applyFinalGeometryFixes = (scene: THREE.Scene): void => {
         node.geometry.computeVertexNormals();
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not compute normals in final pass', e);
+          console.warn("Could not compute normals in final pass", e);
         }
       }
     }
@@ -746,7 +746,7 @@ const applyBasicGeometryFixes = (scene: THREE.Scene): void => {
         }
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not merge vertices in basic pass', e);
+          console.warn("Could not merge vertices in basic pass", e);
         }
       }
 
@@ -754,7 +754,7 @@ const applyBasicGeometryFixes = (scene: THREE.Scene): void => {
         node.geometry.computeVertexNormals();
       } catch (e) {
         if (DEBUG) {
-          console.warn('Could not compute normals in basic pass', e);
+          console.warn("Could not compute normals in basic pass", e);
         }
       }
     }
@@ -806,7 +806,7 @@ const applyFinalScalingSafeguard = (scene: THREE.Scene): void => {
   } else if (currentSmallestDimMm <= 0) {
     if (DEBUG) {
       console.warn(
-        'Cannot apply final safeguard scaling: current smallest dimension is zero or negative.',
+        "Cannot apply final safeguard scaling: current smallest dimension is zero or negative.",
       );
     }
   }
@@ -819,16 +819,16 @@ const applyFinalScalingSafeguard = (scene: THREE.Scene): void => {
 const processUserModelCore = (
   gltf: GLTF | null,
   repairFunction: (container: THREE.Group) => void,
-  logPrefix: string = 'processing',
+  logPrefix: string = "processing",
 ): THREE.Scene => {
   if (!gltf || !gltf.scene) {
-    throw new Error('Model not available');
+    throw new Error("Model not available");
   }
 
   // 1. Extract and validate meshes
   const userMeshes = extractValidMeshes(gltf.scene);
   if (userMeshes.length === 0) {
-    throw new Error('No valid geometry found in the model');
+    throw new Error("No valid geometry found in the model");
   }
 
   // 2. Analyze model dimensions
@@ -839,14 +839,14 @@ const processUserModelCore = (
 
   const sizeInMm = calculateModelDimensions(modelBoundingBox);
   if (DEBUG) {
-    console.log('Original model dimensions (mm):', sizeInMm);
+    console.log("Original model dimensions (mm):", sizeInMm);
   }
 
   // 3. Validate geometry for printing
   const hasValidGeometry = ensureValidPrintableGeometry(userMeshes);
   if (!hasValidGeometry) {
     if (DEBUG) {
-      console.warn('Model geometry requires significant repair for printing');
+      console.warn("Model geometry requires significant repair for printing");
     }
   }
 
@@ -913,7 +913,7 @@ const processUserModelCore = (
 
   const finalSizeInMm = calculateModelDimensions(finalBoundingBox);
   if (DEBUG) {
-    console.log('Final model dimensions (mm):', finalSizeInMm);
+    console.log("Final model dimensions (mm):", finalSizeInMm);
   }
 
   // Verify size appropriateness
@@ -953,7 +953,7 @@ export const processUserModelForPrint = async (
   const processedScene = processUserModelCore(
     gltf,
     makeModelWatertightForSTL,
-    'Mandarin3D',
+    "Mandarin3D",
   );
 
   // Apply final geometry fixes for STL
@@ -965,9 +965,9 @@ export const processUserModelForPrint = async (
     binary: true,
   } as STLExporterOptionsBinary);
 
-  const blob = new Blob([result], { type: 'application/octet-stream' });
+  const blob = new Blob([result], { type: "application/octet-stream" });
   const file = new File([blob], `${generateFilename()}_PRINTABLE.stl`, {
-    type: 'application/octet-stream',
+    type: "application/octet-stream",
   });
 
   if (DEBUG) {
@@ -994,7 +994,7 @@ export const processUserModelForDownload = async (
   const processedScene = processUserModelCore(
     gltf,
     makeModelWatertight,
-    'download',
+    "download",
   );
 
   // Apply basic geometry fixes to preserve textures
@@ -1037,7 +1037,7 @@ export const repairSingleMesh = (
         geometry.attributes,
       );
     }
-    throw new Error('Invalid geometry - no position attribute');
+    throw new Error("Invalid geometry - no position attribute");
   }
 
   // 2. Merge vertices that are very close to each other (helps with non-manifold edges)
@@ -1146,9 +1146,9 @@ export const basicRepair = (
 
   try {
     geometry.computeVertexNormals();
-  } catch (_e) {
+  } catch {
     if (DEBUG) {
-      console.warn('Could not compute normals');
+      console.warn("Could not compute normals");
     }
   }
 
@@ -1163,7 +1163,7 @@ export const repairMeshHierarchy = (
   inputScene: THREE.Object3D,
 ): THREE.Scene => {
   if (DEBUG) {
-    console.log('Repairing mesh hierarchy...');
+    console.log("Repairing mesh hierarchy...");
   }
 
   // Create a new scene for the repaired mesh
@@ -1183,11 +1183,11 @@ export const repairMeshHierarchy = (
 
   if (meshes.length === 0) {
     if (DEBUG) {
-      console.warn('No meshes found to repair!');
+      console.warn("No meshes found to repair!");
     }
     // If no meshes found, just clone the input scene
     inputScene.traverse((node) => {
-      if (node.type !== 'Scene') {
+      if (node.type !== "Scene") {
         // Avoid cloning the scene object itself if inputScene is a Scene
         const clone = node.clone();
         repairedScene.add(clone);
@@ -1229,7 +1229,7 @@ export const repairMeshHierarchy = (
   });
 
   if (DEBUG) {
-    console.log('Mesh repair complete');
+    console.log("Mesh repair complete");
   }
   return repairedScene;
 };
@@ -1269,7 +1269,7 @@ const getAppropriateScalingFactor = (
 
   // Base scaling to meet minimum requirements
   let scaleFactor = Math.max(dimensionScaleFactor, radiusScaleFactor);
-  let reason = 'Base scaling to meet printing requirements';
+  let reason: string;
 
   // Apply model-specific scaling adjustments
   if (isThinModel) {
@@ -1281,7 +1281,7 @@ const getAppropriateScalingFactor = (
   } else if (isAlreadyLarge) {
     // Model is already large, reduce scaling to avoid excessive size
     scaleFactor = Math.min(scaleFactor, 1.0);
-    reason = 'Already large model: limiting scaling to avoid excessive size';
+    reason = "Already large model: limiting scaling to avoid excessive size";
   } else {
     scaleFactor *= PRINT_CONSTANTS.STANDARD_SCALE_MULTIPLIER;
     reason = `Standard model: applying ${PRINT_CONSTANTS.STANDARD_SCALE_MULTIPLIER}x minimal safety margin`;

@@ -194,7 +194,7 @@ export async function handleFalWebhookRequest(request: Request) {
     return new Response('Mesh already uploaded', { status: 200 });
   }
 
-  let meshStatus: 'success' | 'failure' = 'success';
+  let meshStatus: 'success' | 'failure';
   try {
     const body = await readBoundedWebhookJson(request);
 

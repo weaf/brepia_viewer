@@ -39,6 +39,7 @@ export type OpenSCADWorkerMessageData = {
   project: OpenScadProject;
   fileType: string;
   params: Parameter[];
+  includeColorData?: boolean;
 };
 
 export type OpenSCADWorkerResponseData = {

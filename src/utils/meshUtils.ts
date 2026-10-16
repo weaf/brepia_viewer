@@ -423,7 +423,7 @@ export const generateInspectionPreview = async ({
   let scene: THREE.Scene | null = null;
 
   if (off) {
-    let group: THREE.Group | null = null;
+    let group: THREE.Group | null;
     try {
       group = buildColoredGroupFromOff(await off.text(), fallbackColor);
     } catch {

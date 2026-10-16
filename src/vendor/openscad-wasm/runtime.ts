@@ -1,4 +1,5 @@
 import generatedOpenScad from './openscad.js';
+import openscadWasmUrl from './openscad.wasm?url';
 import type { InitOptions, OpenSCAD } from './openscad.d.js';
 
 /**
@@ -15,7 +16,7 @@ export default function openScadRuntime(
     ...options,
     locateFile: (filename, prefix) => {
       if (filename === 'openscad.wasm' || filename.endsWith('/openscad.wasm')) {
-        return `${import.meta.env.BASE_URL}assets/openscad.wasm`;
+        return openscadWasmUrl;
       }
       return upstreamLocateFile?.(filename, prefix) ?? `${prefix}${filename}`;
     },

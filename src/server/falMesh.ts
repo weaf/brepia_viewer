@@ -1328,8 +1328,7 @@ async function submitPreviewJob(
 ) {
   ensureFalConfig();
 
-  let imageInputs: string[] = [];
-
+  let imageInputs: string[];
   let previewId: string | null = null;
 
   try {
