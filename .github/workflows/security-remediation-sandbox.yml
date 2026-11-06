@@ -21,6 +21,11 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Upgrade npm package manager inside the disposable runner only
+        run: |
+          npm install -g npm@11 --no-audit --no-fund
+          npm --version
+
       - name: Install exact baseline
         run: npm ci --no-fund --no-audit
 
@@ -31,6 +36,11 @@ jobs:
           npm audit fix --package-lock-only --no-fund
           status=$?
           echo "npm audit fix exit: $status"
+          if [ "$status" -ne 0 ]; then
+            echo "Attempt targeted semver-compatible refresh of vulnerable packages."
+            npm update dompurify undici vite seroval --package-lock-only --no-fund
+            echo "Targeted refresh exit: $?"
+          fi
           echo "No --force or audit bypass is used."
           exit 0
 
