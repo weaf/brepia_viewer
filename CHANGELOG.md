@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — OpenSCAD-only simplification
+
+- Removed the legacy Brepia AI, chat, BREP, Rhino/Grasshopper, Supabase, and build123d subsystems.
+- Removed STEP export completely from both server and static builds.
+- Kept the browser-side OpenSCAD editor, local models, model gallery, WebAssembly preview, and supported OpenSCAD export formats.
+- Retained the optional Node server and GitHub Pages deployment with the same OpenSCAD feature set.
+
+
 ## 0.2.0 — 2026-11-06 (public hosting and dual distribution)
 
 - Publish a free, fully static Brepia Viewer at [viewer.notydesign.se](https://viewer.notydesign.se/) using GitHub Pages and a Cloudflare-managed domain.

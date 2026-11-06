@@ -1,7 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Parameter } from '@shared/types';
-import { ModelConfig } from '../types/misc.ts';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -227,14 +226,3 @@ export function getInitials(fullName: string | null) {
   return 'U';
 }
 
-// Parametric language models are configuration-owned. The selectable catalog
-// is built from Local/OpenCode/Codex discovery and models explicitly created
-// in AI Settings; there is no compile-time hosted-model fallback list.
-export const PARAMETRIC_MODELS: ModelConfig[] = [];
-
-// Brepia accepts image / STL-render inputs for every parametric route. Native
-// multimodal models receive the original image data; text-only, OpenCode and
-// Codex routes use the configured server-side vision fallback.
-export function parametricModelSupportsVision(_modelId: string): boolean {
-  return true;
-}

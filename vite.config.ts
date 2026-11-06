@@ -77,35 +77,11 @@ const vendorChunkTest = (id: string) =>
 
 const radixChunkTest = (id: string) => id.includes("/node_modules/@radix-ui/");
 
-const aiSdkChunkTest = (id: string) =>
-  id.includes("/node_modules/ai/") || id.includes("/node_modules/@ai-sdk/");
-
-const supabaseChunkTest = (id: string) =>
-  id.includes("/node_modules/@supabase/");
-
 const threeChunkTest = (id: string) => id.includes("/node_modules/three/");
 
 const reactThreeChunkTest = (id: string) =>
   id.includes("/node_modules/@react-three/") ||
   id.includes("/node_modules/three-stdlib/");
-
-const streamdownCoreChunkTest = (id: string) =>
-  id.includes("/node_modules/streamdown/");
-
-const streamdownCjkChunkTest = (id: string) =>
-  id.includes("/node_modules/@streamdown/cjk/");
-
-const streamdownMathChunkTest = (id: string) =>
-  id.includes("/node_modules/@streamdown/math/") ||
-  id.includes("/node_modules/katex/");
-
-const streamdownMermaidChunkTest = (id: string) =>
-  id.includes("/node_modules/@streamdown/mermaid/");
-
-const shikiChunkTest = (id: string) =>
-  id.includes("/node_modules/shiki/dist/") ||
-  id.includes("/node_modules/@shikijs/core/") ||
-  id.includes("/node_modules/@shikijs/engine-javascript/");
 
 export default defineConfig({
   base: appBase,
@@ -181,18 +157,8 @@ export default defineConfig({
               groups: [
                 { name: "vendor", test: vendorChunkTest },
                 { name: "radix-ui", test: radixChunkTest },
-                { name: "ai-sdk", test: aiSdkChunkTest },
-                { name: "supabase", test: supabaseChunkTest },
                 { name: "three", test: threeChunkTest },
                 { name: "react-three", test: reactThreeChunkTest },
-                { name: "streamdown-core", test: streamdownCoreChunkTest },
-                { name: "streamdown-cjk", test: streamdownCjkChunkTest },
-                { name: "streamdown-math", test: streamdownMathChunkTest },
-                {
-                  name: "streamdown-mermaid",
-                  test: streamdownMermaidChunkTest,
-                },
-                { name: "shiki", test: shikiChunkTest },
               ],
             },
           },

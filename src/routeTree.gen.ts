@@ -14,7 +14,6 @@ import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy';
 import { Route as TermsOfServiceRouteImport } from './routes/terms-of-service';
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index';
 import { Route as AssetsSplatRouteImport } from './routes/assets.$';
-import { Route as ApiExportStepRouteImport } from './routes/api/export.step';
 
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
@@ -40,25 +39,17 @@ const AssetsSplatRoute = AssetsSplatRouteImport.update({
   path: '/assets/$',
   getParentRoute: () => rootRouteImport,
 } as any);
-const ApiExportStepRoute = ApiExportStepRouteImport.update({
-  id: '/api/export/step',
-  path: '/api/export/step',
-  getParentRoute: () => rootRouteImport,
-} as any);
-
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute;
   '/privacy-policy': typeof PrivacyPolicyRoute;
   '/terms-of-service': typeof TermsOfServiceRoute;
   '/assets/$': typeof AssetsSplatRoute;
-  '/api/export/step': typeof ApiExportStepRoute;
 }
 export interface FileRoutesByTo {
   '/privacy-policy': typeof PrivacyPolicyRoute;
   '/terms-of-service': typeof TermsOfServiceRoute;
   '/assets/$': typeof AssetsSplatRoute;
   '/': typeof LayoutIndexRoute;
-  '/api/export/step': typeof ApiExportStepRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -67,7 +58,6 @@ export interface FileRoutesById {
   '/terms-of-service': typeof TermsOfServiceRoute;
   '/assets/$': typeof AssetsSplatRoute;
   '/_layout/': typeof LayoutIndexRoute;
-  '/api/export/step': typeof ApiExportStepRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -75,23 +65,20 @@ export interface FileRouteTypes {
     | '/'
     | '/privacy-policy'
     | '/terms-of-service'
-    | '/assets/$'
-    | '/api/export/step';
+    | '/assets/$';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/privacy-policy'
     | '/terms-of-service'
     | '/assets/$'
-    | '/'
-    | '/api/export/step';
+    | '/';
   id:
     | '__root__'
     | '/_layout'
     | '/privacy-policy'
     | '/terms-of-service'
     | '/assets/$'
-    | '/_layout/'
-    | '/api/export/step';
+    | '/_layout/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -99,7 +86,6 @@ export interface RootRouteChildren {
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute;
   TermsOfServiceRoute: typeof TermsOfServiceRoute;
   AssetsSplatRoute: typeof AssetsSplatRoute;
-  ApiExportStepRoute: typeof ApiExportStepRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -139,13 +125,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsSplatRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    '/api/export/step': {
-      id: '/api/export/step';
-      path: '/api/export/step';
-      fullPath: '/api/export/step';
-      preLoaderRoute: typeof ApiExportStepRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
   }
 }
 
@@ -165,7 +144,6 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   TermsOfServiceRoute: TermsOfServiceRoute,
   AssetsSplatRoute: AssetsSplatRoute,
-  ApiExportStepRoute: ApiExportStepRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
