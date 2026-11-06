@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const origin = 'http://127.0.0.1:4179';
-const basePath = process.env.STATIC_VIEWER_BASE || '/brepia_viewer/';
+const basePath = process.env.STATIC_VIEWER_BASE || '/';
 // Serve at the real deployment path. A custom-domain Pages site serves at /;
 // the default github.io project site serves at /brepia_viewer/.
 const isRootSite = basePath === '/';
