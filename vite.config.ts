@@ -168,7 +168,7 @@ export default defineConfig({
     outDir: "dist/brepia",
     emptyOutDir: true,
 
-    sourcemap: true,
+    sourcemap: !staticViewerBuild,
   },
   environments: {
     client: {
