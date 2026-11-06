@@ -79,6 +79,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const supportedSourceFile = /\.scad(?:\.txt)?$/i;
 const refreshTime = (updatedAt: number) => new Date(updatedAt).toLocaleString();
 type ModelExportFormat = "scad" | "step" | EnabledOpenScadExportFormat;
+const isStaticViewer = import.meta.env.VITE_STATIC_VIEWER === "1";
 
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const separator = dataUrl.indexOf(",");
@@ -494,7 +495,7 @@ export function ModelGalleryView() {
     }
     if (format === "scad" || format === "dxf") return true;
     if (format === "step") {
-      return (activeRecord.project.assets?.length ?? 0) === 0;
+      return !isStaticViewer && (activeRecord.project.assets?.length ?? 0) === 0;
     }
     if (format === "stl" || format === "3mf")
       return Boolean(previewExportState.output);
@@ -893,24 +894,26 @@ export function ModelGalleryView() {
                   <span>.SCAD</span>
                   <span className="ml-auto text-xs text-adam-neutral-400">Source code</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={
-                    !exportFormatAvailable("step") || exportingFormat !== null
-                  }
-                  onSelect={() => void exportModel("step")}
-                  title={
-                    activeRecord.project.assets?.length
-                      ? "STEP export is unavailable for projects with external assets."
-                      : undefined
-                  }
-                >
-                  <span>.STEP</span>
-                  <span className="ml-auto text-xs text-adam-neutral-400">
-                    {activeRecord.project.assets?.length
-                      ? "No external assets"
-                      : "3D CAD exchange"}
-                  </span>
-                </DropdownMenuItem>
+                {!isStaticViewer && (
+                  <DropdownMenuItem
+                    disabled={
+                      !exportFormatAvailable("step") || exportingFormat !== null
+                    }
+                    onSelect={() => void exportModel("step")}
+                    title={
+                      activeRecord.project.assets?.length
+                        ? "STEP export is unavailable for projects with external assets."
+                        : undefined
+                    }
+                  >
+                    <span>.STEP</span>
+                    <span className="ml-auto text-xs text-adam-neutral-400">
+                      {activeRecord.project.assets?.length
+                        ? "No external assets"
+                        : "3D CAD exchange"}
+                    </span>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
