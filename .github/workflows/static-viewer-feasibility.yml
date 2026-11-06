@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   static-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +36,6 @@ jobs:
           du -sh .output/public
           echo "OpenSCAD assets:"
           find .output/public -iname '*openscad*' -o -name '*.wasm'
-
-      - name: Install Chromium browser
-        run: npx playwright install --with-deps chromium
 
       - name: Test static HTTP + model gallery and OpenSCAD rendering
         run: node .github/scripts/static-viewer-smoke.mjs
