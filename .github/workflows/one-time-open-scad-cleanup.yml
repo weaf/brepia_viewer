@@ -1,4 +1,5 @@
 name: One-time OpenSCAD-only cleanup
+# Diagnostic pass: trace remaining legacy imports before mutation
 
 on:
   push:
