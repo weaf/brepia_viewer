@@ -35,9 +35,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Remove legacy CAD and AI systems; keep OpenSCAD-only Viewer"
           git push origin HEAD:cleanup/openscad-only
-      - name: Regenerate route tree and check candidate build
+      - name: Regenerate TanStack routes after STEP endpoint removal
         run: |
           npx vite build
-          npm run check
+          git add -- src/routeTree.gen.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "Regenerate OpenSCAD-only TanStack route tree"
+            git push origin HEAD:cleanup/openscad-only
+          fi
+      - name: Validate server build and tests
+        run: npm run check
       - name: Validate runtime dependency security
         run: npm audit --omit=dev --audit-level=high
