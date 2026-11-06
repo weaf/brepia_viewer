@@ -266,6 +266,17 @@ for (const line of optionalChunkLines) viteReduced = viteReduced.replace(line + 
 viteReduced = viteReduced.replace(/\s+\{\s+name: "shiki",\s+test: shikiChunkTest,\s+\},\n/, '\n');
 viteReduced = viteReduced.replace(/\n\s+\{\s+name: "ai-sdk",\s+test: aiSdkChunkTest,\s+\},/, '');
 viteReduced = viteReduced.replace(/\n\s+\{\s+name: "supabase",\s+test: supabaseChunkTest,\s+\},/, '');
+const chunkGroupsStart = viteReduced.indexOf('              groups: [');
+const chunkGroupsEnd = viteReduced.indexOf('              ],', chunkGroupsStart);
+if (chunkGroupsStart < 0 || chunkGroupsEnd < 0) throw new Error('Vite chunk groups not found');
+viteReduced = viteReduced.slice(0, chunkGroupsStart) + [
+  '              groups: [',
+  '                { name: "vendor", test: vendorChunkTest },',
+  '                { name: "radix-ui", test: radixChunkTest },',
+  '                { name: "three", test: threeChunkTest },',
+  '                { name: "react-three", test: reactThreeChunkTest },',
+  '              ],',
+].join('\n') + viteReduced.slice(chunkGroupsEnd + '              ],'.length);
 if (/aiSdkChunkTest|supabaseChunkTest|streamdownCoreChunkTest|shikiChunkTest/.test(viteReduced)) throw new Error('Unremoved Vite legacy chunk reference');
 write('vite.config.ts',viteReduced);
 
