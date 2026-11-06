@@ -24,10 +24,12 @@ jobs:
         run: npm ci --no-fund --no-audit
 
       - name: Build production output
-        run: npm run build
+        run: STATIC_VIEWER=1 npm run build
 
       - name: Inspect generated static payload
         run: |
+          echo "Prerendered home HTML:"
+          sed -n "1,10p" .output/public/index.html | cut -c 1-1500
           echo "Top-level static assets:"
           find .output/public -maxdepth 2 -type f | head -40
           echo "Static payload total:"
