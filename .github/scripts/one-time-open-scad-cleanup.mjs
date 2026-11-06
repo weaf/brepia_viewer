@@ -85,6 +85,7 @@ export type Parameter = {
 `);
 
 const keep = new Set();
+const parents = new Map();
 const unresolved = new Set();
 const packages = new Set();
 const queue = [];
@@ -144,7 +145,7 @@ function importTarget(origin, spec) {
   if (withoutExt !== base) for (const x of exts) candidates.add(withoutExt + x);
   for (const x of exts) candidates.add(base + '/index' + x);
   for (const c of candidates) {
-    if (trackedSet.has(c)) { push(c); return; }
+    if (trackedSet.has(c)) { if (!parents.has(c)) parents.set(c, origin); push(c); return; }
   }
   unresolved.add(origin + ' <- ' + spec);
 }
@@ -191,6 +192,21 @@ const legacyTracked = [
   'setup.sh', '.env.local.template', 'scripts/supabase-local.sh',
   'scripts/podman/podman', 'src/routes/api/export.step.ts'
 ];
+const forbiddenReachable = [...keep].filter(p => forbiddenPrefixes.some(prefix => p.startsWith(prefix)));
+if (forbiddenReachable.length) {
+  const pathTo = (file) => {
+    const chain = [file];
+    while (parents.has(file) && chain.length < 18) {
+      file = parents.get(file);
+      if (chain.includes(file)) break;
+      chain.push(file);
+    }
+    return chain.reverse();
+  };
+  console.log('REACHABLE_LEGACY_FILES=' + JSON.stringify(forbiddenReachable));
+  console.log('REACHABILITY_CHAINS=' + JSON.stringify(forbiddenReachable.slice(0,20).map(pathTo)));
+  throw new Error('Stop before deleting required files: inspect legacy import chains');
+}
 const deleted = [];
 for (const p of tracked) {
   let remove = false;
