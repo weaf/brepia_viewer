@@ -1,16 +1,20 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { mkdir, writeFile, stat, mkdtemp, symlink, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const origin = 'http://127.0.0.1:4179';
-const dir = '.output/public';
+const basePath = '/brepia_viewer/';
+// Simulate GitHub Pages path routing: upload public/ as the root of /brepia_viewer/.
+const siteRoot = await mkdtemp(path.join(tmpdir(), 'brepia-pages-smoke-'));
+await symlink(path.resolve('.output/public'), path.join(siteRoot, 'brepia_viewer'), 'dir');
 const evidence = process.env.RUNNER_TEMP
   ? path.join(process.env.RUNNER_TEMP, 'viewer-static-evidence')
   : path.join(process.cwd(), '.output', 'static-evidence');
 
 await mkdir(evidence, { recursive: true });
-const server = spawn('python3', ['-m', 'http.server', '4179', '--bind', '127.0.0.1', '--directory', dir], {
+const server = spawn('python3', ['-m', 'http.server', '4179', '--bind', '127.0.0.1', '--directory', siteRoot], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let serverError = '';
@@ -24,20 +28,22 @@ try {
   let ready = false;
   for (let i=0;i<45;i++) {
     try {
-      const res=await fetch(origin + '/');
+      const res=await fetch(origin + basePath);
       if(res.ok) {ready=true;break;}
     } catch {}
     if(server.exitCode !== null) break;
     await sleep(250);
   }
   if (!ready) throw new Error('Static HTTP server unavailable: ' + serverError);
-  const rootHtml=await (await fetch(origin+'/')).text();
+  const rootHtml=await (await fetch(origin+basePath)).text();
   findings.push({type:'root-html',byteLength:rootHtml.length,snippet:rootHtml.slice(0,1500)});
+  if(!rootHtml.includes('/brepia_viewer/assets/')) violations.push('Wrong GitHub Pages asset base');
 
-  for (const endpoint of ['/', '/openscad.wasm', '/privacy-policy', '/terms-of-service']) {
+  for (const endpoint of [basePath, `${basePath}privacy-policy`, `${basePath}terms-of-service`]) {
     const response=await fetch(origin+endpoint);
     findings.push({type:'static-http',path:endpoint,status:response.status,contentType:response.headers.get('content-type'),bytes:Number(response.headers.get('content-length')||0)});
-    if(endpoint==='/' && !response.ok) violations.push('root HTTP failed');
+    if(endpoint===basePath && !response.ok) violations.push('root HTTP failed');
+    if(!response.ok) violations.push(`Page ${endpoint} returned HTTP ${response.status}`);
   }
 
   browser=await chromium.launch({channel:'chrome',headless:true,args:['--disable-dev-shm-usage','--enable-unsafe-swiftshader']});
@@ -45,7 +51,11 @@ try {
   for(const device of [{name:'desktop',width:1440,height:900},{name:'mobile',width:390,height:844}]) {
     const context=await browser.newContext({viewport:{width:device.width,height:device.height},acceptDownloads:true,serviceWorkers:'block'});
     const page=await context.newPage();
-    const errors=[],failedRequests=[],apiRequests=[],wasm=[];
+    const errors=[],failedRequests=[],apiRequests=[],wasm=[],assetHttpFailures=[],wasmStatuses=[];
+    page.on('response',res=>{
+      if(res.url().startsWith(origin+basePath) && res.status()>=400) assetHttpFailures.push({url:res.url().slice(0,150),status:res.status()});
+      if(res.url().endsWith('.wasm')) wasmStatuses.push(res.status());
+    });
     page.on('pageerror',err=>errors.push(err.message.slice(0,300)));
     page.on('requestfailed',req=>failedRequests.push({url:req.url().slice(0,180),reason:req.failure()?.errorText}));
     page.on('request',req=>{
@@ -53,7 +63,7 @@ try {
       if (req.url().includes('openscad') || req.url().endsWith('.wasm')) wasm.push(req.url().slice(0,170));
     });
     const t0=Date.now();
-    const response=await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:45000});
+    const response=await page.goto(origin+basePath,{waitUntil:'domcontentloaded',timeout:45000});
     await page.getByText('Model gallery',{exact:true}).first().waitFor({timeout:35000});
     const tGallery=Date.now()-t0;
     const body=await page.locator('body').innerText();
@@ -100,12 +110,14 @@ try {
       stlExport={error:String(e?.message||e).slice(0,250)};
       violations.push(device.name+' STL export failed');
     }
-    const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,stlExport,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),...snapshot};
+    const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,stlExport,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),wasmStatuses,assetHttpFailures,...snapshot};
     findings.push(result);
     if(errors.length) violations.push(device.name+' JS exceptions');
     if(snapshot.docWidth > snapshot.viewportWidth + 2) violations.push(device.name+' horizontal overflow');
     if(!visibleCanvas) violations.push(device.name+' no visible model canvas');
     if(apiRequests.length) violations.push(device.name+' unexpected server API call');
+    if(assetHttpFailures.length) violations.push(device.name+' same-origin asset HTTP failures');
+    if(!wasmStatuses.includes(200)) violations.push(device.name+' OpenSCAD WASM was not loaded successfully');
     await context.close();
   }
 } catch (error) {
@@ -113,8 +125,9 @@ try {
 } finally {
   if (browser) await browser.close();
   server.kill('SIGTERM');
+  await rm(siteRoot,{recursive:true,force:true});
 }
-const result={testedAt:new Date().toISOString(),siteType:'prerendered TanStack Nitro static assets',findings,violations};
+const result={testedAt:new Date().toISOString(),siteType:'GitHub Pages project subpath prerendered build',basePath,findings,violations};
 await writeFile(path.join(evidence,'results.json'),JSON.stringify(result,null,2)+'\n');
 console.log('STATIC_SMOKE_RESULTS='+JSON.stringify(result));
 if(violations.length) process.exitCode=1;

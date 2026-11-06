@@ -6,9 +6,9 @@ import http from "node:http";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-const appBase = "/";
-// Experiment only: generate a server-free static build without altering the local app.
+// The local Nitro server stays at /; the static GitHub Pages build lives under the repository subpath.
 const staticViewerBuild = process.env.STATIC_VIEWER === "1";
+const appBase = staticViewerBuild ? "/brepia_viewer/" : "/";
 const stableArtifactDir = (
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR ||
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR

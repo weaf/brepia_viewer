@@ -1,0 +1,58 @@
+name: Publish Brepia Viewer to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: brepia-viewer-github-pages
+  cancel-in-progress: true
+
+jobs:
+  pages:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Build static GitHub Pages variant
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+
+      - name: Verify GitHub Pages subpath, OpenSCAD, desktop/mobile and STL
+        run: node .github/scripts/static-viewer-smoke.mjs
+
+      - name: Include Pages static metadata
+        run: touch .output/public/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload static distribution
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .output/public
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

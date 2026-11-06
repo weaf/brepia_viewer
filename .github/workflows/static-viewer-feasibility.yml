@@ -23,7 +23,7 @@ jobs:
       - name: Install exact dependencies
         run: npm ci --no-fund --no-audit
 
-      - name: Build production output
+      - name: Build GitHub Pages subpath output
         run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
 
       - name: Inspect generated static payload
