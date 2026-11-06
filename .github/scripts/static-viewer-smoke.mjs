@@ -73,6 +73,23 @@ try {
     const t0=Date.now();
     const response=await page.goto(origin+basePath,{waitUntil:'domcontentloaded',timeout:45000});
     await page.getByText('Model gallery',{exact:true}).first().waitFor({timeout:35000});
+    const repositoryLink = page.getByRole('link',{name:'View Brepia Viewer repository on GitHub'});
+    const assertRepositoryLink = async (view) => {
+      const links = await repositoryLink.count();
+      if (links !== 1) {
+        violations.push(device.name+' '+view+' GitHub repository link count: '+links);
+        return;
+      }
+      const link = repositoryLink.first();
+      const href = await link.getAttribute('href');
+      const target = await link.getAttribute('target');
+      const rel = (await link.getAttribute('rel'))?.split(/\s+/) || [];
+      if (href !== 'https://github.com/weaf/brepia_viewer') violations.push(device.name+' '+view+' GitHub repository URL mismatch');
+      if (target !== '_blank' || !rel.includes('noopener') || !rel.includes('noreferrer')) violations.push(device.name+' '+view+' GitHub link missing safe new-tab attributes');
+      if (!(await link.isVisible())) violations.push(device.name+' '+view+' GitHub repository link not visible');
+      if ((await link.locator('svg').count()) !== 1) violations.push(device.name+' '+view+' GitHub icon missing');
+    };
+    await assertRepositoryLink('gallery');
     const tGallery=Date.now()-t0;
     const body=await page.locator('body').innerText();
     await page.screenshot({path:path.join(evidence,device.name+'-gallery.png'),fullPage:true});
@@ -84,6 +101,7 @@ try {
       buffer:Buffer.from('cube([10,10,10], center=true);\n'),
     });
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
+    await assertRepositoryLink('model editor');
     let visibleCanvas=false;
     try {
       await page.waitForFunction(()=>Array.from(document.querySelectorAll('canvas')).some(x=>x.getBoundingClientRect().width>40 && x.getBoundingClientRect().height>40),null,{timeout:85000});
