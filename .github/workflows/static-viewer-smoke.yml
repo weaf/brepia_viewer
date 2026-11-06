@@ -1,10 +1,8 @@
-name: Brepia Viewer static hosting feasibility
+name: Brepia Viewer static smoke
 
 on:
-  push:
-    branches:
-      - experiment/static-viewer-hosting
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +24,7 @@ jobs:
       - name: Install exact dependencies
         run: npm ci --no-fund --no-audit
 
-      - name: Build GitHub Pages subpath output
+      - name: Build GitHub Pages custom-domain output
         run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
 
       - name: Inspect generated static payload
@@ -47,6 +45,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: static-viewer-feasibility
+          name: static-viewer-smoke
           path: ${{ runner.temp }}/viewer-static-evidence/
           if-no-files-found: warn

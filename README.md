@@ -12,8 +12,13 @@
 <div align="center">
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat)](https://www.gnu.org/licenses/gpl-3.0)
+[![Brepia Viewer v0.2.0](https://img.shields.io/badge/Version-v0.2.0-brightgreen.svg?style=flat)](https://github.com/weaf/brepia_viewer/releases/tag/v0.2.0)
+[![GitHub Pages](https://img.shields.io/badge/Live-Viewer-0a7ec2.svg?style=flat)](https://viewer.notydesign.se/)
+[![CI](https://github.com/weaf/brepia_viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/weaf/brepia_viewer/actions/workflows/ci.yml)
 
 </div>
+
+**[Open the public Viewer](https://viewer.notydesign.se/)** · [Browse the source code](https://github.com/weaf/brepia_viewer) · [Releases](https://github.com/weaf/brepia_viewer/releases)
 
 Browse parametric OpenSCAD designs, preview them in 3D, adjust exposed parameters, and edit project source files—all in your browser. No account is needed to browse the gallery or work with local models.
 
@@ -26,7 +31,7 @@ Browse parametric OpenSCAD designs, preview them in 3D, adjust exposed parameter
 - Save uploaded models and edits in browser storage, then return to them later on the same browser and device.
 - Download a model preview as an STL file.
 
-Local models are stored in this browser, not uploaded to a Brepia account. Clearing browser data or using another browser or device will not carry those local copies over.
+Local models are stored in this browser, not uploaded to a Brepia account. Clearing browser data or using another browser or device will not carry those local copies over. Moving between `weaf.github.io` and `viewer.notydesign.se` also changes the storage origin; models saved under one address are not automatically transferred to the other.
 
 ## Model sources
 
