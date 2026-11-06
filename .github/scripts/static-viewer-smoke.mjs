@@ -31,6 +31,8 @@ try {
     await sleep(250);
   }
   if (!ready) throw new Error('Static HTTP server unavailable: ' + serverError);
+  const rootHtml=await (await fetch(origin+'/')).text();
+  findings.push({type:'root-html',byteLength:rootHtml.length,snippet:rootHtml.slice(0,1500)});
 
   for (const endpoint of ['/', '/openscad.wasm', '/privacy-policy', '/terms-of-service']) {
     const response=await fetch(origin+endpoint);
@@ -38,7 +40,7 @@ try {
     if(endpoint==='/' && !response.ok) violations.push('root HTTP failed');
   }
 
-  browser=await chromium.launch({headless:true,args:['--disable-dev-shm-usage','--enable-unsafe-swiftshader']});
+  browser=await chromium.launch({channel:'chrome',headless:true,args:['--disable-dev-shm-usage','--enable-unsafe-swiftshader']});
 
   for(const device of [{name:'desktop',width:1440,height:900},{name:'mobile',width:390,height:844}]) {
     const context=await browser.newContext({viewport:{width:device.width,height:device.height},acceptDownloads:true,serviceWorkers:'block'});
