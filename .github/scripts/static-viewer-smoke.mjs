@@ -5,10 +5,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const origin = 'http://127.0.0.1:4179';
-const basePath = '/brepia_viewer/';
-// Simulate GitHub Pages path routing: upload public/ as the root of /brepia_viewer/.
-const siteRoot = await mkdtemp(path.join(tmpdir(), 'brepia-pages-smoke-'));
-await symlink(path.resolve('.output/public'), path.join(siteRoot, 'brepia_viewer'), 'dir');
+const basePath = process.env.STATIC_VIEWER_BASE || '/brepia_viewer/';
+// Serve at the real deployment path. A custom-domain Pages site serves at /;
+// the default github.io project site serves at /brepia_viewer/.
+const isRootSite = basePath === '/';
+const siteRoot = isRootSite
+  ? path.resolve('.output/public')
+  : await mkdtemp(path.join(tmpdir(), 'brepia-pages-smoke-'));
+if (!isRootSite) {
+  await symlink(path.resolve('.output/public'), path.join(siteRoot, basePath.slice(1, -1)), 'dir');
+}
 const evidence = process.env.RUNNER_TEMP
   ? path.join(process.env.RUNNER_TEMP, 'viewer-static-evidence')
   : path.join(process.cwd(), '.output', 'static-evidence');
@@ -39,7 +45,7 @@ try {
   if (!ready) throw new Error('Static HTTP server unavailable: ' + serverError);
   const rootHtml=await (await fetch(origin+basePath)).text();
   findings.push({type:'root-html',byteLength:rootHtml.length,snippet:rootHtml.slice(0,1500)});
-  if(!rootHtml.includes('/brepia_viewer/assets/')) violations.push('Wrong GitHub Pages asset base');
+  if(!rootHtml.includes(`${basePath}assets/`)) violations.push('Wrong GitHub Pages asset base');
 
   for (const endpoint of [basePath, `${basePath}privacy-policy`, `${basePath}terms-of-service`]) {
     const response=await fetch(origin+endpoint);
@@ -129,7 +135,7 @@ try {
 } finally {
   if (browser) await browser.close();
   server.kill('SIGTERM');
-  await rm(siteRoot,{recursive:true,force:true});
+  if (!isRootSite) await rm(siteRoot,{recursive:true,force:true});
 }
 const result={testedAt:new Date().toISOString(),siteType:'GitHub Pages project subpath prerendered build',basePath,findings,violations};
 await writeFile(path.join(evidence,'results.json'),JSON.stringify(result,null,2)+'\n');
