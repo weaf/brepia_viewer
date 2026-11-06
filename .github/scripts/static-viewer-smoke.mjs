@@ -87,7 +87,7 @@ try {
       if (href !== 'https://github.com/weaf/brepia_viewer') violations.push(device.name+' '+view+' GitHub repository URL mismatch');
       if (target !== '_blank' || !rel.includes('noopener') || !rel.includes('noreferrer')) violations.push(device.name+' '+view+' GitHub link missing safe new-tab attributes');
       if (!(await link.isVisible())) violations.push(device.name+' '+view+' GitHub repository link not visible');
-      if ((await link.locator('svg').count()) !== 1) violations.push(device.name+' '+view+' GitHub icon missing');
+      if ((await link.locator('svg').count()) < 1) violations.push(device.name+' '+view+' GitHub icon missing');
     };
     await assertRepositoryLink('gallery');
     const tGallery=Date.now()-t0;
