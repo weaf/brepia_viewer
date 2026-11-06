@@ -1,5 +1,5 @@
 name: One-time OpenSCAD-only cleanup
-# Diagnostic pass: trace remaining legacy imports before mutation
+# Cleanup pass: OpenSCAD filename helper detached from legacy AI imports
 
 on:
   push:
