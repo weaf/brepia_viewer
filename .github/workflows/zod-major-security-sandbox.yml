@@ -1,0 +1,59 @@
+name: One-time Zod 4 security compatibility test
+
+on:
+  push:
+    branches: [experiment/static-viewer-hosting]
+    paths: [.github/workflows/zod-major-security-sandbox.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  zod4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Update npm on isolated runner
+        run: |
+          npm install -g npm@11 --no-fund --no-audit
+          npm --version
+
+      - name: Install Zod 4 security release
+        run: npm install --save 'zod@^4.6.7' --no-fund --no-audit
+
+      - name: Validate clean reproducible install
+        run: npm ci --no-fund --no-audit
+
+      - name: Verify default Nitro server build and tests
+        run: npm run check
+
+      - name: Verify static GitHub Pages 3D rendering and STL exports
+        run: |
+          STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+          node .github/scripts/static-viewer-smoke.mjs
+
+      - name: Enforce original security gate
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Commit verified major update to experimental branch
+        shell: bash
+        run: |
+          set -e
+          git add -- package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo 'No package changes made.'
+            exit 0
+          fi
+          git diff --cached --stat
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Upgrade Zod to patched v4 after server, static and security checks'
+          git push origin HEAD:experiment/static-viewer-hosting
