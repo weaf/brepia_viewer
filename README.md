@@ -39,13 +39,14 @@ Built-in models are listed in [`src/lib/modelRepositories.ts`](src/lib/modelRepo
 
 ## Deployment modes
 
-One repository provides **two builds**; the local server and the free static site
-use the same model gallery, editor, browser-side OpenSCAD WebAssembly and IndexedDB.
+Brepia Viewer is dedicated to **OpenSCAD only**. One codebase provides two deployment
+methods: the free static GitHub Pages app and the optional local Node server.
+Both run the same client-side OpenSCAD WebAssembly engine and use browser IndexedDB.
 
-| Mode | Command | Public URL / output | STEP export |
+| Mode | Command | Public URL / output | OpenSCAD export |
 | --- | --- | --- | --- |
-| Node/Nitro server (default) | `./start.sh` | `http://localhost:8005/` | Available when its server-side provider is configured |
-| Static GitHub Pages | `STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/ npm run build` | `.output/public/` deployed at `https://viewer.notydesign.se/` | Intentionally hidden |
+| Node/Nitro server (default) | `./start.sh` | `http://localhost:8005/` | Same browser-side OpenSCAD exports |
+| Static GitHub Pages | `STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/ npm run build` | `.output/public/` deployed at `https://viewer.notydesign.se/` | Same browser-side OpenSCAD exports |
 
 **Static hosting:** The GitHub Actions Pages workflow builds from `main`
 and publishes the prerendered files at `https://viewer.notydesign.se/`.
@@ -58,7 +59,7 @@ The original `weaf.github.io/brepia_viewer/` URL may redirect to the custom doma
 In GitHub repository **Settings → Pages**, select **GitHub Actions** as
 the publishing source once. The normal CI pipeline and existing server launcher
 remain independent of Pages. Models are processed in the visitor's browser;
-the server-only STEP API is not shipped as an active feature of the static site.
+no server-based CAD conversion API is required.
 Models from public GitHub repositories require GitHub to be reachable.
 
 For a Pages-compatible test build, run:

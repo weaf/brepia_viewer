@@ -14,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { exportStep } from "@/services/stepExport";
 import { downloadFile } from "@/utils/downloadUtils";
 import { getSafeFilename } from "@/utils/file-utils";
 import { generatePreview, generateColoredPreview } from "@/utils/meshUtils";
@@ -79,8 +78,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const supportedSourceFile = /\.scad(?:\.txt)?$/i;
 const refreshTime = (updatedAt: number) => new Date(updatedAt).toLocaleString();
-type ModelExportFormat = "scad" | "step" | EnabledOpenScadExportFormat;
-const isStaticViewer = import.meta.env.VITE_STATIC_VIEWER === "1";
+type ModelExportFormat = "scad" | EnabledOpenScadExportFormat;
 
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const separator = dataUrl.indexOf(",");
@@ -495,9 +493,6 @@ export function ModelGalleryView() {
       return false;
     }
     if (format === "scad" || format === "dxf") return true;
-    if (format === "step") {
-      return !isStaticViewer && (activeRecord.project.assets?.length ?? 0) === 0;
-    }
     if (format === "stl" || format === "3mf")
       return Boolean(previewExportState.output);
     return OPENSCAD_EXPORT_FORMATS.some(
@@ -533,20 +528,6 @@ export function ModelGalleryView() {
           filename: `${filename}.dxf`,
           mimeType: "application/dxf",
         });
-      } else if (format === "step") {
-        const result = await exportStep(activeRecord.project);
-        downloadFile({
-          content: result.file,
-          filename: `${filename}.step`,
-          mimeType: "model/step",
-        });
-        if (result.warningCount > 0) {
-          toast({
-            title: "STEP exported with fallbacks",
-            description:
-              "Some OpenSCAD operations were converted using mesh fallback geometry.",
-          });
-        }
       } else {
         const metadata = OPENSCAD_EXPORT_FORMATS.find(
           (candidate) => candidate.id === format && candidate.enabled,
@@ -840,7 +821,7 @@ export function ModelGalleryView() {
                   disabled={
                     exportingFormat !== null ||
                     !(
-                      ["stl", "scad", "dxf", "step"] as const
+                      ["stl", "scad", "dxf"] as const
                     ).some(exportFormatAvailable) &&
                     !OPENSCAD_EXPORT_FORMATS.some(
                       (format) => format.enabled && exportFormatAvailable(format.id),
@@ -896,26 +877,6 @@ export function ModelGalleryView() {
                   <span>.SCAD</span>
                   <span className="ml-auto text-xs text-adam-neutral-400">Source code</span>
                 </DropdownMenuItem>
-                {!isStaticViewer && (
-                  <DropdownMenuItem
-                    disabled={
-                      !exportFormatAvailable("step") || exportingFormat !== null
-                    }
-                    onSelect={() => void exportModel("step")}
-                    title={
-                      activeRecord.project.assets?.length
-                        ? "STEP export is unavailable for projects with external assets."
-                        : undefined
-                    }
-                  >
-                    <span>.STEP</span>
-                    <span className="ml-auto text-xs text-adam-neutral-400">
-                      {activeRecord.project.assets?.length
-                        ? "No external assets"
-                        : "3D CAD exchange"}
-                    </span>
-                  </DropdownMenuItem>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
