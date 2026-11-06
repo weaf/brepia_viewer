@@ -1,4 +1,5 @@
 import { ActivityIndicator } from "@/components/brand";
+import { RepositoryLink } from "@/components/RepositoryLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProjectFilesEditor } from "@/components/parameter/ProjectFilesEditor";
@@ -829,6 +830,7 @@ export function ModelGalleryView() {
             <span className="hidden items-center gap-1.5 text-[11px] text-adam-neutral-400 sm:flex">
               <Check className="h-3.5 w-3.5 text-emerald-400" /> Saved locally
             </span>
+            <RepositoryLink />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1011,6 +1013,7 @@ export function ModelGalleryView() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <RepositoryLink />
             <Button
               type="button"
               variant="outline"
