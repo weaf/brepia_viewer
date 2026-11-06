@@ -24,7 +24,7 @@ jobs:
         run: npm ci --no-fund --no-audit
 
       - name: Build production output
-        run: STATIC_VIEWER=1 npm run build
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
 
       - name: Inspect generated static payload
         run: |
