@@ -7,6 +7,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 const appBase = "/";
+// Experiment only: generate a server-free static build without altering the local app.
+const staticViewerBuild = process.env.STATIC_VIEWER === "1";
 const stableArtifactDir = (
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR ||
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR
@@ -114,9 +116,19 @@ export default defineConfig({
         semicolons: true,
       },
       spa: {
-        enabled: true,
+        enabled: !staticViewerBuild,
         maskPath: appBase,
       },
+      ...(staticViewerBuild
+        ? {
+            prerender: {
+              enabled: true,
+              autoStaticPathsDiscovery: true,
+              crawlLinks: true,
+              failOnError: true,
+            },
+          }
+        : {}),
     }),
     nitro({
       baseURL: appBase,
