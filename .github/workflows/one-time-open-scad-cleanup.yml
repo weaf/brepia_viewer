@@ -1,5 +1,5 @@
 name: One-time OpenSCAD-only cleanup
-# Cleanup pass: OpenSCAD filename helper detached from legacy AI imports
+# Cleanup pass: normalized Vite chunks for OpenSCAD-only dependency graph
 
 on:
   push:
