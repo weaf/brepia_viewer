@@ -84,6 +84,15 @@ export type Parameter = {
 };
 `);
 
+// Only the filename sanitizer is used by the active OpenSCAD gallery.
+// Historical filename helpers depended on AI-message parts and BREP tools.
+write('src/utils/file-utils.ts', `/** Make uploaded and exported OpenSCAD filenames safe on disk. */
+export function getSafeFilename(baseFilename: string, fallback?: string): string {
+  const filename = baseFilename?.trim() ? baseFilename.trim() : fallback || 'file';
+  return filename.replace(/[/\\\\?%*:|"<>]/g, '-').replace(/\\s+/g, '_');
+}
+`);
+
 const keep = new Set();
 const parents = new Map();
 const unresolved = new Set();
