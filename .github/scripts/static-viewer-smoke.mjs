@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const origin = 'http://127.0.0.1:4179';
@@ -68,7 +68,7 @@ try {
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     let visibleCanvas=false;
     try {
-      await page.waitForFunction(()=>Array.from(document.querySelectorAll('canvas')).some(x=>x.getBoundingClientRect().width>40 && x.getBoundingClientRect().height>40),{timeout:85000});
+      await page.waitForFunction(()=>Array.from(document.querySelectorAll('canvas')).some(x=>x.getBoundingClientRect().width>40 && x.getBoundingClientRect().height>40),null,{timeout:85000});
       visibleCanvas=true;
     } catch {}
     await page.waitForTimeout(2500);
@@ -81,7 +81,26 @@ try {
       navigation:performance.getEntriesByType('navigation').map(e=>({duration:e.duration,domContentLoaded:e.domContentLoadedEventEnd,transferSize:e.transferSize})),
     }));
     await page.screenshot({path:path.join(evidence,device.name+'-editor.png'),fullPage:true});
-    const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),...snapshot};
+    let stlExport=null;
+    try {
+      await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
+      const stepMenuCount=await page.getByRole('menuitem',{name:/\.STEP/}).count();
+      if(stepMenuCount) violations.push(device.name+' static export menu still exposes STEP');
+      const [download]=await Promise.all([
+        page.waitForEvent('download',{timeout:40000}),
+        page.getByRole('menuitem',{name:/\.STL/}).first().click({timeout:10000}),
+      ]);
+      const filename=download.suggestedFilename();
+      const output=path.join(evidence,device.name+'-cube.stl');
+      await download.saveAs(output);
+      const file=await stat(output);
+      stlExport={filename,bytes:file.size};
+      if (!filename.endsWith('.stl') || file.size<100) violations.push(device.name+' STL export invalid');
+    } catch (e) {
+      stlExport={error:String(e?.message||e).slice(0,250)};
+      violations.push(device.name+' STL export failed');
+    }
+    const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,stlExport,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),...snapshot};
     findings.push(result);
     if(errors.length) violations.push(device.name+' JS exceptions');
     if(snapshot.docWidth > snapshot.viewportWidth + 2) violations.push(device.name+' horizontal overflow');
