@@ -6,9 +6,10 @@ import http from "node:http";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-// The local Nitro server stays at /; the static GitHub Pages build lives under the repository subpath.
+// The Nitro server always runs at /. Static builds support both the GitHub project URL
+// and the root of viewer.notydesign.se using a build-time base path.
 const staticViewerBuild = process.env.STATIC_VIEWER === "1";
-const appBase = staticViewerBuild ? "/brepia_viewer/" : "/";
+const appBase = staticViewerBuild ? (process.env.STATIC_VIEWER_BASE || "/brepia_viewer/") : "/";
 const stableArtifactDir = (
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR ||
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR

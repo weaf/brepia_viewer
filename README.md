@@ -40,10 +40,16 @@ use the same model gallery, editor, browser-side OpenSCAD WebAssembly and Indexe
 | Mode | Command | Public URL / output | STEP export |
 | --- | --- | --- | --- |
 | Node/Nitro server (default) | `./start.sh` | `http://localhost:8005/` | Available when its server-side provider is configured |
-| Static GitHub Pages | `STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build` | `.output/public/` deployed to `/brepia_viewer/` | Intentionally hidden |
+| Static GitHub Pages | `STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/ npm run build` | `.output/public/` deployed at `https://viewer.notydesign.se/` | Intentionally hidden |
 
 **Static hosting:** The GitHub Actions Pages workflow builds from `main`
-and publishes the prerendered files to `https://weaf.github.io/brepia_viewer/`.
+and publishes the prerendered files at `https://viewer.notydesign.se/`.
+The GitHub Pages **Custom domain** setting must be `viewer.notydesign.se`.
+In Cloudflare DNS, create a **DNS-only CNAME** for `viewer` pointing to
+`weaf.github.io` (no repository path); enable **Enforce HTTPS** on GitHub
+once the certificate is ready. With the custom domain configured, the published
+HTML, JavaScript, icons and OpenSCAD WebAssembly are built for `/`.
+The original `weaf.github.io/brepia_viewer/` URL may redirect to the custom domain.
 In GitHub repository **Settings → Pages**, select **GitHub Actions** as
 the publishing source once. The normal CI pipeline and existing server launcher
 remain independent of Pages. Models are processed in the visitor's browser;
@@ -54,11 +60,11 @@ For a Pages-compatible test build, run:
 
 ```bash
 npm ci
-STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
-node .github/scripts/static-viewer-smoke.mjs
+STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/ npm run build
+STATIC_VIEWER_BASE=/ node .github/scripts/static-viewer-smoke.mjs
 ```
 
-The smoke test serves the output at the **real project-site subpath**, checks
+The smoke test serves the output at the **configured root or project subpath**, checks
 desktop/mobile OpenSCAD rendering, and downloads an STL. No separate local
 backend or container is required for this static mode.
 
