@@ -32,6 +32,36 @@ Local models are stored in this browser, not uploaded to a Brepia account. Clear
 
 Built-in models are listed in [`src/lib/modelRepositories.ts`](src/lib/modelRepositories.ts). Add a source by setting its stable `id`, display `label`, GitHub `owner`, `repository`, and `branch`; set `path` to a folder within the repository, or use an empty string for the repository root. Each source must contain public GitHub content that can be read through the GitHub API and raw-content URLs.
 
+## Deployment modes
+
+One repository provides **two builds**; the local server and the free static site
+use the same model gallery, editor, browser-side OpenSCAD WebAssembly and IndexedDB.
+
+| Mode | Command | Public URL / output | STEP export |
+| --- | --- | --- | --- |
+| Node/Nitro server (default) | `./start.sh` | `http://localhost:8005/` | Available when its server-side provider is configured |
+| Static GitHub Pages | `STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build` | `.output/public/` deployed to `/brepia_viewer/` | Intentionally hidden |
+
+**Static hosting:** The GitHub Actions Pages workflow builds from `main`
+and publishes the prerendered files to `https://weaf.github.io/brepia_viewer/`.
+In GitHub repository **Settings → Pages**, select **GitHub Actions** as
+the publishing source once. The normal CI pipeline and existing server launcher
+remain independent of Pages. Models are processed in the visitor's browser;
+the server-only STEP API is not shipped as an active feature of the static site.
+Models from public GitHub repositories require GitHub to be reachable.
+
+For a Pages-compatible test build, run:
+
+```bash
+npm ci
+STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+node .github/scripts/static-viewer-smoke.mjs
+```
+
+The smoke test serves the output at the **real project-site subpath**, checks
+desktop/mobile OpenSCAD rendering, and downloads an STL. No separate local
+backend or container is required for this static mode.
+
 ## Run locally
 
 ### Requirements

@@ -6,7 +6,9 @@ import http from "node:http";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-const appBase = "/";
+// The local Nitro server stays at /; the static GitHub Pages build lives under the repository subpath.
+const staticViewerBuild = process.env.STATIC_VIEWER === "1";
+const appBase = staticViewerBuild ? "/brepia_viewer/" : "/";
 const stableArtifactDir = (
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR ||
   process.env.BREPIA_PUBLIC_ARTIFACT_DIR
@@ -114,9 +116,19 @@ export default defineConfig({
         semicolons: true,
       },
       spa: {
-        enabled: true,
+        enabled: !staticViewerBuild,
         maskPath: appBase,
       },
+      ...(staticViewerBuild
+        ? {
+            prerender: {
+              enabled: true,
+              autoStaticPathsDiscovery: true,
+              crawlLinks: true,
+              failOnError: true,
+            },
+          }
+        : {}),
     }),
     nitro({
       baseURL: appBase,
@@ -156,7 +168,7 @@ export default defineConfig({
     outDir: "dist/brepia",
     emptyOutDir: true,
 
-    sourcemap: true,
+    sourcemap: !staticViewerBuild,
   },
   environments: {
     client: {

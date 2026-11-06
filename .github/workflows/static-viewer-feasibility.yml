@@ -1,0 +1,49 @@
+name: Brepia Viewer static hosting feasibility
+
+on:
+  push:
+    branches:
+      - experiment/static-viewer-hosting
+
+permissions:
+  contents: read
+
+jobs:
+  static-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Build GitHub Pages subpath output
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+
+      - name: Inspect generated static payload
+        run: |
+          echo "Prerendered home HTML:"
+          sed -n "1,10p" .output/public/index.html | cut -c 1-1500
+          echo "Top-level static assets:"
+          find .output/public -maxdepth 2 -type f | head -40
+          echo "Static payload total:"
+          du -sh .output/public
+          echo "OpenSCAD assets:"
+          find .output/public -iname '*openscad*' -o -name '*.wasm'
+
+      - name: Test static HTTP + model gallery and OpenSCAD rendering
+        run: node .github/scripts/static-viewer-smoke.mjs
+
+      - name: Retain test results and screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: static-viewer-feasibility
+          path: ${{ runner.temp }}/viewer-static-evidence/
+          if-no-files-found: warn
