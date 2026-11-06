@@ -30,7 +30,9 @@ try {
     try {
       const res=await fetch(origin + basePath);
       if(res.ok) {ready=true;break;}
-    } catch {}
+    } catch {
+      // Retry while the test HTTP server is starting.
+    }
     if(server.exitCode !== null) break;
     await sleep(250);
   }
@@ -80,7 +82,9 @@ try {
     try {
       await page.waitForFunction(()=>Array.from(document.querySelectorAll('canvas')).some(x=>x.getBoundingClientRect().width>40 && x.getBoundingClientRect().height>40),null,{timeout:85000});
       visibleCanvas=true;
-    } catch {}
+    } catch {
+      // Missing 3D canvas is reported through the test violations below.
+    }
     await page.waitForTimeout(2500);
     const tEditor=Date.now()-t0;
     const snapshot=await page.evaluate(()=>({
