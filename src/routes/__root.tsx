@@ -6,10 +6,16 @@ import appearanceCss from '@/appearance.css?url';
 const assetUrl = (path: string) =>
   `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}${path.replace(/^\//, '')}`;
 
+// Keep the inline first-paint bootstrap aligned with AppearanceContext.
+const appearanceStorageKey =
+  import.meta.env.VITE_PREVIEW_STORAGE_NAMESPACE === 'pr10'
+    ? 'brepia-appearance-preview-pr10'
+    : 'brepia-appearance';
+
 const appearanceBootstrapScript = `
 (() => {
   try {
-    const stored = window.localStorage.getItem('brepia-appearance');
+    const stored = window.localStorage.getItem(${JSON.stringify(appearanceStorageKey)});
     const preference =
       stored === 'system' || stored === 'light' || stored === 'dark'
         ? stored

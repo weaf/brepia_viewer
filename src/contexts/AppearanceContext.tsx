@@ -8,7 +8,10 @@ import {
   type ReactNode,
 } from 'react';
 
-export const APPEARANCE_STORAGE_KEY = 'brepia-appearance';
+export const APPEARANCE_STORAGE_KEY =
+  import.meta.env.VITE_PREVIEW_STORAGE_NAMESPACE === 'pr10'
+    ? 'brepia-appearance-preview-pr10'
+    : 'brepia-appearance';
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
 export type ResolvedAppearance = 'light' | 'dark';

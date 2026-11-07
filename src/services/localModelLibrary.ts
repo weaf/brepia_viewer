@@ -34,7 +34,12 @@ export const BUILT_IN_MODELS_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_REPOSITORY_ID = "parametric-designs";
 const DEFAULT_CATALOG_KEY = "built-in-model-catalog";
-const DATABASE_NAME = "brepia-local-models";
+// Preview builds get their own IndexedDB database. Production retains the exact
+// pre-existing name so no local models are migrated, reset or shared with tests.
+const DATABASE_NAME =
+  import.meta.env.VITE_PREVIEW_STORAGE_NAMESPACE === "pr10"
+    ? "brepia-local-models-preview-pr10"
+    : "brepia-local-models";
 const DATABASE_VERSION = 1;
 const MODEL_STORE = "models";
 const CACHE_STORE = "cache";

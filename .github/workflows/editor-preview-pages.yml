@@ -1,0 +1,119 @@
+name: Isolated CodeMirror editor preview (PR 10)
+
+on:
+  push:
+    branches:
+      - prototype/codemirror6-openscad-editor
+    paths:
+      - .github/workflows/editor-preview-pages.yml
+      - src/services/localModelLibrary.ts
+      - src/contexts/AppearanceContext.tsx
+      - src/routes/__root.tsx
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Reuse the production deployment lock. Never interrupt a main deployment.
+concurrency:
+  group: brepia-viewer-github-pages
+  cancel-in-progress: false
+
+jobs:
+  isolated-preview:
+    if: github.ref == 'refs/heads/prototype/codemirror6-openscad-editor'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: https://viewer.notydesign.se/editor-preview/
+    steps:
+      - name: Checkout exact production source (do not merge)
+        uses: actions/checkout@v6
+        with:
+          ref: f728a4832b0e0582f519ac14a68df2815b83ed69
+          path: production
+          persist-credentials: false
+
+      - name: Checkout tested editor candidate
+        uses: actions/checkout@v6
+        with:
+          path: editor
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Rebuild the unchanged production homepage
+        run: |
+          cd production
+          npm ci --no-audit --no-fund
+          STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/ npm run build
+
+      - name: Abort if the live production homepage differs
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --retry-delay 2 --max-time 30 \
+            https://viewer.notydesign.se/ -o /tmp/brepia-live-index.html
+          if ! cmp -s /tmp/brepia-live-index.html production/.output/public/index.html; then
+            echo "::error::Current live HTML differs from the main-branch build; refusing to replace the public Pages artifact."
+            echo "No public deployment has occurred."
+            exit 1
+          fi
+          echo "PASS: live production homepage exactly matches the rebuild."
+
+      - name: Build test editor with isolated browser storage
+        run: |
+          cd editor
+          npm ci --no-audit --no-fund
+          STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 \
+            STATIC_VIEWER_BASE=/editor-preview/ \
+            VITE_PREVIEW_STORAGE_NAMESPACE=pr10 \
+            npm run build
+          if ! grep -R -l 'brepia-local-models-preview-pr10' .output/public/assets >/dev/null; then
+            echo "::error::Isolated IndexedDB name not present in preview bundle."
+            exit 1
+          fi
+
+      - name: Run OpenSCAD and desktop/mobile browser smoke at preview path
+        run: |
+          cd editor
+          STATIC_VIEWER_BASE=/editor-preview/ \
+            VITE_PREVIEW_STORAGE_NAMESPACE=pr10 \
+            node .github/scripts/static-viewer-smoke.mjs
+
+      - name: Create additive Pages artifact retaining the production root
+        run: |
+          set -euo pipefail
+          mkdir -p production/.output/public/editor-preview
+          cp -a editor/.output/public/. production/.output/public/editor-preview/
+          touch production/.output/public/.nojekyll
+          cmp -s /tmp/brepia-live-index.html production/.output/public/index.html
+          test -f production/.output/public/editor-preview/index.html
+          echo "Main root unchanged; isolated editor preview under /editor-preview/."
+
+      - uses: actions/configure-pages@v6
+
+      - name: Upload composite GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: production/.output/public
+
+      - name: Publish separate test URL (never merge to main)
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Verify public preview and production homepage
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 4 --retry-delay 2 --max-time 30 \
+            https://viewer.notydesign.se/editor-preview/ \
+            -o /tmp/editor-preview-live.html
+          grep -q '/editor-preview/assets/' /tmp/editor-preview-live.html
+          curl -fLsS --retry 4 --retry-delay 2 --max-time 30 \
+            https://viewer.notydesign.se/ -o /tmp/brepia-live-after.html
+          cmp -s /tmp/brepia-live-index.html /tmp/brepia-live-after.html
+          echo "PASS: preview reachable, production home byte-identical."
