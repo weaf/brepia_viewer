@@ -41,7 +41,7 @@ describe('OpenSCAD toolbar snippets', () => {
   it('allows the same wrap behavior for new transformation commands', () => {
     const resize = openScadSnippets.find(item => item.id === 'resize')!;
     expect(insertOpenScadSnippet(resize, 'sphere(5);')).toBe(
-      'resize([20, 15, 10]) {\\n    sphere(5);\\n}',
+      'resize([20, 15, 10]) {\n    sphere(5);\n}',
     );
   });
 
