@@ -959,7 +959,7 @@ export function ModelGalleryView() {
                 )}
               >
                 {layoutLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                <span>{layoutLocked ? "Locked" : "Lock"}</span>
+                <span>{layoutLocked ? "Scroll locked" : "Scroll on"}</span>
               </button>
             </div>
             <div
