@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { MutableRefObject, SyntheticEvent } from 'react';
 import { Ellipsis, MousePointer2, Save, Search, Shapes } from 'lucide-react';
 import { EditorView, basicSetup } from 'codemirror';
 import { Compartment, EditorState } from '@codemirror/state';
@@ -56,7 +57,7 @@ const scadLanguage = StreamLanguage.define(
 
 type CompletionState = Pick<OpenScadSourceEditorProps, 'project' | 'currentPath'>;
 
-function completionSource(context: CompletionContext, latest: React.MutableRefObject<CompletionState>): CompletionResult | null {
+function completionSource(context: CompletionContext, latest: MutableRefObject<CompletionState>): CompletionResult | null {
   const { project, currentPath } = latest.current;
   const result = getOpenScadCompletionContext({
     source: context.state.doc.toString(),
@@ -218,18 +219,18 @@ export function OpenScadSourceEditor({
       menu.open = false;
     });
   };
-  const showMenu = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+  const showMenu = (event: SyntheticEvent<HTMLDetailsElement>) => {
     if (!event.currentTarget.open) return;
     rootRef.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => {
       if (menu !== event.currentTarget) menu.open = false;
     });
   };
-  const withView = (command: (view: EditorView) => void) => {
+  const withView = (command: (view: EditorView) => void, focusEditor = true) => {
     const view = viewRef.current;
     if (!view) return;
     command(view);
     closeMenus();
-    view.focus();
+    if (focusEditor) view.focus();
   };
   const insertSnippet = (snippet: OpenScadSnippet) => {
     if (readOnly) return;
@@ -273,7 +274,7 @@ export function OpenScadSourceEditor({
         <button
           type="button" className="scad-editor__icon" aria-label="Find / replace"
           title="Find / replace"
-          onClick={() => withView(view => { openSearchPanel(view); })}
+          onClick={() => withView(view => { openSearchPanel(view); }, false)}
         >
           <Search aria-hidden="true" />
         </button>
@@ -324,7 +325,7 @@ export function OpenScadSourceEditor({
             <div className="scad-editor__panel-title">Editor tools</div>
             <div className="scad-editor__menu-actions">
               <button type="button" aria-label="Complete" onClick={() => withView(view => { startCompletion(view); })}>Complete</button>
-              <button type="button" aria-label="Go to line" onClick={() => withView(view => { gotoLine(view); })}>Go to line</button>
+              <button type="button" aria-label="Go to line" onClick={() => withView(view => { gotoLine(view); }, false)}>Go to line</button>
               <button type="button" aria-label="Discard" disabled={!isDirty || isSaving || !onDiscard}
                 onClick={() => { closeMenus(); onDiscard?.(); }}>Discard</button>
               <button className="scad-editor__selection-compact" type="button" aria-label="Next match"
