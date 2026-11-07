@@ -98,54 +98,71 @@ try {
     await page.locator('input[type=file]').first().setInputFiles({
       name:'cube-static-smoke.scad',
       mimeType:'text/plain',
-      buffer:Buffer.from('cube([10,10,10], center=true);\n'),
+      buffer:Buffer.from("/* [Dimensions] */\nwidth = 10; // [5:1:30]\nheight = 10; // [5:1:30]\nextra_01 = 1; // [0:1:100]\nextra_02 = 2; // [0:1:100]\nextra_03 = 3; // [0:1:100]\nextra_04 = 4; // [0:1:100]\nextra_05 = 5; // [0:1:100]\nextra_06 = 6; // [0:1:100]\nextra_07 = 7; // [0:1:100]\nextra_08 = 8; // [0:1:100]\nextra_09 = 9; // [0:1:100]\nextra_10 = 10; // [0:1:100]\nextra_11 = 11; // [0:1:100]\nextra_12 = 12; // [0:1:100]\nextra_13 = 13; // [0:1:100]\nextra_14 = 14; // [0:1:100]\nextra_15 = 15; // [0:1:100]\nextra_16 = 16; // [0:1:100]\nextra_17 = 17; // [0:1:100]\nextra_18 = 18; // [0:1:100]\ncube([width,width,height], center=true);\n"),
     });
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     await assertRepositoryLink('model editor');
-    // Mobile scroll lock must preserve a visible 3D preview while the parameters
-    // remain independently scrollable. Unlocked mode restores whole-page scroll.
-    if (device.name === 'mobile') {
-      await page.getByRole('button',{name:'Lock viewer while scrolling parameters'}).click();
-      const locked = await page.evaluate(() => {
-        const viewer = document.querySelector('[aria-label="3D model preview"]');
-        const panel = document.querySelector('aside');
-        const scroller = panel?.querySelector('.overflow-auto');
-        if (!viewer || !panel || !scroller) return null;
-        const extra = document.createElement('div');
-        extra.style.height = '1600px';
-        extra.setAttribute('data-scroll-test', '');
-        scroller.appendChild(extra);
-        scroller.scrollTop = scroller.scrollHeight;
-        const viewerRect = viewer.getBoundingClientRect();
-        const panelRect = panel.getBoundingClientRect();
-        const details = {
-          viewerTop: viewerRect.top,
-          viewerBottom: viewerRect.bottom,
-          panelTop: panelRect.top,
-          panelBottom: panelRect.bottom,
-          viewportHeight: innerHeight,
-          scrollable: scroller.scrollTop > 0,
-          scrollerOverflow: getComputedStyle(scroller).overflowY,
-          gridOverflow: getComputedStyle(viewer.parentElement).overflowY,
-        };
-        extra.remove();
-        scroller.scrollTop = 0;
-        return details;
-      });
-      findings.push({type:'mobile-scroll-locked-layout',...locked});
-      if (!locked || !locked.scrollable || locked.scrollerOverflow !== 'auto' ||
-          locked.gridOverflow !== 'hidden' || locked.viewerTop < 0 ||
-          locked.viewerBottom > locked.viewportHeight + 3 ||
-          locked.panelTop < locked.viewerBottom ||
-          locked.panelBottom > locked.viewportHeight + 3) {
-        violations.push('mobile locked scroll layout did not keep viewer visible and parameter panel scrollable');
-      }
-      await page.getByRole('button',{name:'Unlock scrolling layout'}).click();
-      const unlockedOverflow = await page.locator('[aria-label="3D model preview"]').evaluate(
-        el => getComputedStyle(el.parentElement).overflowY,
-      );
-      if (unlockedOverflow !== 'auto') violations.push('mobile unlocked layout did not restore page scrolling');
+    // The model header is one row on desktop and at most two rows on mobile.
+    const modelHeader=page.getByTestId('model-editor-header');
+    const modelHeaderBounds=await modelHeader.boundingBox();
+    if(!modelHeaderBounds || modelHeaderBounds.height > (device.name==='mobile' ? 122 : 68)) {
+      violations.push(device.name+' model actions consume too many rows: '+JSON.stringify(modelHeaderBounds));
     }
+    for(const action of [
+      page.getByRole('link',{name:'View Brepia Viewer repository on GitHub'}),
+      modelHeader.getByRole('button',{name:'Export model'}),
+      modelHeader.getByRole('button',{name:'Save',exact:true}),
+      modelHeader.getByRole('button',{name:'Clear local data'}),
+    ]) {
+      const rect=await action.boundingBox();
+      if(!rect || rect.height<40 || rect.x<0 || rect.x+rect.width>device.width+2) {
+        violations.push(device.name+' model toolbar action is not compact/touchable: '+JSON.stringify(rect));
+      }
+    }
+    const modelWorkspace=page.getByTestId('model-workspace');
+    const parameterScroller=page.getByTestId('model-parameters-scroll');
+    const previewPane=page.getByRole('region',{name:'3D model preview'});
+    const originalPreview=await previewPane.boundingBox();
+    const lockButton=page.getByRole('button',{name:'Lock viewer and parameters layout'});
+    await lockButton.click();
+    if(await modelWorkspace.getAttribute('data-layout-locked')!=='true') {
+      violations.push(device.name+' layout lock did not activate');
+    }
+    const lockedPreview=await previewPane.boundingBox();
+    if(!lockedPreview || lockedPreview.height<95 || lockedPreview.y<0 ||
+       lockedPreview.y+lockedPreview.height>device.height+2) {
+      violations.push(device.name+' locked viewer does not fit the viewport: '+JSON.stringify(lockedPreview));
+    }
+    const scrolling=await parameterScroller.evaluate(node=>{
+      const max=node.scrollHeight-node.clientHeight;
+      node.scrollTop=max;
+      return {max,top:node.scrollTop,clientHeight:node.clientHeight,scrollHeight:node.scrollHeight};
+    });
+    const previewAfterScroll=await previewPane.boundingBox();
+    if(scrolling.max<25 || scrolling.top<20) {
+      violations.push(device.name+' parameters did not scroll independently: '+JSON.stringify(scrolling));
+    }
+    if(lockedPreview && previewAfterScroll &&
+       (Math.abs(lockedPreview.y-previewAfterScroll.y)>2 ||
+        Math.abs(lockedPreview.height-previewAfterScroll.height)>2)) {
+      violations.push(device.name+' locked viewer moved when parameter list scrolled');
+    }
+    await page.screenshot({path:path.join(evidence,device.name+'-viewer-layout-locked.png'),fullPage:true});
+    await page.getByRole('button',{name:'Unlock viewer and parameters layout'}).click();
+    if(await modelWorkspace.getAttribute('data-layout-locked')!=='false') {
+      violations.push(device.name+' unlocking layout did not restore default mode');
+    }
+    if(device.name==='mobile') {
+      const normal=await modelWorkspace.evaluate(node=>({
+        scrollHeight:node.scrollHeight,clientHeight:node.clientHeight,
+        overflow:getComputedStyle(node).overflowY,
+      }));
+      if(normal.scrollHeight<=normal.clientHeight+20 || normal.overflow==='hidden') {
+        violations.push(device.name+' unlocked view did not restore page scrolling: '+JSON.stringify(normal));
+      }
+    }
+    findings.push({type:'locked-parameter-layout',device:device.name,header:modelHeaderBounds,
+      initial:originalPreview,locked:lockedPreview,scroller:scrolling});
     // Project source UI: file action, compact editor and Save/Discard on one row.
     const openSourceButton = page.getByRole('button',{name:/^Open .+\.scad$/i}).first();
     await openSourceButton.waitFor({timeout:30000});
@@ -195,29 +212,98 @@ try {
        Math.abs(restoredDialogBounds.height - initialDialogBounds.height) > 6) {
       violations.push(device.name+' Restore editor did not restore its size');
     }
-    const saveSource = sourceDialog.getByRole('button',{name:'Save',exact:true});
-    const discardSource = sourceDialog.getByRole('button',{name:'Discard',exact:true});
-    const sourceTextbox = sourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i});
+    const editorToolbar=sourceDialog.getByRole('navigation',{name:'OpenSCAD editor tools'});
+    const sourceTextbox=sourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i});
+    const saveSource=editorToolbar.getByRole('button',{name:'Save',exact:true});
+    const moreTools=editorToolbar.getByRole('button',{name:'More editor tools'});
+    const insertCode=editorToolbar.getByRole('button',{name:'Insert OpenSCAD code'});
+    await sourceTextbox.waitFor({timeout:15000});
     await saveSource.waitFor({timeout:15000});
-    await discardSource.waitFor({timeout:15000});
-    const saveBounds = await saveSource.boundingBox();
-    const discardBounds = await discardSource.boundingBox();
-    if(!saveBounds || !discardBounds || Math.abs(saveBounds.y-discardBounds.y)>8) {
-      violations.push(device.name+' source editor Save/Discard not aligned horizontally');
+    const toolbarBounds=await editorToolbar.boundingBox();
+    if(!toolbarBounds || toolbarBounds.height>50) {
+      violations.push(device.name+' editor toolbar should fit one compact row');
     }
-    const visibleDescription = sourceDialog.locator('p').filter({hasText:'Edit the project entrypoint'});
+    const visibleDescription=sourceDialog.locator('p').filter({hasText:'Edit the project entrypoint'});
     if(await visibleDescription.count()) violations.push(device.name+' legacy editor description still rendered');
+    const editSurface=sourceDialog.locator('.cm-editor');
+    if(await editSurface.count()!==1) violations.push(device.name+' CodeMirror editor surface missing');
+
     await page.screenshot({path:path.join(evidence,device.name+'-source-dialog.png'),fullPage:true});
-    const originalSource = await sourceTextbox.inputValue();
-    await sourceTextbox.fill(originalSource+'\n// discard test');
+    const readSource=()=>sourceTextbox.innerText();
+    const originalSource=await readSource();
+
+    // Closing with changes must require explicit user confirmation.
+    await sourceTextbox.fill(originalSource+'\n// close guard test');
+    page.once('dialog',dialog=>{ void dialog.dismiss(); });
+    await sourceDialog.getByRole('button',{name:'Close'}).click();
+    if(!(await sourceDialog.isVisible())) violations.push(device.name+' dirty draft was closed without consent');
+
+    await moreTools.click();
+    const discardSource=editorToolbar.getByRole('button',{name:'Discard',exact:true});
     await discardSource.click();
-    if(await sourceTextbox.inputValue() !== originalSource) violations.push(device.name+' Discard failed to restore source');
+    if(await readSource()!==originalSource) violations.push(device.name+' Discard failed to restore source');
+
+    // The category picker must remain icon-dense, keyboard accessible, and searchable.
+    await insertCode.click();
+    const snippetPanel=editorToolbar.locator('.scad-editor__panel--wide');
+    const paletteMetrics=await snippetPanel.evaluate(panel=>{
+      const rect=panel.getBoundingClientRect();
+      const buttons=[...panel.querySelectorAll('.scad-editor__snippet')];
+      const first=buttons[0];
+      const target=first?.getBoundingClientRect();
+      return {height:rect.height,visible:buttons.length,targetWidth:target?.width,targetHeight:target?.height,
+        labeledCount:buttons.filter(button=>button.querySelector('svg') && button.querySelector('.scad-editor__snippet-caption')?.textContent?.trim()).length,
+        gridColumns:getComputedStyle(panel.querySelector('.scad-editor__snippet-grid')).gridTemplateColumns.split(' ').length,
+        labels:buttons.map(button=>button.querySelector('.scad-editor__snippet-caption')?.textContent?.trim()),
+        labelsOverflow:buttons.filter(button=>{const caption=button.querySelector('.scad-editor__snippet-caption');return caption && caption.scrollWidth > caption.clientWidth + 1;}).length};
+    });
+    if(paletteMetrics.height>370 || paletteMetrics.visible>9 ||
+       paletteMetrics.labeledCount!==paletteMetrics.visible ||
+       paletteMetrics.gridColumns!==6 || paletteMetrics.labelsOverflow>0 ||
+       paletteMetrics.targetHeight<40) {
+      violations.push(device.name+' OpenSCAD palette is not a compact, readable icon+label grid: '+JSON.stringify(paletteMetrics));
+    }
+    await page.screenshot({path:path.join(evidence,device.name+'-labeled-insert-menu.png'),fullPage:true});
+    for (const [category, expected] of [
+      ['Programming', ['Function', 'For', 'If/Else']],
+      ['Parameters', ['Slider', 'Group', 'Toggle', '$fn']],
+      ['Files', ['Include', 'Use', 'STL', 'SVG']],
+    ]) {
+      await snippetPanel.getByRole('button',{name:category,exact:true}).click();
+      const captions=await snippetPanel.locator('.scad-editor__snippet-caption').allTextContents();
+      for (const caption of expected) {
+        if (!captions.includes(caption)) violations.push(device.name+' missing '+caption+' label in '+category);
+      }
+    }
+    await snippetPanel.getByRole('button',{name:'Templates',exact:true}).click();
+    await snippetPanel.getByRole('button',{name:'Tube',exact:true}).click();
+    if(!(await readSource()).includes('difference()')) {
+      violations.push(device.name+' ready-made Tube template did not insert');
+    }
+    await moreTools.click();
+    await discardSource.click();
+    if(await readSource()!==originalSource) violations.push(device.name+' Discard after ready-made template failed');
+
+    await insertCode.click();
+    await snippetPanel.getByRole('searchbox',{name:'Search OpenSCAD snippets'}).fill('cylind');
+    if(!(await snippetPanel.getByRole('button',{name:'Cylinder',exact:true}).isVisible())) {
+      violations.push(device.name+' search did not reveal Cylinder');
+    }
+    await snippetPanel.getByRole('button',{name:'Shapes',exact:true}).click();
+    await editorToolbar.getByRole('button',{name:'Cube',exact:true}).click();
+    if(!(await readSource()).includes('cube([10, 10, 10], center = true);')) {
+      violations.push(device.name+' OpenSCAD snippet menu did not insert Cube');
+    }
+    await moreTools.click();
+    await discardSource.click();
+    if(await readSource()!==originalSource) violations.push(device.name+' Discard did not restore after snippet insertion');
+
     await sourceTextbox.fill(originalSource+'\n// saved UI smoke test');
     await saveSource.click();
     await sourceDialog.waitFor({state:'hidden',timeout:35000});
     await openSourceButton.click();
-    const savedSourceDialog = page.getByRole('dialog');
-    const savedSource = await savedSourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i}).inputValue();
+    const savedSourceDialog=page.getByRole('dialog');
+    const savedSource=await savedSourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i}).innerText();
     if(!savedSource.includes('// saved UI smoke test')) violations.push(device.name+' Save failed to persist edited source');
     await savedSourceDialog.getByRole('button',{name:'Close'}).click();
     let visibleCanvas=false;

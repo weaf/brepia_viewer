@@ -1,0 +1,119 @@
+name: Isolated CodeMirror editor preview (PR 10)
+
+on:
+  push:
+    branches:
+      - prototype/codemirror6-openscad-editor
+    paths:
+      - .github/workflows/editor-preview-pages.yml
+      - src/services/localModelLibrary.ts
+      - src/contexts/AppearanceContext.tsx
+      - src/routes/__root.tsx
+      - src/views/ModelGalleryView.tsx
+      - src/components/RepositoryLink.tsx
+      - src/components/viewer/LocalOpenScadPreview.tsx
+      - .github/scripts/multifile-editor-smoke.mjs
+      - src/components/parameter/OpenScadSourceEditor.tsx
+      - src/components/parameter/OpenScadSourceEditor.css
+      - src/lib/openScadSnippets.ts
+      - src/lib/openScadSnippets.test.ts
+      - .github/scripts/static-viewer-smoke.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+# Reuse the production deployment lock. Never interrupt a main deployment.
+concurrency:
+  group: brepia-viewer-github-pages
+  cancel-in-progress: false
+
+jobs:
+  isolated-preview:
+    if: github.ref == 'refs/heads/prototype/codemirror6-openscad-editor'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # Separate deployment environment: github-pages is restricted to main.
+    # The deployment still uses GitHub Pages, but never changes main source.
+    environment:
+      name: editor-preview
+      url: https://viewer.notydesign.se/editor-preview/
+    steps:
+      - name: Checkout tested editor candidate
+        uses: actions/checkout@v6
+        with:
+          path: editor
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Restore exact current production Pages artifact and guard main SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_main_sha="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
+          test "$live_main_sha" = "c86b127559fa34d0dae08c1ca1b0fe5df2ed4fe4"
+          mkdir -p /tmp/brepia-previous-published /tmp/brepia-previous-files production/.output/public
+          gh run download 42411510016 --repo weaf/brepia_viewer \
+            --name github-pages --dir /tmp/brepia-previous-published
+          test -f /tmp/brepia-previous-published/artifact.tar
+          tar -xf /tmp/brepia-previous-published/artifact.tar -C /tmp/brepia-previous-files
+          cp -a /tmp/brepia-previous-files/. production/.output/public/
+          diff -qr /tmp/brepia-previous-files production/.output/public
+          echo "PASS: reusing exact, previously published production files without rebuilding."
+
+      - name: Build test editor with isolated browser storage
+        run: |
+          cd editor
+          npm ci --no-audit --no-fund
+          npm run check
+          STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 \
+            STATIC_VIEWER_BASE=/editor-preview/ \
+            VITE_PREVIEW_STORAGE_NAMESPACE=pr10 \
+            npm run build
+          if ! grep -R -l 'brepia-local-models-preview-pr10' .output/public/assets >/dev/null; then
+            echo "::error::Isolated IndexedDB name not present in preview bundle."
+            exit 1
+          fi
+
+      - name: Run OpenSCAD and desktop/mobile browser smoke at preview path
+        run: |
+          cd editor
+          STATIC_VIEWER_BASE=/editor-preview/ \
+            VITE_PREVIEW_STORAGE_NAMESPACE=pr10 \
+            node .github/scripts/static-viewer-smoke.mjs
+
+      - name: Create additive Pages artifact retaining the production root
+        run: |
+          set -euo pipefail
+          mkdir -p production/.output/public/editor-preview
+          cp -a editor/.output/public/. production/.output/public/editor-preview/
+          # Preserve the exact published artifact: do not add or rewrite root files.
+          diff -qr /tmp/brepia-previous-files \
+            production/.output/public --exclude=editor-preview
+          test -f production/.output/public/editor-preview/index.html
+          echo "Main root unchanged; isolated editor preview under /editor-preview/."
+
+      - uses: actions/configure-pages@v6
+
+      - name: Upload composite GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: production/.output/public
+
+      - name: Publish separate test URL (never merge to main)
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Record test deployment result
+        run: |
+          echo "Pages accepted the composite artifact."
+          echo "TEST_URL=https://viewer.notydesign.se/editor-preview/"
+          echo "Production root files matched previously published Pages artifact before deployment."
+          echo "Note: external HTTP checks are unavailable behind site access controls."

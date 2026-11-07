@@ -29,7 +29,7 @@ import {
   readScadImportFolder,
   type PendingScadFolderImport,
 } from "@/lib/scadImport";
-import { cn, updateParameter } from "@/lib/utils";
+import { updateParameter } from "@/lib/utils";
 import {
   getModelRepositories,
   modelRepositoryUrl,
@@ -77,6 +77,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 const supportedSourceFile = /\.scad(?:\.txt)?$/i;
 const refreshTime = (updatedAt: number) => new Date(updatedAt).toLocaleString();
@@ -100,6 +101,18 @@ export function ModelGalleryView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const uploadConfirmationRef = useRef<{ dismiss: () => void } | null>(null);
+  const showUploadConfirmation = (name: string) => {
+    uploadConfirmationRef.current?.dismiss();
+    uploadConfirmationRef.current = toast({
+      title: 'Model uploaded',
+      description: `${name} is saved in this browser.`,
+    });
+  };
+  const dismissUploadConfirmation = () => {
+    uploadConfirmationRef.current?.dismiss();
+    uploadConfirmationRef.current = null;
+  };
   const [builtIns, setBuiltIns] = useState<BuiltInModel[]>([]);
   const [builtInsUpdatedAt, setBuiltInsUpdatedAt] = useState<number | null>(
     null,
@@ -118,11 +131,11 @@ export function ModelGalleryView() {
     useState<ModelExportFormat | null>(null);
   const [isOpeningModel, setIsOpeningModel] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [scrollLocked, setScrollLocked] = useState(false);
   const [pendingFolder, setPendingFolder] =
     useState<PendingScadFolderImport | null>(null);
   const [folderEntrypoint, setFolderEntrypoint] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [layoutLocked, setLayoutLocked] = useState(false);
   const [thumbnails, setThumbnails] = useState<
     Record<string, { revision: string; url: string }>
   >({});
@@ -674,10 +687,7 @@ export function ModelGalleryView() {
     });
     await refreshLocalModels();
     openUploadedModel(record);
-    toast({
-      title: "Model uploaded",
-      description: `${record.name} is saved in this browser.`,
-    });
+    showUploadConfirmation(record.name);
   };
 
   useEffect(() => {
@@ -696,10 +706,7 @@ export function ModelGalleryView() {
         const record = await uploadSourceFile(files[0]);
         await refreshLocalModels();
         openUploadedModel(record);
-        toast({
-          title: "Model uploaded",
-          description: `${record.name} is saved in this browser.`,
-        });
+        showUploadConfirmation(record.name);
       } else {
         await uploadFolder(files);
       }
@@ -731,10 +738,7 @@ export function ModelGalleryView() {
       setFolderEntrypoint("");
       await refreshLocalModels();
       openUploadedModel(record);
-      toast({
-        title: "Model uploaded",
-        description: `${record.name} is saved in this browser.`,
-      });
+      showUploadConfirmation(record.name);
     } catch (error) {
       const message =
         error instanceof Error
@@ -790,31 +794,32 @@ export function ModelGalleryView() {
   if (activeRecord) {
     return (
       <main className="flex h-full min-h-0 flex-col bg-[#191a1a] text-adam-text-primary">
-        <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-adam-neutral-700 px-2 py-1.5 sm:min-h-16 sm:flex-wrap sm:justify-between sm:gap-3 sm:px-6 sm:py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
+        <header
+          data-testid="model-editor-header"
+          className="flex shrink-0 flex-col gap-1 border-b border-adam-neutral-700 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4"
+        >
+          <div className="flex min-w-0 items-center gap-2">
             <Button
               type="button"
               variant="ghost"
               size="icon"
+              className="h-11 w-11 shrink-0"
               aria-label="Back to model gallery"
               onClick={backToGallery}
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">
+              <p className="truncate text-sm font-semibold" title={activeRecord.name}>
                 {activeRecord.name}
               </p>
-              <p className="hidden truncate font-mono text-[10px] text-adam-neutral-400 sm:block">
+              <p className="truncate font-mono text-[10px] text-adam-neutral-400" title={activeRecord.project.entrypointPath}>
                 {activeRecord.project.entrypointPath}
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-1 sm:flex-wrap sm:gap-2">
-            <span className="hidden items-center gap-1.5 text-[11px] text-adam-neutral-400 sm:flex">
-              <Check className="h-3.5 w-3.5 text-emerald-400" /> Saved locally
-            </span>
-            <RepositoryLink />
+          <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
+            <RepositoryLink compact />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -830,7 +835,7 @@ export function ModelGalleryView() {
                       (format) => format.enabled && exportFormatAvailable(format.id),
                     )
                   }
-                  className="h-9 w-9 gap-1 p-0 sm:w-auto sm:gap-2 sm:px-3"
+                  className="h-11 min-h-11 gap-1.5 px-2.5 text-[11px]"
                   aria-label="Export model"
                 >
                   {exportingFormat ? (
@@ -841,7 +846,7 @@ export function ModelGalleryView() {
                   ) : (
                     <Download className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline">Export</span>
+                  Export
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-[min(80vh,36rem)] w-64 overflow-y-auto">
@@ -886,22 +891,20 @@ export function ModelGalleryView() {
               type="button"
               size="sm"
               onClick={() => void saveActiveRecord()}
-              aria-label="Save model locally"
-              title="Save model locally"
-              className="h-9 w-9 gap-1 p-0 sm:w-auto sm:gap-2 sm:px-3"
+              className="h-11 min-h-11 gap-1.5 px-2.5 text-[11px]"
             >
-              <Check className="h-4 w-4" /> <span className="hidden sm:inline">Save</span>
+              <Check className="h-4 w-4" /> Save
             </Button>
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              onClick={() => void clearViewerData()}
+              size="icon"
               aria-label="Clear local data"
-              title="Clear local data"
-              className="h-9 w-9 gap-1 p-0 text-adam-neutral-300 sm:w-auto sm:gap-2 sm:px-3"
+              title="Clear local data (requires confirmation)"
+              onClick={() => void clearViewerData()}
+              className="h-11 w-11 shrink-0 text-adam-neutral-300"
             >
-              <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Clear local data</span>
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </header>
@@ -917,49 +920,60 @@ export function ModelGalleryView() {
         )}
 
         <div
+          data-testid="model-workspace"
+          data-layout-locked={layoutLocked}
           className={cn(
-            "grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(350px,0.8fr)] lg:overflow-hidden lg:p-6",
-            scrollLocked &&
-              "max-lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] max-lg:gap-2 max-lg:overflow-hidden max-lg:p-2",
+            "grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(350px,0.8fr)] lg:p-5",
+            layoutLocked
+              ? "grid-rows-[minmax(0,55fr)_minmax(0,45fr)] overflow-hidden lg:grid-rows-1"
+              : "overflow-auto lg:overflow-hidden",
           )}
         >
           <LocalOpenScadPreview
+            constrained={layoutLocked}
             key={activeRecord.id}
             project={activeRecord.project}
             assets={activeRecord.assetBlobs}
             onExportStateChange={handlePreviewExportStateChange}
-            constrainedHeight={scrollLocked}
           />
-          <aside
-            className={cn(
-              "flex min-h-[32rem] min-w-0 flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-bg-secondary-dark lg:min-h-0",
-              scrollLocked && "max-lg:min-h-0",
-            )}
-          >
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-adam-neutral-700 px-4 py-2 text-xs font-semibold">
-              <span className="flex min-w-0 items-center gap-2">
+          <aside className={cn(
+            "flex min-w-0 flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-bg-secondary-dark",
+            layoutLocked ? "min-h-0" : "min-h-[32rem] lg:min-h-0",
+          )}>
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-adam-neutral-700 px-3 py-1.5 text-xs font-semibold">
+              <span className="inline-flex min-w-0 items-center gap-2">
                 <Code2 className="h-4 w-4 shrink-0 text-adam-neutral-300" />
-                <span>Source and parameters</span>
+                Source and parameters
               </span>
-              <Button
+              <button
                 type="button"
-                size="sm"
-                variant={scrollLocked ? "secondary" : "outline"}
-                className="h-8 shrink-0 gap-1 px-2 text-xs"
-                aria-pressed={scrollLocked}
-                aria-label={scrollLocked ? "Unlock scrolling layout" : "Lock viewer while scrolling parameters"}
-                title={scrollLocked ? "Allow full-page scrolling" : "Keep 3D viewer visible while scrolling parameters"}
-                onClick={() => setScrollLocked((locked) => !locked)}
+                aria-label={layoutLocked ? "Unlock viewer and parameters layout" : "Lock viewer and parameters layout"}
+                aria-pressed={layoutLocked}
+                title={layoutLocked ? "Return to normal page scrolling" : "Keep the 3D viewer visible while scrolling parameters"}
+                onClick={() => setLayoutLocked(value => !value)}
+                className={cn(
+                  "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue",
+                  layoutLocked
+                    ? "bg-adam-blue/20 text-adam-text-primary"
+                    : "text-adam-neutral-300 hover:bg-adam-neutral-800",
+                )}
               >
-                {scrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                {scrollLocked ? "Scroll locked" : "Scroll on"}
-              </Button>
+                {layoutLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                <span>{layoutLocked ? "Scroll locked" : "Scroll on"}</span>
+              </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div
+              data-testid="model-parameters-scroll"
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto",
+                layoutLocked && "overscroll-contain touch-pan-y",
+              )}
+            >
               <ProjectFilesEditor
                 key={`local:${activeRecord.id}:${activeRecord.project.files.length}`}
                 project={activeRecord.project}
                 onSaveFile={saveProjectFile}
+                onEditorOpen={dismissUploadConfirmation}
               />
               <section className="p-4">
                 <h2 className="mb-3 text-xs font-semibold text-adam-text-primary">

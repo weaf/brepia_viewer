@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased — OpenSCAD-only simplification
+## 0.3.0 - 2026-11-07 (CodeMirror 6 OpenSCAD editor and mobile UX)
+
+- Replace the previous source textbox with the integrated CodeMirror 6 OpenSCAD editor.
+- Add syntax highlighting, line numbers, search/replace, autocomplete, multi-cursor selection and accessible editor controls.
+- Add 57 searchable OpenSCAD insert templates across nine categories, with compact icon labels.
+- Preserve per-file source drafts, project dependencies, Save/Discard, parameter customizer, OpenSCAD WebAssembly rendering and STL export.
+- Keep the viewer-visible, separately scrollable parameter layout, with Scroll on / Scroll locked labels.
+- Update desktop/mobile editor ergonomics; retain GitHub Pages as the production host.
+- The OpenSCAD-only simplification and removed legacy subsystems listed below are included in this release.
+
+### OpenSCAD-only simplification (included in 0.3.0)
 
 - Removed the legacy Brepia AI, chat, BREP, Rhino/Grasshopper, Supabase, and build123d subsystems.
 - Removed remaining Supabase auth/API stubs, unused Creative model definitions, and Supabase/React Query dependencies; legal information routes no longer depend on a removed backend.
