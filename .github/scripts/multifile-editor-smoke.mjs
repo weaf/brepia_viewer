@@ -201,7 +201,9 @@ async function deviceCheck(device) {
       await selector.selectOption('lib/geometry.scad');
       await textbox().fill((await read(textbox())) + '\n// helper saved');
       await save.click();
-      await dialog.waitFor({ state: 'visible' });
+      // The dialog remains visible during asynchronous persistence; visibility
+      // alone does not mean onSaveFile has resolved. Wait for the clean state.
+      await dialog.getByText('Saved', { exact: true }).waitFor({ state: 'visible', timeout: 25000 });
       await selector.selectOption('main.scad');
       assert.ok((await read(textbox())).includes('// main draft only'));
       await textbox().fill((await read(textbox())) + '\n// main saved');
