@@ -21,8 +21,8 @@
       .primary { background: #17649c; border-color: #327bac; font-weight: 700; }
       .file-picker { max-width: 100%; min-width: 180px; flex: 1 1 180px; }
       .toolbar { padding: 8px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
-      #editor { flex: 1 1 auto; min-height: 50dvh; overflow: hidden; border: 1px solid #354054; border-radius: 8px; }
-      #editor .cm-editor { height: 100%; font-size: 14px; }
+      #editor { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 50dvh; overflow: hidden; border: 1px solid #354054; border-radius: 8px; }
+      #editor .cm-editor { flex: 1 1 auto; min-height: 0; width: 100%; font-size: 14px; }
       #editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
       footer { font-size: 12px; justify-content: space-between; color: #a9b9ce; }
       #status[data-dirty="true"] { color: #fac783; }
