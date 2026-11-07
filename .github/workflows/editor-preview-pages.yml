@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           mkdir -p production/.output/public/editor-preview
           cp -a editor/.output/public/. production/.output/public/editor-preview/
-          touch production/.output/public/.nojekyll
+          # Preserve the exact published artifact: do not add or rewrite root files.
           diff -qr /tmp/brepia-previous-files \
             production/.output/public --exclude=editor-preview
           test -f production/.output/public/editor-preview/index.html
