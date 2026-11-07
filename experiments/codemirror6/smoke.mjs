@@ -131,7 +131,7 @@ async function testDevice(device) {
       });
       await page.locator('.cm-content').focus();
       await page.keyboard.press('Enter');
-      assert.ok((await read()).includes('\\n'), 'normal Enter did not insert a newline');
+      assert.ok((await read()).includes(String.fromCharCode(10)), 'normal Enter did not insert a newline');
     });
 
     await check('no page-width overflow and no uncaught errors', async () => {
