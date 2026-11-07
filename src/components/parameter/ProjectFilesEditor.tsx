@@ -113,8 +113,8 @@ export function ProjectFilesEditor({
               <Button
                 type="button"
                 variant="light"
-                size="sm"
-                className="shrink-0 font-semibold"
+                size="default"
+                className="h-10 min-h-10 shrink-0 px-4 font-semibold"
                 aria-label={`Open ${file.path}`}
                 onClick={() => openFile(file.path)}
               >
