@@ -7,6 +7,7 @@
 - Removed STEP export completely from both server and static builds.
 - Kept the browser-side OpenSCAD editor, local models, model gallery, WebAssembly preview, and supported OpenSCAD export formats.
 - Retained the optional Node server and GitHub Pages deployment with the same OpenSCAD feature set.
+- Removed unused legacy template images, watermark and social media icons, obsolete Git-hook packages, and stale Tailwind source globs.
 
 
 ## 0.2.0 — 2026-11-06 (public hosting and dual distribution)
