@@ -34,7 +34,6 @@ export function ProjectFilesEditor({
     () => files.find((file) => file.path === selectedPath) ?? null,
     [files, selectedPath],
   );
-  const isEntrypoint = selectedPath === project?.entrypointPath;
   const canEdit = !!selectedFile && !!onSaveFile && !disabled;
   const isDirty = !!selectedFile && draftContent !== selectedFile.content;
 
@@ -97,7 +96,6 @@ export function ProjectFilesEditor({
 
       <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
         {files.map((file) => {
-          const entrypoint = file.path === project.entrypointPath;
           const depth = Math.max(0, file.path.split('/').length - 1);
           return (
             <button
@@ -111,11 +109,9 @@ export function ProjectFilesEditor({
               <span className="min-w-0 flex-1 truncate font-mono">
                 {file.path}
               </span>
-              {entrypoint && (
-                <span className="shrink-0 rounded-full border border-adam-neutral-600 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-adam-neutral-300">
-                  Entrypoint
-                </span>
-              )}
+              <span className="shrink-0 rounded-full border border-adam-neutral-600 px-1.5 py-0.5 text-[9px] font-medium text-adam-neutral-300">
+                Open
+              </span>
             </button>
           );
         })}
@@ -130,12 +126,8 @@ export function ProjectFilesEditor({
                 {selectedFile?.path ?? 'Project file'}
               </span>
             </DialogTitle>
-            <DialogDescription className="text-adam-neutral-400">
-              {disabled
-                ? 'Project file editing is disabled while the current AI turn is streaming.'
-                : isEntrypoint
-                  ? 'Edit the project entrypoint inside the current project snapshot. Saving preserves support files, assets and the entrypoint path, then refreshes parameters and preview from the saved source.'
-                  : 'Edit this support file inside the current project snapshot. Saving preserves the entrypoint, other source files and asset manifest.'}
+            <DialogDescription className="sr-only">
+              Edit the selected OpenSCAD source file. Save your changes or discard them.
             </DialogDescription>
           </DialogHeader>
 
@@ -158,7 +150,7 @@ export function ProjectFilesEditor({
             </p>
           )}
 
-          <DialogFooter className="gap-2 sm:space-x-0">
+          <DialogFooter className="flex-row items-center justify-end gap-2 sm:space-x-0">
             <Button
               type="button"
               variant="ghost"
@@ -175,11 +167,7 @@ export function ProjectFilesEditor({
               disabled={!canEdit || !isDirty || isSaving}
             >
               <Save className="mr-2 h-4 w-4" />
-              {isSaving
-                ? 'Saving…'
-                : isEntrypoint
-                  ? 'Save entrypoint'
-                  : 'Save support file'}
+              {isSaving ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
