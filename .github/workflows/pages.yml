@@ -36,6 +36,13 @@ jobs:
               "$url" || echo "Connection failed for $url"
           done
 
+          echo "Response headers through Cloudflare:"
+          curl -sS --max-time 15 -D - -o /dev/null 'https://viewer.notydesign.se/'             | grep -Ei '^(HTTP/|server:|cf-|location:|x-github-|content-type:)' || true
+
+          echo "Compare the GitHub Pages origin directly, bypassing Cloudflare:"
+          curl -sS --connect-timeout 8 --max-time 20             --resolve viewer.notydesign.se:443:185.199.108.153             -o /dev/null             -w 'ORIGIN_HTTPS=%{http_code} SSL_VERIFY=%{ssl_verify_result} IP=%{remote_ip}\n'             'https://viewer.notydesign.se/' || true
+          curl -sS --connect-timeout 8 --max-time 20             --resolve viewer.notydesign.se:80:185.199.108.153             -o /dev/null             -w 'ORIGIN_HTTP=%{http_code} IP=%{remote_ip}\n'             'http://viewer.notydesign.se/' || true
+
   pages:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
