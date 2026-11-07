@@ -138,6 +138,17 @@ try {
       stlExport={error:String(e?.message||e).slice(0,250)};
       violations.push(device.name+' STL export failed');
     }
+    // The OpenSCAD-only build keeps legal information pages self-contained:
+    // they must render in the browser without the retired Supabase/API service.
+    for (const legalPage of [
+      {route:'privacy-policy',heading:'Privacy Information',message:'No Privacy Policy'},
+      {route:'terms-of-service',heading:'Terms of Service',message:'No Terms of Service'},
+    ]) {
+      await page.goto(origin+basePath+legalPage.route,{waitUntil:'domcontentloaded',timeout:45000});
+      await page.getByRole('heading',{name:legalPage.heading,exact:true}).waitFor({timeout:20000});
+      const legalBody=await page.locator('body').innerText();
+      if(!legalBody.includes(legalPage.message)) violations.push(device.name+' '+legalPage.route+' fallback notice missing');
+    }
     const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,stlExport,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),wasmStatuses,assetHttpFailures,...snapshot};
     findings.push(result);
     if(errors.length) violations.push(device.name+' JS exceptions');
