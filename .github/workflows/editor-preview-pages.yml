@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -55,17 +56,24 @@ jobs:
           npm ci --no-audit --no-fund
           STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/ npm run build
 
-      - name: Abort if the live production homepage differs
+      - name: Verify last approved Pages artifact and exact production SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl -fLsS --retry 3 --retry-delay 2 --max-time 30 \
-            https://viewer.notydesign.se/ -o /tmp/brepia-live-index.html
-          if ! cmp -s /tmp/brepia-live-index.html production/.output/public/index.html; then
-            echo "::error::Current live HTML differs from the main-branch build; refusing to replace the public Pages artifact."
-            echo "No public deployment has occurred."
+          live_main_sha="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
+          test "$live_main_sha" = "f728a4832b0e0582f519ac14a68df2815b83ed69"
+          mkdir -p /tmp/brepia-previous-published /tmp/brepia-previous-files
+          gh run download 42352859741 --repo weaf/brepia_viewer \
+            --name github-pages --dir /tmp/brepia-previous-published
+          test -f /tmp/brepia-previous-published/artifact.tar
+          tar -xf /tmp/brepia-previous-published/artifact.tar -C /tmp/brepia-previous-files
+          touch production/.output/public/.nojekyll
+          if ! diff -qr /tmp/brepia-previous-files production/.output/public; then
+            echo "::error::Main rebuilt assets differ from the last successfully published Pages artifact. Aborting without deployment."
             exit 1
           fi
-          echo "PASS: live production homepage exactly matches the rebuild."
+          echo "PASS: production build is byte-for-byte equal to last published artifact."
 
       - name: Build test editor with isolated browser storage
         run: |
@@ -93,7 +101,8 @@ jobs:
           mkdir -p production/.output/public/editor-preview
           cp -a editor/.output/public/. production/.output/public/editor-preview/
           touch production/.output/public/.nojekyll
-          cmp -s /tmp/brepia-live-index.html production/.output/public/index.html
+          diff -qr /tmp/brepia-previous-files \
+            production/.output/public --exclude=editor-preview
           test -f production/.output/public/editor-preview/index.html
           echo "Main root unchanged; isolated editor preview under /editor-preview/."
 
@@ -108,14 +117,9 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
-      - name: Verify public preview and production homepage
+      - name: Record test deployment result
         run: |
-          set -euo pipefail
-          curl -fLsS --retry 4 --retry-delay 2 --max-time 30 \
-            https://viewer.notydesign.se/editor-preview/ \
-            -o /tmp/editor-preview-live.html
-          grep -q '/editor-preview/assets/' /tmp/editor-preview-live.html
-          curl -fLsS --retry 4 --retry-delay 2 --max-time 30 \
-            https://viewer.notydesign.se/ -o /tmp/brepia-live-after.html
-          cmp -s /tmp/brepia-live-index.html /tmp/brepia-live-after.html
-          echo "PASS: preview reachable, production home byte-identical."
+          echo "Pages accepted the composite artifact."
+          echo "TEST_URL=https://viewer.notydesign.se/editor-preview/"
+          echo "Production root files matched previously published Pages artifact before deployment."
+          echo "Note: external HTTP checks are unavailable behind site access controls."
