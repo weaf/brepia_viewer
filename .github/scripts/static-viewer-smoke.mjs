@@ -126,6 +126,8 @@ try {
     }
     const expandEditor = sourceDialog.getByRole('button',{name:'Expand editor'});
     await expandEditor.click();
+    await sourceDialog.getByRole('button',{name:'Restore editor'}).waitFor({timeout:5000});
+    await page.waitForTimeout(250);
     const expandedDialogBounds = await sourceDialog.boundingBox();
     if(!expandedDialogBounds || !initialDialogBounds ||
        expandedDialogBounds.height < initialDialogBounds.height + 10 ||
@@ -134,7 +136,10 @@ try {
     }
     await page.screenshot({path:path.join(evidence,device.name+'-source-expanded.png'),fullPage:true});
     await sourceDialog.getByRole('button',{name:'Restore editor'}).click();
+    await sourceDialog.getByRole('button',{name:'Expand editor'}).waitFor({timeout:5000});
+    await page.waitForTimeout(250);
     const restoredDialogBounds = await sourceDialog.boundingBox();
+    findings.push({type:'source-editor-layout',device:device.name,open:openBounds,openStyle,initial:initialDialogBounds,expanded:expandedDialogBounds,restored:restoredDialogBounds});
     if(!restoredDialogBounds || !initialDialogBounds ||
        Math.abs(restoredDialogBounds.height - initialDialogBounds.height) > 6) {
       violations.push(device.name+' Restore editor did not restore its size');
