@@ -70,6 +70,52 @@ test autocomplete and the Insert menu, Save/Discard, render and export. Check
 portrait and landscape, including virtual-keyboard resizing and cursor
 visibility. Record any defects before the draft PR is merged or released.
 
+## Phase 3.4 – compact icon palette and expanded OpenSCAD library (2026-11-07)
+
+**Owner test URL:** https://viewer.notydesign.se/editor-preview/
+
+**Deployed source commit:** `e2724cb1f87df193ea49c97320908b51006261cb`.
+[Isolated preview deployment 42399477024](https://github.com/weaf/brepia_viewer/actions/runs/42399477024):
+**PASS** (preview-path static browser smoke + production root preservation + Pages publish).
+
+The Insert menu now uses a compact, single-category-at-a-time six-column
+**icon-only** layout with 44px touch targets, 19px glyphs, a horizontally
+scrollable category strip, a search field and accessible names/tooltips. The
+selected/hovered item is explained in a small footer instead of an oversized
+card. Existing editor toolbar, project persistence and Save/Discard are unchanged.
+
+The centralized `src/lib/openScadSnippets.ts` now contains **57 templates in
+nine categories**: Shapes, Transform, Booleans, 2D & extrude, Modifiers,
+Programming, Parameters, Files and Templates. New examples include a hollow
+tube, screw hole, enclosure shell, grid/radial arrays, rounded plate, a
+mounting tab, 2D primitives, file references and OpenSCAD modifiers.
+Placeholders for imported external files still require the referenced files.
+
+**Accepted automated evidence:**
+- [CI run 42399256229](https://github.com/weaf/brepia_viewer/actions/runs/42399256229): **PASS**.
+- [Static gallery/edit/render/export 42399256224](https://github.com/weaf/brepia_viewer/actions/runs/42399256224):
+  **PASS**, no browser violations. Browser tests assert compact menu height,
+  icon-only cells, searching for Cylinder, switching to Templates, inserting
+  Tube, and Discard restoring the previous content.
+- [Independent integration run 42399251432](https://github.com/weaf/brepia_viewer/actions/runs/42399251432):
+  **PASS**, including two-file and parameter regressions.
+- Retained screenshots: `mobile-compact-insert-menu.png` and
+  `desktop-compact-insert-menu.png`, within the
+  `static-viewer-smoke` artifact from run 42399256224. Screenshots were
+  visually inspected: single category, six icons per row, searchable
+  compact menu, no unexpected editor resize.
+
+**Safe rollout:** preview uses its existing isolated IndexedDB and
+`/editor-preview/` path. Production Pages files were copied byte-for-byte
+from the last approved release artifact, with only the preview subtree
+added. `main` remains at `f728a4832b0e0582f519ac14a68df2815b83ed69`.
+PR #10 remains draft; the live homepage has not gained this new editor.
+
+**Next:** owner reviews the preview on an actual phone. Physical soft keyboard,
+native IME and owner acceptance are not covered by emulation. Tabstops,
+user-created snippets and a favorites list are optional follow-on
+capabilities, not part of this accepted slice.
+
 ## Phase 3.3 – import notice must not cover mobile toolbar (2026-11-07)
 
 **Verified code commit:** `7e2ddaf9c1db7c5a9e5dbdc862f95652a3f8e16d`.
