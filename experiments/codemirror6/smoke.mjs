@@ -22,11 +22,15 @@ let failed = false;
 async function testDevice(device) {
   const context = await browser.newContext({
     viewport: { width: device.width, height: device.height },
-    isMobile: device.name === 'mobile',
-    hasTouch: device.name === 'mobile',
-    deviceScaleFactor: device.name === 'mobile' ? 2 : 1,
+    isMobile: device.name !== 'desktop',
+    hasTouch: device.name !== 'desktop',
+    deviceScaleFactor: device.name !== 'desktop' ? 2 : 1,
   });
   const page = await context.newPage();
+  if (device.name !== 'desktop') {
+    const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+    assert.ok(coarse, 'mobile profile must emulate a coarse pointer');
+  }
   page.setDefaultTimeout(12000);
   page.setDefaultNavigationTimeout(45000);
   console.log('Starting ' + device.name + ' browser checks');
