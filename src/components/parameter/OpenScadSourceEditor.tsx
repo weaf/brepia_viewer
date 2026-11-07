@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject, SyntheticEvent } from 'react';
-import { Ellipsis, MousePointer2, Save, Search, Shapes } from 'lucide-react';
+import {
+  Box, Circle, Code2, Cylinder, Ellipsis, Eye, EyeOff, FileCode2,
+  FlipHorizontal, GitBranch, Grid3X3, Layers, Maximize2, Minus,
+  MousePointer2, Move, Palette, Repeat, RotateCw, Save, Scan,
+  Search, Settings2, Shapes, Square, Triangle, Type,
+  type LucideIcon,
+} from 'lucide-react';
 import { EditorView, basicSetup } from 'codemirror';
 import { Compartment, EditorState } from '@codemirror/state';
 import { StreamLanguage } from '@codemirror/language';
@@ -25,6 +31,8 @@ import {
   openScadSnippets,
   snippetCategories,
   type OpenScadSnippet,
+  type OpenScadSnippetCategory,
+  type OpenScadSnippetIcon,
 } from '@/lib/openScadSnippets';
 import './OpenScadSourceEditor.css';
 
@@ -54,6 +62,31 @@ const scadLanguage = StreamLanguage.define(
     atoms: { true: true, false: true, undef: true },
   }),
 );
+
+const snippetIcons: Record<OpenScadSnippetIcon, LucideIcon> = {
+  box: Box,
+  circle: Circle,
+  cylinder: Cylinder,
+  square: Square,
+  triangle: Triangle,
+  type: Type,
+  move: Move,
+  rotate: RotateCw,
+  scale: Maximize2,
+  mirror: FlipHorizontal,
+  layers: Layers,
+  minus: Minus,
+  scan: Scan,
+  palette: Palette,
+  eye: Eye,
+  'eye-off': EyeOff,
+  code: Code2,
+  repeat: Repeat,
+  branch: GitBranch,
+  settings: Settings2,
+  file: FileCode2,
+  grid: Grid3X3,
+};
 
 type CompletionState = Pick<OpenScadSourceEditorProps, 'project' | 'currentPath'>;
 
@@ -102,6 +135,15 @@ export function OpenScadSourceEditor({
   const completionRef = useRef<CompletionState>({ project, currentPath });
   const syncingRef = useRef(false);
   const [position, setPosition] = useState('Line 1, column 1');
+  const [snippetCategory, setSnippetCategory] = useState<OpenScadSnippetCategory>('Shapes');
+  const [snippetQuery, setSnippetQuery] = useState('');
+  const [snippetHint, setSnippetHint] = useState<OpenScadSnippet | null>(null);
+  const query = snippetQuery.trim().toLowerCase();
+  const visibleSnippets = openScadSnippets.filter(item =>
+    query
+      ? (item.label + ' ' + item.description + ' ' + item.category).toLowerCase().includes(query)
+      : item.category === snippetCategory,
+  );
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -285,20 +327,72 @@ export function OpenScadSourceEditor({
             <Shapes aria-hidden="true" />
           </summary>
           <div className="scad-editor__panel scad-editor__panel--wide" aria-label="OpenSCAD snippets">
-            <div className="scad-editor__panel-title">Insert OpenSCAD code</div>
-            {snippetCategories.map(category => (
-              <section className="scad-editor__section" key={category} aria-label={category}>
-                <h3 className="scad-editor__section-title">{category}</h3>
-                <div className="scad-editor__grid">
-                  {openScadSnippets.filter(item => item.category === category).map(item => (
-                    <button type="button" key={item.id} aria-label={item.label}
-                      disabled={readOnly} onClick={() => insertSnippet(item)}>
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
+            <div className="scad-editor__snippet-heading">
+              <span>Insert OpenSCAD code</span>
+              <span>{openScadSnippets.length} tools</span>
+            </div>
+            <div className="scad-editor__snippet-search-wrap">
+              <Search aria-hidden="true" />
+              <input
+                className="scad-editor__snippet-search"
+                type="search"
+                aria-label="Search OpenSCAD snippets"
+                placeholder="Search commands…"
+                value={snippetQuery}
+                onChange={event => {
+                  setSnippetQuery(event.target.value);
+                  setSnippetHint(null);
+                }}
+              />
+            </div>
+            <div className="scad-editor__snippet-categories" role="group" aria-label="Snippet categories">
+              {snippetCategories.map(category => (
+                <button
+                  type="button"
+                  key={category}
+                  className="scad-editor__category"
+                  aria-pressed={!query && snippetCategory === category}
+                  title={category}
+                  onClick={() => {
+                    setSnippetCategory(category);
+                    setSnippetQuery('');
+                    setSnippetHint(null);
+                  }}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+            <div className="scad-editor__snippet-grid" role="group" aria-label="Available OpenSCAD snippets">
+              {visibleSnippets.map(item => {
+                const Glyph = snippetIcons[item.icon];
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className="scad-editor__snippet"
+                    aria-label={item.label}
+                    title={item.label + ' — ' + item.description}
+                    data-snippet={item.id}
+                    disabled={readOnly}
+                    onMouseEnter={() => setSnippetHint(item)}
+                    onFocus={() => setSnippetHint(item)}
+                    onTouchStart={() => setSnippetHint(item)}
+                    onClick={() => insertSnippet(item)}
+                  >
+                    <Glyph aria-hidden="true" />
+                  </button>
+                );
+              })}
+              {!visibleSnippets.length && (
+                <div className="scad-editor__snippet-empty">No matching commands</div>
+              )}
+            </div>
+            <div className="scad-editor__snippet-hint" aria-live="polite">
+              {snippetHint && visibleSnippets.some(item => item.id === snippetHint.id)
+                ? <><strong>{snippetHint.label}</strong> · {snippetHint.description}</>
+                : <>{query ? visibleSnippets.length + ' matches' : snippetCategory + ' · ' + visibleSnippets.length + ' tools'}</>}
+            </div>
           </div>
         </details>
 
