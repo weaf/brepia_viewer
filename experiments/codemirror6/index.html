@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Brepia Viewer · CodeMirror 6 evaluation</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10151f; color: #e9edf4; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      .workspace { display: flex; flex-direction: column; min-height: 100dvh; padding: 12px; gap: 10px; max-width: 1440px; margin: auto; }
+      header, .toolbar, footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      header { justify-content: space-between; min-height: 38px; }
+      h1 { font-size: 17px; margin: 0; font-weight: 650; }
+      .subtitle { font-size: 12px; color: #9eaec2; }
+      select, button { border: 1px solid #475468; border-radius: 6px; color: #e9edf4; background: #242f40; font: inherit; font-size: 13px; min-height: 42px; padding: 8px 12px; }
+      select:focus-visible, button:focus-visible { outline: 2px solid #76b8ec; outline-offset: 2px; }
+      button { cursor: pointer; }
+      button:hover { background: #314259; }
+      button:disabled { cursor: default; opacity: .5; }
+      .primary { background: #17649c; border-color: #327bac; font-weight: 700; }
+      .file-picker { max-width: 100%; min-width: 180px; flex: 1 1 180px; }
+      .toolbar { padding: 8px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
+      #editor { flex: 1 1 auto; min-height: 50dvh; overflow: hidden; border: 1px solid #354054; border-radius: 8px; }
+      #editor .cm-editor { height: 100%; font-size: 14px; }
+      #editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+      footer { font-size: 12px; justify-content: space-between; color: #a9b9ce; }
+      #status[data-dirty="true"] { color: #fac783; }
+      .notice { font-size: 12px; color: #a9b9ce; }
+      @media (max-width: 600px) {
+        .workspace { padding: 6px; gap: 6px; }
+        header { padding: 6px; }
+        .toolbar { gap: 6px; padding: 6px; }
+        .toolbar button { flex: 1 0 auto; }
+        #editor { min-height: 55dvh; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="workspace">
+      <header>
+        <div>
+          <h1>Brepia Viewer · CodeMirror 6</h1>
+          <div class="subtitle">Isolated OpenSCAD editor prototype · no model storage or rendering</div>
+        </div>
+        <select id="file" class="file-picker" aria-label="Open project file">
+          <option value="main.scad">main.scad</option>
+          <option value="lib/shape.scad">lib/shape.scad</option>
+        </select>
+      </header>
+      <nav class="toolbar" aria-label="Editor tools">
+        <button id="cube" type="button">Cube</button>
+        <button id="translate" type="button">Translate</button>
+        <button id="find" type="button">Find / replace</button>
+        <button id="next" type="button">Next match</button>
+        <button id="all" type="button">Select all matches</button>
+        <button id="complete" type="button">Complete</button>
+        <button id="line" type="button">Go to line</button>
+        <button id="discard" type="button">Discard</button>
+        <button id="save" class="primary" type="button">Save</button>
+      </nav>
+      <section id="editor" aria-label="OpenSCAD editor"></section>
+      <footer>
+        <span id="status" role="status">Unchanged</span>
+        <span id="position">Line 1, column 1</span>
+      </footer>
+      <p class="notice">Test fixture only. Save updates an in-memory copy; reload resets all sample files. No connection to Brepia models, IndexedDB, OpenSCAD WebAssembly or GitHub Pages.</p>
+    </main>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
