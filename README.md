@@ -12,7 +12,7 @@
 <div align="center">
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat)](https://www.gnu.org/licenses/gpl-3.0)
-[![Brepia Viewer v0.2.0](https://img.shields.io/badge/Version-v0.2.0-brightgreen.svg?style=flat)](https://github.com/weaf/brepia_viewer/releases/tag/v0.2.0)
+[![Brepia Viewer v0.3.0](https://img.shields.io/badge/Version-v0.3.0-brightgreen.svg?style=flat)](https://github.com/weaf/brepia_viewer/releases/tag/v0.3.0)
 [![GitHub Pages](https://img.shields.io/badge/Live-Viewer-0a7ec2.svg?style=flat)](https://viewer.notydesign.se/)
 [![CI](https://github.com/weaf/brepia_viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/weaf/brepia_viewer/actions/workflows/ci.yml)
 
