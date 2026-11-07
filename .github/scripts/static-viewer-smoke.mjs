@@ -151,29 +151,53 @@ try {
        Math.abs(restoredDialogBounds.height - initialDialogBounds.height) > 6) {
       violations.push(device.name+' Restore editor did not restore its size');
     }
-    const saveSource = sourceDialog.getByRole('button',{name:'Save',exact:true});
-    const discardSource = sourceDialog.getByRole('button',{name:'Discard',exact:true});
-    const sourceTextbox = sourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i});
+    const editorToolbar=sourceDialog.getByRole('navigation',{name:'OpenSCAD editor tools'});
+    const sourceTextbox=sourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i});
+    const saveSource=editorToolbar.getByRole('button',{name:'Save',exact:true});
+    const moreTools=editorToolbar.getByRole('button',{name:'More editor tools'});
+    const insertCode=editorToolbar.getByRole('button',{name:'Insert OpenSCAD code'});
+    await sourceTextbox.waitFor({timeout:15000});
     await saveSource.waitFor({timeout:15000});
-    await discardSource.waitFor({timeout:15000});
-    const saveBounds = await saveSource.boundingBox();
-    const discardBounds = await discardSource.boundingBox();
-    if(!saveBounds || !discardBounds || Math.abs(saveBounds.y-discardBounds.y)>8) {
-      violations.push(device.name+' source editor Save/Discard not aligned horizontally');
+    const toolbarBounds=await editorToolbar.boundingBox();
+    if(!toolbarBounds || toolbarBounds.height>50) {
+      violations.push(device.name+' editor toolbar should fit one compact row');
     }
-    const visibleDescription = sourceDialog.locator('p').filter({hasText:'Edit the project entrypoint'});
+    const visibleDescription=sourceDialog.locator('p').filter({hasText:'Edit the project entrypoint'});
     if(await visibleDescription.count()) violations.push(device.name+' legacy editor description still rendered');
+    const editSurface=sourceDialog.locator('.cm-editor');
+    if(await editSurface.count()!==1) violations.push(device.name+' CodeMirror editor surface missing');
+
     await page.screenshot({path:path.join(evidence,device.name+'-source-dialog.png'),fullPage:true});
-    const originalSource = await sourceTextbox.inputValue();
-    await sourceTextbox.fill(originalSource+'\n// discard test');
+    const readSource=()=>sourceTextbox.innerText();
+    const originalSource=await readSource();
+
+    // Closing with changes must require explicit user confirmation.
+    await sourceTextbox.fill(originalSource+'\n// close guard test');
+    page.once('dialog',dialog=>{ void dialog.dismiss(); });
+    await sourceDialog.getByRole('button',{name:'Close'}).click();
+    if(!(await sourceDialog.isVisible())) violations.push(device.name+' dirty draft was closed without consent');
+
+    await moreTools.click();
+    const discardSource=editorToolbar.getByRole('button',{name:'Discard',exact:true});
     await discardSource.click();
-    if(await sourceTextbox.inputValue() !== originalSource) violations.push(device.name+' Discard failed to restore source');
+    if(await readSource()!==originalSource) violations.push(device.name+' Discard failed to restore source');
+
+    // The compact insert menu must change real source and be undoable by Discard.
+    await insertCode.click();
+    await editorToolbar.getByRole('button',{name:'Cube',exact:true}).click();
+    if(!(await readSource()).includes('cube([10, 10, 10], center = true);')) {
+      violations.push(device.name+' OpenSCAD snippet menu did not insert Cube');
+    }
+    await moreTools.click();
+    await discardSource.click();
+    if(await readSource()!==originalSource) violations.push(device.name+' Discard did not restore after snippet insertion');
+
     await sourceTextbox.fill(originalSource+'\n// saved UI smoke test');
     await saveSource.click();
     await sourceDialog.waitFor({state:'hidden',timeout:35000});
     await openSourceButton.click();
-    const savedSourceDialog = page.getByRole('dialog');
-    const savedSource = await savedSourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i}).inputValue();
+    const savedSourceDialog=page.getByRole('dialog');
+    const savedSource=await savedSourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i}).innerText();
     if(!savedSource.includes('// saved UI smoke test')) violations.push(device.name+' Save failed to persist edited source');
     await savedSourceDialog.getByRole('button',{name:'Close'}).click();
     let visibleCanvas=false;
