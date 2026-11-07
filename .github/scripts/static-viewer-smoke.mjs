@@ -102,6 +102,38 @@ try {
     });
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     await assertRepositoryLink('model editor');
+    // Project source UI: file action, compact editor and Save/Discard on one row.
+    const openSourceButton = page.getByRole('button',{name:/\\.scad\\s+Open$/i}).first();
+    await openSourceButton.waitFor({timeout:30000});
+    if(await page.getByText('Entrypoint',{exact:true}).count()) violations.push(device.name+' legacy entrypoint label still visible');
+    await openSourceButton.click();
+    const sourceDialog = page.getByRole('dialog');
+    await sourceDialog.waitFor({timeout:15000});
+    const saveSource = sourceDialog.getByRole('button',{name:'Save',exact:true});
+    const discardSource = sourceDialog.getByRole('button',{name:'Discard',exact:true});
+    const sourceTextbox = sourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i});
+    await saveSource.waitFor({timeout:15000});
+    await discardSource.waitFor({timeout:15000});
+    const saveBounds = await saveSource.boundingBox();
+    const discardBounds = await discardSource.boundingBox();
+    if(!saveBounds || !discardBounds || Math.abs(saveBounds.y-discardBounds.y)>8) {
+      violations.push(device.name+' source editor Save/Discard not aligned horizontally');
+    }
+    const visibleDescription = sourceDialog.locator('p').filter({hasText:'Edit the project entrypoint'});
+    if(await visibleDescription.count()) violations.push(device.name+' legacy editor description still rendered');
+    await page.screenshot({path:path.join(evidence,device.name+'-source-dialog.png'),fullPage:true});
+    const originalSource = await sourceTextbox.inputValue();
+    await sourceTextbox.fill(originalSource+'\\n// discard test');
+    await discardSource.click();
+    if(await sourceTextbox.inputValue() !== originalSource) violations.push(device.name+' Discard failed to restore source');
+    await sourceTextbox.fill(originalSource+'\\n// saved UI smoke test');
+    await saveSource.click();
+    await sourceDialog.waitFor({state:'hidden',timeout:35000});
+    await openSourceButton.click();
+    const savedSourceDialog = page.getByRole('dialog');
+    const savedSource = await savedSourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i}).inputValue();
+    if(!savedSource.includes('// saved UI smoke test')) violations.push(device.name+' Save failed to persist edited source');
+    await savedSourceDialog.getByRole('button',{name:'Close'}).click();
     let visibleCanvas=false;
     try {
       await page.waitForFunction(()=>Array.from(document.querySelectorAll('canvas')).some(x=>x.getBoundingClientRect().width>40 && x.getBoundingClientRect().height>40),null,{timeout:85000});
