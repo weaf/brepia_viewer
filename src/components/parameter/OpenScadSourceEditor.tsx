@@ -1,15 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
-import type { OpenScadProject } from '@shared/openScadProject';
-import { cn } from '@/lib/utils';
+import { useEffect, useRef, useState } from 'react';
+import type { MutableRefObject, SyntheticEvent } from 'react';
+import { Ellipsis, MousePointer2, Save, Search, Shapes } from 'lucide-react';
+import { EditorView, basicSetup } from 'codemirror';
+import { Compartment, EditorState } from '@codemirror/state';
+import { StreamLanguage } from '@codemirror/language';
+import { clike } from '@codemirror/legacy-modes/mode/clike';
 import {
-  applyOpenScadAutoPair,
-  getOpenScadCompletionContext,
-  type OpenScadAutoPairEdit,
-  type OpenScadCompletion,
-} from '@/lib/openScadEditor';
-import { highlightOpenScadSource } from '@/lib/openScadEditorHighlighter';
-import { recoverOpenScadAutoPairAfterInput } from '@/lib/openScadEditorInput';
+  autocompletion,
+  startCompletion,
+  type CompletionContext,
+  type CompletionResult,
+} from '@codemirror/autocomplete';
+import {
+  gotoLine,
+  openSearchPanel,
+  selectNextOccurrence,
+  selectSelectionMatches,
+} from '@codemirror/search';
+import { oneDark } from '@codemirror/theme-one-dark';
+import type { OpenScadProject } from '@shared/openScadProject';
+import { getOpenScadCompletionContext } from '@/lib/openScadEditor';
+import {
+  insertOpenScadSnippet,
+  openScadSnippets,
+  snippetCategories,
+  type OpenScadSnippet,
+} from '@/lib/openScadSnippets';
+import './OpenScadSourceEditor.css';
 
 interface OpenScadSourceEditorProps {
   value: string;
@@ -18,27 +35,48 @@ interface OpenScadSourceEditorProps {
   ariaLabel: string;
   project?: OpenScadProject;
   currentPath?: string | null;
+  onSelectFile?: (path: string) => void;
+  onSave?: () => void;
+  onDiscard?: () => void;
+  isDirty?: boolean;
+  isSaving?: boolean;
 }
 
-const COMPLETION_LIST_ID = 'openscad-editor-completions';
-const LINE_HEIGHT_PX = 20;
-const MONO_CHARACTER_WIDTH_PX = 7.2;
-const EDITOR_PADDING_PX = 12;
-const AUTO_PAIR_KEYS = ['(', ')', '<', '>'];
+const scadLanguage = StreamLanguage.define(
+  clike({
+    name: 'openscad',
+    keywords: Object.fromEntries(
+      'module function if else for intersection_for let each include use assert echo'.split(' ').map(word => [word, true]),
+    ),
+    builtin: Object.fromEntries(
+      'cube sphere cylinder circle square polygon polyhedron text translate rotate scale mirror color union difference intersection linear_extrude rotate_extrude hull minkowski import surface'.split(' ').map(word => [word, true]),
+    ),
+    atoms: { true: true, false: true, undef: true },
+  }),
+);
 
-function completionKindLabel(option: OpenScadCompletion) {
-  switch (option.kind) {
-    case 'module':
-      return 'module';
-    case 'function':
-      return 'function';
-    case 'file':
-      return 'file';
-    case 'keyword':
-      return 'keyword';
-    default:
-      return 'builtin';
-  }
+type CompletionState = Pick<OpenScadSourceEditorProps, 'project' | 'currentPath'>;
+
+function completionSource(context: CompletionContext, latest: MutableRefObject<CompletionState>): CompletionResult | null {
+  const { project, currentPath } = latest.current;
+  const result = getOpenScadCompletionContext({
+    source: context.state.doc.toString(),
+    cursor: context.pos,
+    project,
+    currentPath,
+    explicit: context.explicit,
+  });
+  if (!result.options.length) return null;
+  return {
+    from: result.from,
+    to: result.to,
+    options: result.options.map(option => ({
+      label: option.label,
+      detail: option.detail,
+      type: option.kind === 'keyword' ? 'keyword' : option.kind === 'file' ? 'text' : 'function',
+      apply: option.insertText ?? option.label,
+    })),
+  };
 }
 
 export function OpenScadSourceEditor({
@@ -48,314 +86,271 @@ export function OpenScadSourceEditor({
   ariaLabel,
   project,
   currentPath,
+  onSelectFile,
+  onSave,
+  onDiscard,
+  isDirty = false,
+  isSaving = false,
 }: OpenScadSourceEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const highlightLayerRef = useRef<HTMLDivElement>(null);
-  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
-  const [highlightedSource, setHighlightedSource] = useState('');
-  const [cursor, setCursor] = useState(0);
-  const [activeCompletion, setActiveCompletion] = useState(0);
-  const [explicitCompletion, setExplicitCompletion] = useState(false);
-  const [completionDismissed, setCompletionDismissed] = useState(false);
-  const [scrollPosition, setScrollPosition] = useState({ left: 0, top: 0 });
+  const rootRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const editableRef = useRef(new Compartment());
+  const initialRef = useRef({ value, readOnly, ariaLabel });
+  const onChangeRef = useRef(onChange);
+  const onSaveRef = useRef(onSave);
+  const completionRef = useRef<CompletionState>({ project, currentPath });
+  const syncingRef = useRef(false);
+  const [position, setPosition] = useState('Line 1, column 1');
 
   useEffect(() => {
-    let cancelled = false;
-    const timeout = window.setTimeout(() => {
-      void highlightOpenScadSource(value)
-        .then((html) => {
-          if (cancelled) return;
-          setHighlightedHtml(html);
-          setHighlightedSource(value);
-        })
-        .catch((error) => {
-          if (cancelled) return;
-          console.error('[OpenSCAD editor] Syntax highlighting failed:', error);
-          setHighlightedHtml(null);
-          setHighlightedSource('');
-        });
-    }, 40);
+    onChangeRef.current = onChange;
+    onSaveRef.current = onSave;
+    completionRef.current = { project, currentPath };
+  }, [onChange, onSave, project, currentPath]);
 
+  useEffect(() => {
+    const parent = viewportRef.current;
+    if (!parent) return;
+    const initial = initialRef.current;
+    const editable = editableRef.current;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: initial.value,
+        extensions: [
+          basicSetup,
+          oneDark,
+          scadLanguage,
+          autocompletion({ override: [context => completionSource(context, completionRef)] }),
+          EditorView.lineWrapping,
+          editable.of([
+            EditorState.readOnly.of(initial.readOnly),
+            EditorView.editable.of(!initial.readOnly),
+          ]),
+          EditorView.domEventHandlers({
+            keydown(event) {
+              if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                onSaveRef.current?.();
+                return true;
+              }
+              return false;
+            },
+          }),
+          EditorView.updateListener.of(update => {
+            if (update.docChanged && !syncingRef.current) {
+              onChangeRef.current(update.state.doc.toString());
+            }
+            if (update.docChanged || update.selectionSet) {
+              const head = update.state.selection.main.head;
+              const line = update.state.doc.lineAt(head);
+              setPosition('Line ' + line.number + ', column ' + (head - line.from + 1));
+            }
+          }),
+        ],
+      }),
+    });
+    view.contentDOM.setAttribute('aria-label', initial.ariaLabel);
+    view.contentDOM.setAttribute('role', 'textbox');
+    view.contentDOM.setAttribute('aria-multiline', 'true');
+    view.contentDOM.setAttribute('spellcheck', 'false');
+    view.contentDOM.setAttribute('autocapitalize', 'off');
+    view.contentDOM.setAttribute('autocomplete', 'off');
+    viewRef.current = view;
     return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
+      viewRef.current = null;
+      view.destroy();
     };
+  }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || view.state.doc.toString() === value) return;
+    syncingRef.current = true;
+    try {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+      });
+    } finally {
+      syncingRef.current = false;
+    }
   }, [value]);
 
-  const completionContext = useMemo(
-    () =>
-      readOnly || completionDismissed
-        ? { from: cursor, to: cursor, options: [] }
-        : getOpenScadCompletionContext({
-            source: value,
-            cursor,
-            project,
-            currentPath,
-            explicit: explicitCompletion,
-          }),
-    [
-      completionDismissed,
-      currentPath,
-      cursor,
-      explicitCompletion,
-      project,
-      readOnly,
-      value,
-    ],
-  );
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: editableRef.current.reconfigure([
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
+      ]),
+    });
+  }, [readOnly]);
 
   useEffect(() => {
-    setActiveCompletion(0);
-  }, [completionContext.from, completionContext.to, value]);
+    viewRef.current?.contentDOM.setAttribute('aria-label', ariaLabel);
+  }, [ariaLabel]);
 
-  const completionVisible = completionContext.options.length > 0;
-  const hasCurrentHighlight =
-    highlightedHtml !== null && highlightedSource === value;
+  useEffect(() => {
+    const handlePointer = (event: PointerEvent) => {
+      const root = rootRef.current;
+      if (root && !root.querySelector('.scad-editor__toolbar')?.contains(event.target as Node)) {
+        closeMenus();
+      }
+    };
+    const handleKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const root = rootRef.current;
+      const menu = root?.querySelector<HTMLDetailsElement>('details[open]');
+      if (!menu) return;
+      menu.open = false;
+      menu.querySelector('summary')?.focus();
+      event.preventDefault();
+    };
+    document.addEventListener('pointerdown', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, []);
 
-  const beforeCursor = value.slice(0, Math.max(0, cursor));
-  const lastLineBreak = beforeCursor.lastIndexOf('\n');
-  const lineNumber = beforeCursor.split('\n').length - 1;
-  const columnNumber = Math.max(0, cursor - lastLineBreak - 1);
-  const completionLeft = Math.max(
-    8,
-    EDITOR_PADDING_PX +
-      columnNumber * MONO_CHARACTER_WIDTH_PX -
-      scrollPosition.left,
-  );
-  const completionTop = Math.max(
-    8,
-    EDITOR_PADDING_PX +
-      (lineNumber + 1) * LINE_HEIGHT_PX -
-      scrollPosition.top,
-  );
-
-  const syncCursor = (textarea: HTMLTextAreaElement) => {
-    setCursor(textarea.selectionStart);
-    setExplicitCompletion(false);
-    setCompletionDismissed(false);
-  };
-
-  const restoreSelection = (selectionStart: number, selectionEnd: number) => {
-    window.requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(selectionStart, selectionEnd);
+  const closeMenus = () => {
+    rootRef.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => {
+      menu.open = false;
     });
   };
-
-  const commitAutoPairEdit = (autoPairEdit: OpenScadAutoPairEdit) => {
-    if (autoPairEdit.value !== value) onChange(autoPairEdit.value);
-    setCursor(autoPairEdit.selectionEnd);
-    setExplicitCompletion(false);
-    setCompletionDismissed(false);
-    restoreSelection(autoPairEdit.selectionStart, autoPairEdit.selectionEnd);
+  const showMenu = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    if (!event.currentTarget.open) return;
+    rootRef.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => {
+      if (menu !== event.currentTarget) menu.open = false;
+    });
   };
-
-  const handleBeforeInput = (event: FormEvent<HTMLTextAreaElement>) => {
+  const withView = (command: (view: EditorView) => void, focusEditor = true) => {
+    const view = viewRef.current;
+    if (!view) return;
+    command(view);
+    closeMenus();
+    if (focusEditor) view.focus();
+  };
+  const insertSnippet = (snippet: OpenScadSnippet) => {
     if (readOnly) return;
-
-    const nativeEvent = event.nativeEvent as InputEvent;
-    if (nativeEvent.isComposing) return;
-    if (
-      nativeEvent.inputType &&
-      !nativeEvent.inputType.startsWith('insert')
-    ) {
-      return;
-    }
-
-    const key = nativeEvent.data;
-    if (!key || key.length !== 1 || !AUTO_PAIR_KEYS.includes(key)) return;
-
-    const textarea = event.currentTarget;
-    const autoPairEdit = applyOpenScadAutoPair({
-      source: value,
-      selectionStart: textarea.selectionStart,
-      selectionEnd: textarea.selectionEnd,
-      key,
+    withView(view => {
+      const range = view.state.selection.main;
+      const selected = view.state.sliceDoc(range.from, range.to);
+      view.dispatch(view.state.replaceSelection(insertOpenScadSnippet(snippet, selected)));
     });
-
-    if (!autoPairEdit) return;
-
-    event.preventDefault();
-    commitAutoPairEdit(autoPairEdit);
   };
-
-  const applyCompletion = (option: OpenScadCompletion) => {
-    const insertion = option.insertText ?? option.label;
-    const nextValue =
-      value.slice(0, completionContext.from) +
-      insertion +
-      value.slice(completionContext.to);
-    const nextCursor = completionContext.from + insertion.length;
-
-    onChange(nextValue);
-    setCursor(nextCursor);
-    setExplicitCompletion(false);
-    setCompletionDismissed(true);
-    restoreSelection(nextCursor, nextCursor);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === ' ') {
-      event.preventDefault();
-      setCursor(event.currentTarget.selectionStart);
-      setCompletionDismissed(false);
-      setExplicitCompletion(true);
-      return;
-    }
-
-    if (!completionVisible) return;
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setActiveCompletion((current) =>
-        (current + 1) % completionContext.options.length,
-      );
-      return;
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setActiveCompletion((current) =>
-        (current - 1 + completionContext.options.length) %
-        completionContext.options.length,
-      );
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault();
-      applyCompletion(completionContext.options[activeCompletion]);
-      return;
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      setExplicitCompletion(false);
-      setCompletionDismissed(true);
-    }
-  };
-
-  const handleScroll = (textarea: HTMLTextAreaElement) => {
-    if (highlightLayerRef.current) {
-      highlightLayerRef.current.scrollTop = textarea.scrollTop;
-      highlightLayerRef.current.scrollLeft = textarea.scrollLeft;
-    }
-    setScrollPosition({ left: textarea.scrollLeft, top: textarea.scrollTop });
+  const selectAllMatches = () => withView(view => {
+    if (view.state.selection.main.empty) selectNextOccurrence(view);
+    selectSelectionMatches(view);
+  });
+  const selectNextMatch = () => withView(view => { selectNextOccurrence(view); });
+  const changeFile = (nextPath: string) => {
+    if (nextPath !== currentPath) onSelectFile?.(nextPath);
+    closeMenus();
   };
 
   return (
-    <div className="relative min-h-[45dvh] flex-1 overflow-hidden rounded-md border border-adam-neutral-700 bg-adam-background-1 focus-within:ring-1 focus-within:ring-adam-neutral-500">
-      <div
-        ref={highlightLayerRef}
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute inset-0 overflow-hidden font-mono text-xs leading-5',
-          '[&_.shiki]:m-0 [&_.shiki]:min-h-full [&_.shiki]:min-w-max [&_.shiki]:!bg-transparent [&_.shiki]:p-3 [&_.shiki]:font-mono [&_.shiki]:text-xs [&_.shiki]:leading-5',
+    <div ref={rootRef} className="scad-editor" data-testid="scad-editor">
+      <nav className="scad-editor__toolbar" aria-label="OpenSCAD editor tools">
+        {project && currentPath ? (
+          <select
+            aria-label="Open project file"
+            title="Open project file"
+            className="scad-editor__file"
+            value={currentPath}
+            onChange={event => changeFile(event.target.value)}
+            disabled={!onSelectFile || isSaving}
+          >
+            {project.files.map(file => (
+              <option key={file.path} value={file.path}>{file.path}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="scad-editor__file" title={currentPath ?? 'OpenSCAD'}>{currentPath ?? 'OpenSCAD'}</span>
         )}
-        dangerouslySetInnerHTML={{ __html: highlightedHtml ?? '' }}
-      />
+        <span className="scad-editor__separator" aria-hidden="true" />
 
-      <textarea
-        ref={textareaRef}
-        aria-label={ariaLabel}
-        aria-autocomplete="list"
-        aria-controls={completionVisible ? COMPLETION_LIST_ID : undefined}
-        aria-expanded={completionVisible}
-        aria-activedescendant={
-          completionVisible
-            ? `${COMPLETION_LIST_ID}-${activeCompletion}`
-            : undefined
-        }
-        value={value}
-        onBeforeInput={handleBeforeInput}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          const recoveredAutoPair = readOnly
-            ? null
-            : recoverOpenScadAutoPairAfterInput({
-                source: value,
-                nextValue,
-                selectionStart: event.target.selectionStart,
-                selectionEnd: event.target.selectionEnd,
-              });
-
-          if (recoveredAutoPair) {
-            commitAutoPairEdit(recoveredAutoPair);
-            return;
-          }
-
-          onChange(nextValue);
-          setCursor(event.target.selectionStart);
-          setExplicitCompletion(false);
-          setCompletionDismissed(false);
-        }}
-        onClick={(event) => syncCursor(event.currentTarget)}
-        onKeyUp={(event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key === ' ') return;
-          if (AUTO_PAIR_KEYS.includes(event.key)) return;
-          if (
-            event.key !== 'ArrowDown' &&
-            event.key !== 'ArrowUp' &&
-            event.key !== 'Enter' &&
-            event.key !== 'Tab' &&
-            event.key !== 'Escape'
-          ) {
-            syncCursor(event.currentTarget);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        onScroll={(event) => handleScroll(event.currentTarget)}
-        readOnly={readOnly}
-        spellCheck={false}
-        className="relative z-10 h-full min-h-[45dvh] w-full resize-none overflow-auto whitespace-pre bg-transparent p-3 font-mono text-xs leading-5 outline-none"
-        style={{
-          color: hasCurrentHighlight ? 'transparent' : undefined,
-          caretColor: 'var(--adam-text-primary, #f5f5f5)',
-        }}
-      />
-
-      {completionVisible && (
-        <div
-          id={COMPLETION_LIST_ID}
-          role="listbox"
-          className="absolute z-20 max-h-48 w-72 overflow-y-auto rounded-md border border-adam-neutral-600 bg-adam-bg-secondary-dark p-1 shadow-xl"
-          style={{
-            left: `max(8px, min(${completionLeft}px, calc(100% - 18rem - 8px)))`,
-            top: `max(8px, min(${completionTop}px, calc(100% - 12rem - 8px)))`,
-          }}
+        <button
+          type="button" className="scad-editor__icon" aria-label="Find / replace"
+          title="Find / replace"
+          onClick={() => withView(view => { openSearchPanel(view); }, false)}
         >
-          {completionContext.options.map((option, index) => (
-            <button
-              key={`${option.kind}:${option.label}`}
-              id={`${COMPLETION_LIST_ID}-${index}`}
-              type="button"
-              role="option"
-              aria-selected={index === activeCompletion}
-              title={option.detail}
-              className={cn(
-                'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs',
-                index === activeCompletion
-                  ? 'bg-adam-neutral-700 text-adam-text-primary'
-                  : 'text-adam-neutral-300 hover:bg-adam-neutral-800 hover:text-adam-text-primary',
-              )}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => applyCompletion(option)}
-            >
-              <span className="min-w-0 flex-1 truncate font-mono">
-                {option.label}
-              </span>
-              <span className="shrink-0 text-[9px] uppercase tracking-wide text-adam-neutral-500">
-                {completionKindLabel(option)}
-              </span>
-            </button>
-          ))}
-          <div className="border-t border-adam-neutral-700 px-2 pt-1 text-[9px] text-adam-neutral-500">
-            ↑↓ select · Enter/Tab apply · Esc close · Ctrl+Space show
+          <Search aria-hidden="true" />
+        </button>
+
+        <details className="scad-editor__menu" onToggle={showMenu}>
+          <summary className="scad-editor__icon" role="button" tabIndex={0}
+            aria-label="Insert OpenSCAD code" title="Insert OpenSCAD code">
+            <Shapes aria-hidden="true" />
+          </summary>
+          <div className="scad-editor__panel scad-editor__panel--wide" aria-label="OpenSCAD snippets">
+            <div className="scad-editor__panel-title">Insert OpenSCAD code</div>
+            {snippetCategories.map(category => (
+              <section className="scad-editor__section" key={category} aria-label={category}>
+                <h3 className="scad-editor__section-title">{category}</h3>
+                <div className="scad-editor__grid">
+                  {openScadSnippets.filter(item => item.category === category).map(item => (
+                    <button type="button" key={item.id} aria-label={item.label}
+                      disabled={readOnly} onClick={() => insertSnippet(item)}>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
-        </div>
-      )}
+        </details>
+
+        <details className="scad-editor__menu scad-editor__selection-menu" onToggle={showMenu}>
+          <summary className="scad-editor__icon" role="button" tabIndex={0}
+            aria-label="Selection tools" title="Selection tools">
+            <MousePointer2 aria-hidden="true" />
+          </summary>
+          <div className="scad-editor__panel" aria-label="Selection actions">
+            <div className="scad-editor__panel-title">Selection tools</div>
+            <div className="scad-editor__menu-actions">
+              <button type="button" aria-label="Next match" onClick={selectNextMatch}>Next match</button>
+              <button type="button" aria-label="Select all matches" onClick={selectAllMatches}>Select all matches</button>
+            </div>
+          </div>
+        </details>
+
+        <details className="scad-editor__menu" onToggle={showMenu}>
+          <summary className="scad-editor__icon" role="button" tabIndex={0}
+            aria-label="More editor tools" title="More editor tools">
+            <Ellipsis aria-hidden="true" />
+          </summary>
+          <div className="scad-editor__panel" aria-label="Additional editor actions">
+            <div className="scad-editor__panel-title">Editor tools</div>
+            <div className="scad-editor__menu-actions">
+              <button type="button" aria-label="Complete" onClick={() => withView(view => { startCompletion(view); })}>Complete</button>
+              <button type="button" aria-label="Go to line" onClick={() => withView(view => { gotoLine(view); }, false)}>Go to line</button>
+              <button type="button" aria-label="Discard" disabled={!isDirty || isSaving || !onDiscard}
+                onClick={() => { closeMenus(); onDiscard?.(); }}>Discard</button>
+              <button className="scad-editor__selection-compact" type="button" aria-label="Next match"
+                onClick={selectNextMatch}>Next match</button>
+              <button className="scad-editor__selection-compact" type="button" aria-label="Select all matches"
+                onClick={selectAllMatches}>Select all matches</button>
+            </div>
+          </div>
+        </details>
+
+        <span className="scad-editor__spacer" />
+        <button type="button" className="scad-editor__save" aria-label="Save" title="Save"
+          disabled={readOnly || !isDirty || isSaving || !onSave}
+          onClick={() => { closeMenus(); onSave?.(); }}>
+          <Save aria-hidden="true" />
+          <span>{isSaving ? 'Saving…' : 'Save'}</span>
+        </button>
+      </nav>
+      <div ref={viewportRef} className="scad-editor__viewport" />
+      <div className="scad-editor__status" role="status">
+        <span className={isDirty ? 'scad-editor__status-dirty' : undefined}>
+          {readOnly ? 'Read-only' : isDirty ? 'Unsaved changes' : 'Saved'}
+        </span>
+        <span>{position}</span>
+      </div>
     </div>
   );
 }
