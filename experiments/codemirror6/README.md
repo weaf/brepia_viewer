@@ -70,6 +70,57 @@ test autocomplete and the Insert menu, Save/Discard, render and export. Check
 portrait and landscape, including virtual-keyboard resizing and cursor
 visibility. Record any defects before the draft PR is merged or released.
 
+## Phase 3.6 – compact model header and lockable parameter split (2026-11-07)
+
+**Owner request:** compress GitHub/Export/Save/Clear actions to at most two
+compact rows, and offer a layout lock keeping the complete 3D viewer visible
+while a long parameter list scrolls independently.
+
+**Implementation:** `src/views/ModelGalleryView.tsx`,
+`src/components/RepositoryLink.tsx`, and
+`src/components/viewer/LocalOpenScadPreview.tsx`.
+The compact model header uses one desktop row or two mobile rows with 44px
+touch controls; Clear local data is an icon with accessible name and the
+existing destructive confirmation. The Lock/Locked toggle beside
+`Source and parameters` sets a bounded viewport layout: on mobile, the
+viewer and parameter pane get a 55:45 height split; on desktop they remain
+side-by-side. Only the parameter pane scrolls in locked mode; unlocking
+restores the original page-scroll behavior. The in-view camera orientation
+lock is independent.
+
+**Tested product code:** `b573b81a696483d9058b960f27bb2f4fd08a46ac`
+plus test fixture and acceptance adjustments. Existing project persistence
+and OpenSCAD rendering logic are unchanged.
+
+- [Static GitHub Pages regression 42406833468](https://github.com/weaf/brepia_viewer/actions/runs/42406833468):
+  **PASS**, 26/26 desktop/mobile multi-file acceptance assertions, zero
+  browser violations. Both devices passed the compact header-height gate,
+  lock/unlock, independent parameter scrolling to the end and unchanged
+  viewer position/size while scrolling.
+- [Independent integration 42406865336](https://github.com/weaf/brepia_viewer/actions/runs/42406865336):
+  **PASS** – TypeScript, lint, unit tests, build, WebAssembly and two-file
+  browser regression.
+- [Isolated preview deployment 42406828297](https://github.com/weaf/brepia_viewer/actions/runs/42406828297):
+  **SUCCESS**, at https://viewer.notydesign.se/editor-preview/ . Production
+  root preserved byte-for-byte; preview browser storage remains isolated.
+- `static-viewer-smoke` artifact contains `mobile-viewer-layout-locked.png`,
+  `desktop-viewer-layout-locked.png`, `mobile-split-locked.png`,
+  `desktop-split-locked.png`, plus rendered-model screenshots. Visual
+  inspection confirms a two-row mobile header, single-row desktop header,
+  and a fixed-height scrollable parameter pane. Early lock captures were
+  taken before the 3D mesh finished drawing; the subsequent final-model
+  captures prove the mesh renders after compilation, but are taken unlocked.
+
+**Known test corrections:** a fixture with only two parameters could not
+overflow on desktop, so the test-only model was expanded to 26 customizer
+parameters. An existing test also attempted to switch files while async
+Save was still running; it now waits for the explicit Saved indicator.
+These were acceptance-test issues, not changes to user model data.
+
+**Remaining gate:** test real Android/iOS touch scrolling and keyboard behavior
+in the owner preview, then confirm the visual proportions are suitable.
+PR #10 remains draft; there is no merge to production `main`.
+
 ## Phase 3.5 – icon + short caption owner-preview (2026-11-07)
 
 **User feedback:** screenshots of the icon-only menu showed indistinguishable
