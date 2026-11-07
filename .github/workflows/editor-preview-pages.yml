@@ -52,15 +52,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Restore immutable last published Pages artifact and guard main SHA
+      - name: Restore exact current production Pages artifact and guard main SHA
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           live_main_sha="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
-          test "$live_main_sha" = "f728a4832b0e0582f519ac14a68df2815b83ed69"
+          test "$live_main_sha" = "c86b127559fa34d0dae08c1ca1b0fe5df2ed4fe4"
           mkdir -p /tmp/brepia-previous-published /tmp/brepia-previous-files production/.output/public
-          gh run download 42352859741 --repo weaf/brepia_viewer \
+          gh run download 42411510016 --repo weaf/brepia_viewer \
             --name github-pages --dir /tmp/brepia-previous-published
           test -f /tmp/brepia-previous-published/artifact.tar
           tar -xf /tmp/brepia-previous-published/artifact.tar -C /tmp/brepia-previous-files
