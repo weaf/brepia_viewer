@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   integration:
@@ -44,6 +44,16 @@ jobs:
         run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
       - name: Playwright gallery / editor Save-Discard / rendering / export
         run: node .github/scripts/static-viewer-smoke.mjs
+      - name: Pin tested dependency lockfile on the prototype branch
+        if: success() && github.ref == 'refs/heads/prototype/codemirror6-openscad-editor'
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "build(editor): pin CodeMirror dependency lockfile"
+            git push origin HEAD:prototype/codemirror6-openscad-editor
+          fi
       - name: Retain static screenshots, logs and browser findings
         if: always()
         uses: actions/upload-artifact@v4
