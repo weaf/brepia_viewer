@@ -6,7 +6,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 
 const url = 'http://127.0.0.1:4175/?smoke=1';
-const evidenceDir = path.resolve('.evidence');
+const evidenceDir = path.resolve('smoke-evidence');
 await mkdir(evidenceDir, { recursive: true });
 const results = [];
 let serverLog = '';
@@ -113,8 +113,14 @@ async function testDevice(device) {
       await page.locator('.cm-tooltip-autocomplete').waitFor({ timeout: 10000 });
       const options = await page.locator('.cm-tooltip-autocomplete').innerText();
       assert.ok(options.includes('cube'), 'cube completion missing');
+      console.log('[' + device.name + '] Completion active element:', await page.evaluate(() => ({
+        tag: document.activeElement?.tagName,
+        className: document.activeElement?.className,
+      })));
       await page.keyboard.press('Enter');
-      assert.ok((await read()).includes('cube([10, 10, 10], center = true);'));
+      const applied = await read();
+      console.log('[' + device.name + '] Completion result:', JSON.stringify(applied));
+      assert.ok(applied.includes('cube([10, 10, 10], center = true);'), 'completion insertion mismatch: ' + JSON.stringify(applied));
     });
 
     await check('no page-width overflow and no uncaught errors', async () => {
