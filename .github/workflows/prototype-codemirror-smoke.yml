@@ -28,6 +28,12 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build isolated prototype
         run: npm run build
+      - name: Retain isolated build for debugging
+        uses: actions/upload-artifact@v4
+        with:
+          name: codemirror-prototype-dist
+          path: experiments/codemirror6/dist/
+          if-no-files-found: error
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Smoke test desktop + mobile touch emulation
