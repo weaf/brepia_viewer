@@ -191,14 +191,29 @@ try {
       const first=buttons[0];
       const target=first?.getBoundingClientRect();
       return {height:rect.height,visible:buttons.length,targetWidth:target?.width,targetHeight:target?.height,
-        iconCount:buttons.filter(button=>button.querySelector('svg') && !button.textContent.trim()).length};
+        labeledCount:buttons.filter(button=>button.querySelector('svg') && button.querySelector('.scad-editor__snippet-caption')?.textContent?.trim()).length,
+        gridColumns:getComputedStyle(panel.querySelector('.scad-editor__snippet-grid')).gridTemplateColumns.split(' ').length,
+        labels:buttons.map(button=>button.querySelector('.scad-editor__snippet-caption')?.textContent?.trim()),
+        labelsOverflow:buttons.filter(button=>{const caption=button.querySelector('.scad-editor__snippet-caption');return caption && caption.scrollWidth > caption.clientWidth + 1;}).length};
     });
     if(paletteMetrics.height>370 || paletteMetrics.visible>9 ||
-       paletteMetrics.iconCount!==paletteMetrics.visible ||
+       paletteMetrics.labeledCount!==paletteMetrics.visible ||
+       paletteMetrics.gridColumns!==6 || paletteMetrics.labelsOverflow>0 ||
        paletteMetrics.targetHeight<40) {
-      violations.push(device.name+' OpenSCAD palette is not a compact accessible icon grid: '+JSON.stringify(paletteMetrics));
+      violations.push(device.name+' OpenSCAD palette is not a compact, readable icon+label grid: '+JSON.stringify(paletteMetrics));
     }
-    await page.screenshot({path:path.join(evidence,device.name+'-compact-insert-menu.png'),fullPage:true});
+    await page.screenshot({path:path.join(evidence,device.name+'-labeled-insert-menu.png'),fullPage:true});
+    for (const [category, expected] of [
+      ['Programming', ['Function', 'For', 'If/Else']],
+      ['Parameters', ['Slider', 'Group', 'Toggle', '$fn']],
+      ['Files', ['Include', 'Use', 'STL', 'SVG']],
+    ]) {
+      await snippetPanel.getByRole('button',{name:category,exact:true}).click();
+      const captions=await snippetPanel.locator('.scad-editor__snippet-caption').allTextContents();
+      for (const caption of expected) {
+        if (!captions.includes(caption)) violations.push(device.name+' missing '+caption+' label in '+category);
+      }
+    }
     await snippetPanel.getByRole('button',{name:'Templates',exact:true}).click();
     await snippetPanel.getByRole('button',{name:'Tube',exact:true}).click();
     if(!(await readSource()).includes('difference()')) {

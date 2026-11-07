@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertOpenScadSnippet, openScadSnippets, snippetCategories } from './openScadSnippets';
+import { getOpenScadSnippetCaption, insertOpenScadSnippet, openScadSnippets, snippetCategories } from './openScadSnippets';
 
 describe('OpenSCAD toolbar snippets', () => {
   it('provides 57 accessible built-ins and 9 nonempty categories', () => {
@@ -8,6 +8,19 @@ describe('OpenSCAD toolbar snippets', () => {
     expect(snippetCategories.every(category => openScadSnippets.some(item => item.category === category))).toBe(true);
     expect(openScadSnippets.every(item => item.description.trim() && item.icon.trim())).toBe(true);
     expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(57);
+  });
+
+  it('keeps captions readable, concise, and distinct within each category', () => {
+    for (const category of snippetCategories) {
+      const snippets = openScadSnippets.filter(item => item.category === category);
+      const captions = snippets.map(getOpenScadSnippetCaption);
+      expect(captions.every(caption => caption.length <= 10 && caption.trim().length > 0)).toBe(true);
+      expect(new Set(captions).size).toBe(captions.length);
+    }
+    expect(getOpenScadSnippetCaption(openScadSnippets.find(item => item.id === 'function')!)).toBe('Function');
+    expect(getOpenScadSnippetCaption(openScadSnippets.find(item => item.id === 'for')!)).toBe('For');
+    expect(getOpenScadSnippetCaption(openScadSnippets.find(item => item.id === 'import-stl')!)).toBe('STL');
+    expect(getOpenScadSnippetCaption(openScadSnippets.find(item => item.id === 'use')!)).toBe('Use');
   });
 
   it('inserts a complete cube statement', () => {

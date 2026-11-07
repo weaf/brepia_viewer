@@ -244,6 +244,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
+  gap: 1px;
   width: 100%;
   min-width: 40px;
   height: 44px;
@@ -269,9 +271,25 @@
 .scad-editor__panel .scad-editor__snippet svg {
   position: relative;
   z-index: 1;
-  width: 19px;
-  height: 19px;
+  width: 17px;
+  height: 17px;
   stroke-width: 1.8;
+  pointer-events: none;
+}
+.scad-editor__snippet-caption {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: calc(100% - 6px);
+  overflow: hidden;
+  color: #cbd9e9;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 12px;
+  letter-spacing: -0.015em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   pointer-events: none;
 }
 .scad-editor__snippet-empty {

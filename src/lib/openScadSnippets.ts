@@ -525,6 +525,43 @@ export const openScadSnippets: readonly OpenScadSnippet[] = [
 
 export const snippetCategories: readonly OpenScadSnippetCategory[] = ["Shapes","Transform","Booleans","2D & extrude","Modifiers","Programming","Parameters","Files","Templates"];
 
+// On narrow screens these labels accompany the glyph. Never replace the
+// complete OpenSCAD name in the accessible button or its description.
+const snippetCaptions: Record<string, string> = {
+  "polyhedron": "Polyhed",
+  "multmatrix": "Matrix",
+  "difference": "Diff",
+  "intersection": "Intersect",
+  "linear-extrude": "Lin.Ext",
+  "rotate-extrude": "Rot.Ext",
+  "offset-chamfer": "Chamfer",
+  "projection": "Project",
+  "background": "Ghost",
+  "if-else": "If/Else",
+  "for": "For",
+  "parameter": "Slider",
+  "parameter-block": "Group",
+  "boolean-parameter": "Toggle",
+  "facets": "$fn",
+  "import-stl": "STL",
+  "import-svg": "SVG",
+  "centered-block": "CenterBox",
+  "rounded-plate": "RoundPlate",
+  "screw-hole": "ScrewHole",
+  "radial-pattern": "Radial",
+  "enclosure": "Enclosure",
+  "translate": "Translate",
+  "children": "Children",
+  "minkowski": "Minkowski",
+  "highlight": "Highlight",
+  "mount-tab": "Mount tab",
+  "hole-grid": "Hole grid",
+};
+
+export function getOpenScadSnippetCaption(snippet: OpenScadSnippet): string {
+  return snippetCaptions[snippet.id] ?? snippet.label;
+}
+
 export function insertOpenScadSnippet(snippet: OpenScadSnippet, selected = ''): string {
   if (snippet.insert !== undefined) return snippet.insert;
   if (!snippet.wrap) return '';

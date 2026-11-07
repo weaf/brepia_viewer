@@ -28,6 +28,7 @@ import type { OpenScadProject } from '@shared/openScadProject';
 import { getOpenScadCompletionContext } from '@/lib/openScadEditor';
 import {
   insertOpenScadSnippet,
+  getOpenScadSnippetCaption,
   openScadSnippets,
   snippetCategories,
   type OpenScadSnippet,
@@ -381,6 +382,9 @@ export function OpenScadSourceEditor({
                     onClick={() => insertSnippet(item)}
                   >
                     <Glyph aria-hidden="true" />
+                    <span className="scad-editor__snippet-caption" aria-hidden="true">
+                      {getOpenScadSnippetCaption(item)}
+                    </span>
                   </button>
                 );
               })}
