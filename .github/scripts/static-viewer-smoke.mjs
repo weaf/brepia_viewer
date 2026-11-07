@@ -98,10 +98,71 @@ try {
     await page.locator('input[type=file]').first().setInputFiles({
       name:'cube-static-smoke.scad',
       mimeType:'text/plain',
-      buffer:Buffer.from('cube([10,10,10], center=true);\n'),
+      buffer:Buffer.from("/* [Dimensions] */\nwidth = 10; // [5:1:30]\nheight = 10; // [5:1:30]\nextra_01 = 1; // [0:1:100]\nextra_02 = 2; // [0:1:100]\nextra_03 = 3; // [0:1:100]\nextra_04 = 4; // [0:1:100]\nextra_05 = 5; // [0:1:100]\nextra_06 = 6; // [0:1:100]\nextra_07 = 7; // [0:1:100]\nextra_08 = 8; // [0:1:100]\nextra_09 = 9; // [0:1:100]\nextra_10 = 10; // [0:1:100]\nextra_11 = 11; // [0:1:100]\nextra_12 = 12; // [0:1:100]\nextra_13 = 13; // [0:1:100]\nextra_14 = 14; // [0:1:100]\nextra_15 = 15; // [0:1:100]\nextra_16 = 16; // [0:1:100]\nextra_17 = 17; // [0:1:100]\nextra_18 = 18; // [0:1:100]\ncube([width,width,height], center=true);\n"),
     });
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     await assertRepositoryLink('model editor');
+    // The model header is one row on desktop and at most two rows on mobile.
+    const modelHeader=page.getByTestId('model-editor-header');
+    const modelHeaderBounds=await modelHeader.boundingBox();
+    if(!modelHeaderBounds || modelHeaderBounds.height > (device.name==='mobile' ? 122 : 68)) {
+      violations.push(device.name+' model actions consume too many rows: '+JSON.stringify(modelHeaderBounds));
+    }
+    for(const action of [
+      page.getByRole('link',{name:'View Brepia Viewer repository on GitHub'}),
+      modelHeader.getByRole('button',{name:'Export model'}),
+      modelHeader.getByRole('button',{name:'Save',exact:true}),
+      modelHeader.getByRole('button',{name:'Clear local data'}),
+    ]) {
+      const rect=await action.boundingBox();
+      if(!rect || rect.height<40 || rect.x<0 || rect.x+rect.width>device.width+2) {
+        violations.push(device.name+' model toolbar action is not compact/touchable: '+JSON.stringify(rect));
+      }
+    }
+    const modelWorkspace=page.getByTestId('model-workspace');
+    const parameterScroller=page.getByTestId('model-parameters-scroll');
+    const previewPane=page.getByRole('region',{name:'3D model preview'});
+    const originalPreview=await previewPane.boundingBox();
+    const lockButton=page.getByRole('button',{name:'Lock viewer and parameters layout'});
+    await lockButton.click();
+    if(await modelWorkspace.getAttribute('data-layout-locked')!=='true') {
+      violations.push(device.name+' layout lock did not activate');
+    }
+    const lockedPreview=await previewPane.boundingBox();
+    if(!lockedPreview || lockedPreview.height<95 || lockedPreview.y<0 ||
+       lockedPreview.y+lockedPreview.height>device.height+2) {
+      violations.push(device.name+' locked viewer does not fit the viewport: '+JSON.stringify(lockedPreview));
+    }
+    const scrolling=await parameterScroller.evaluate(node=>{
+      const max=node.scrollHeight-node.clientHeight;
+      node.scrollTop=max;
+      return {max,top:node.scrollTop,clientHeight:node.clientHeight,scrollHeight:node.scrollHeight};
+    });
+    const previewAfterScroll=await previewPane.boundingBox();
+    if(scrolling.max<25 || scrolling.top<20) {
+      violations.push(device.name+' parameters did not scroll independently: '+JSON.stringify(scrolling));
+    }
+    if(lockedPreview && previewAfterScroll &&
+       (Math.abs(lockedPreview.y-previewAfterScroll.y)>2 ||
+        Math.abs(lockedPreview.height-previewAfterScroll.height)>2)) {
+      violations.push(device.name+' locked viewer moved when parameter list scrolled');
+    }
+    await page.screenshot({path:path.join(evidence,device.name+'-viewer-layout-locked.png'),fullPage:true});
+    await page.getByRole('button',{name:'Unlock viewer and parameters layout'}).click();
+    if(await modelWorkspace.getAttribute('data-layout-locked')!=='false') {
+      violations.push(device.name+' unlocking layout did not restore default mode');
+    }
+    if(device.name==='mobile') {
+      const normal=await modelWorkspace.evaluate(node=>({
+        scrollHeight:node.scrollHeight,clientHeight:node.clientHeight,
+        overflow:getComputedStyle(node).overflowY,
+      }));
+      if(normal.scrollHeight<=normal.clientHeight+20 || normal.overflow==='hidden') {
+        violations.push(device.name+' unlocked view did not restore page scrolling: '+JSON.stringify(normal));
+      }
+    }
+    findings.push({type:'locked-parameter-layout',device:device.name,header:modelHeaderBounds,
+      initial:originalPreview,locked:lockedPreview,scroller:scrolling});
     // Project source UI: file action, compact editor and Save/Discard on one row.
     const openSourceButton = page.getByRole('button',{name:/^Open .+\.scad$/i}).first();
     await openSourceButton.waitFor({timeout:30000});

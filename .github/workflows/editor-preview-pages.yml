@@ -9,6 +9,10 @@ on:
       - src/services/localModelLibrary.ts
       - src/contexts/AppearanceContext.tsx
       - src/routes/__root.tsx
+      - src/views/ModelGalleryView.tsx
+      - src/components/RepositoryLink.tsx
+      - src/components/viewer/LocalOpenScadPreview.tsx
+      - .github/scripts/multifile-editor-smoke.mjs
       - src/components/parameter/OpenScadSourceEditor.tsx
       - src/components/parameter/OpenScadSourceEditor.css
       - src/lib/openScadSnippets.ts

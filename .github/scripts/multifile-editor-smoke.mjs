@@ -59,6 +59,31 @@ async function deviceCheck(device) {
       await page.screenshot({ path: path.join(output, device.name + '-multifile-import.png'), fullPage: true });
     });
 
+    await step('compact model header and independently scrolling parameters', async () => {
+      const header=page.getByTestId('model-editor-header');
+      const bounds=await header.boundingBox();
+      assert.ok(bounds && bounds.height <= (device.mobile ? 122 : 68), 'model header takes more than two rows: '+JSON.stringify(bounds));
+      const workspace=page.getByTestId('model-workspace');
+      const scroller=page.getByTestId('model-parameters-scroll');
+      const viewer=page.getByRole('region', {name:'3D model preview'});
+      await page.getByRole('button',{name:'Lock viewer and parameters layout'}).click();
+      assert.equal(await workspace.getAttribute('data-layout-locked'),'true');
+      const previewBefore=await viewer.boundingBox();
+      assert.ok(previewBefore && previewBefore.height>95);
+      const dims=await scroller.evaluate(node=>{
+        const max=node.scrollHeight-node.clientHeight;
+        node.scrollTop=max;
+        return {max,scrollTop:node.scrollTop};
+      });
+      assert.ok(dims.max>20 && dims.scrollTop>15,'parameter panel did not scroll independently');
+      const previewAfter=await viewer.boundingBox();
+      assert.ok(previewAfter && Math.abs(previewAfter.y-previewBefore.y)<2 && Math.abs(previewAfter.height-previewBefore.height)<2,
+        '3D viewer moved when scrolling parameters');
+      await page.screenshot({path:path.join(output,device.name+'-split-locked.png'),fullPage:true});
+      await page.getByRole('button',{name:'Unlock viewer and parameters layout'}).click();
+      assert.equal(await workspace.getAttribute('data-layout-locked'),'false');
+    });
+
     await step('parameter controls loaded from main.scad', async () => {
       const width = page.getByRole('textbox', { name: 'Width', exact: true });
       await width.waitFor({ state: 'visible' });
