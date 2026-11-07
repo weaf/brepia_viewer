@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { insertOpenScadSnippet, openScadSnippets } from './openScadSnippets';
+import { insertOpenScadSnippet, openScadSnippets, snippetCategories } from './openScadSnippets';
 
 describe('OpenSCAD toolbar snippets', () => {
-  it('provides 18 individually named snippets', () => {
-    expect(openScadSnippets).toHaveLength(18);
+  it('provides 57 accessible built-ins and 9 nonempty categories', () => {
+    expect(openScadSnippets).toHaveLength(57);
+    expect(snippetCategories).toHaveLength(9);
+    expect(snippetCategories.every(category => openScadSnippets.some(item => item.category === category))).toBe(true);
+    expect(openScadSnippets.every(item => item.description.trim() && item.icon.trim())).toBe(true);
     expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(18);
   });
 
@@ -25,4 +28,21 @@ describe('OpenSCAD toolbar snippets', () => {
       '    cube(10);\n      sphere(5);',
     );
   });
+  it('offers ready-made models and proper file reference commands', () => {
+    const tube = openScadSnippets.find(item => item.id === 'tube')!;
+    expect(insertOpenScadSnippet(tube)).toContain('difference()');
+    expect(insertOpenScadSnippet(tube)).toContain('cylinder(');
+    const include = openScadSnippets.find(item => item.id === 'include')!;
+    expect(insertOpenScadSnippet(include)).toBe('include <lib/shared.scad>;');
+    const libUse = openScadSnippets.find(item => item.id === 'use')!;
+    expect(insertOpenScadSnippet(libUse)).toBe('use <lib/shared.scad>;');
+  });
+
+  it('allows the same wrap behavior for new transformation commands', () => {
+    const resize = openScadSnippets.find(item => item.id === 'resize')!;
+    expect(insertOpenScadSnippet(resize, 'sphere(5);')).toBe(
+      'resize([20, 15, 10]) {\\n    sphere(5);\\n}',
+    );
+  });
+
 });
