@@ -9,6 +9,11 @@ on:
       - src/services/localModelLibrary.ts
       - src/contexts/AppearanceContext.tsx
       - src/routes/__root.tsx
+      - src/components/parameter/OpenScadSourceEditor.tsx
+      - src/components/parameter/OpenScadSourceEditor.css
+      - src/lib/openScadSnippets.ts
+      - src/lib/openScadSnippets.test.ts
+      - .github/scripts/static-viewer-smoke.mjs
   workflow_dispatch:
 
 permissions:
