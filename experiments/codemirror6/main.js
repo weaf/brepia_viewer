@@ -120,6 +120,10 @@ const view = new EditorView({
     }),
   ],
 });
+// The smoke harness can inspect CodeMirror state without affecting normal use.
+if (new URLSearchParams(window.location.search).has('smoke')) {
+  window.__brepiaSmokeView = view;
+}
 view.contentDOM.setAttribute('aria-label', 'OpenSCAD source editor');
 view.contentDOM.setAttribute('spellcheck', 'false');
 view.contentDOM.setAttribute('autocapitalize', 'off');
