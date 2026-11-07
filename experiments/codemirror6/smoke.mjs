@@ -50,10 +50,39 @@ async function testDevice(device) {
       assert.ok(await page.locator('[contenteditable=true].cm-content').count(), 'missing editable surface');
     });
 
+    await check('compact icon toolbar with accessible names', async () => {
+      for (const name of ['Find / replace', 'Insert OpenSCAD code', 'Selection tools', 'More editor tools', 'Save']) {
+        const control = page.getByRole('button', { name });
+        assert.equal(await control.count(), 1, 'missing toolbar control: ' + name);
+        const bounds = await control.boundingBox();
+        assert.ok(bounds && bounds.height >= 42 && bounds.width >= 42, 'toolbar control too small: ' + name);
+      }
+      assert.equal(await page.getByRole('button', { name: 'Cube' }).isVisible(), false, 'snippet unexpectedly visible with menu closed');
+    });
+
+    await check('category menu opens, closes, and inserts primitives', async () => {
+      await page.getByRole('button', { name: 'Insert OpenSCAD code' }).click();
+      assert.ok(await page.getByRole('button', { name: 'Cube' }).isVisible());
+      assert.ok(await page.getByRole('button', { name: 'Sphere' }).isVisible());
+      await page.getByRole('button', { name: 'Sphere' }).click();
+      assert.ok((await read()).includes('sphere(r = 10);'), 'sphere snippet not inserted');
+      assert.equal(await page.locator('#insert-menu').evaluate(el => el.open), false, 'snippet menu failed to close');
+      await page.getByRole('button', { name: 'Insert OpenSCAD code' }).click();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('#insert-menu').evaluate(el => el.open), false, 'Escape did not close menu');
+      await page.getByRole('button', { name: 'More editor tools' }).click();
+      assert.ok(await page.getByRole('button', { name: 'Discard' }).isVisible(), 'discard not available in More');
+      await page.getByRole('button', { name: 'More editor tools' }).click();
+      await page.getByRole('button', { name: 'Discard' }).click();
+      assert.equal(await read(), original);
+    });
+
     await check('cube / discard / dirty state', async () => {
+      await page.getByRole('button', { name: 'Insert OpenSCAD code' }).click();
       await page.getByRole('button', { name: 'Cube' }).click();
       assert.ok((await read()).includes('cube([10, 10, 10], center = true);'));
       assert.equal(await page.locator('#status').getAttribute('data-dirty'), 'true');
+      await page.getByRole('button', { name: 'More editor tools' }).click();
       await page.getByRole('button', { name: 'Discard' }).click();
       assert.equal(await read(), original);
       assert.equal(await page.locator('#status').getAttribute('data-dirty'), 'false');
@@ -66,12 +95,15 @@ async function testDevice(device) {
         const pos = view.state.doc.toString().indexOf(text);
         view.dispatch({ selection: { anchor: pos, head: pos + text.length } });
       });
+      await page.getByRole('button', { name: 'Insert OpenSCAD code' }).click();
       await page.getByRole('button', { name: 'Translate' }).click();
       assert.ok((await read()).includes('translate([10, 0, 0]) {\n    demo_shape(width, height);\n}'));
+      await page.getByRole('button', { name: 'More editor tools' }).click();
       await page.getByRole('button', { name: 'Discard' }).click();
     });
 
     await check('multiple file drafts and Save', async () => {
+      await page.getByRole('button', { name: 'Insert OpenSCAD code' }).click();
       await page.getByRole('button', { name: 'Cube' }).click();
       const draft = await read();
       await page.locator('#file').selectOption('lib/shape.scad');
@@ -94,6 +126,7 @@ async function testDevice(device) {
           selection: { anchor: 0, head: 5 },
         });
       });
+      await page.getByRole('button', { name: 'Selection tools' }).click();
       await page.getByRole('button', { name: 'Select all matches' }).click();
       const ranges = await page.evaluate(() => window.__brepiaSmokeView.state.selection.ranges.length);
       assert.equal(ranges, 2, 'select all did not create two selection ranges');
@@ -109,6 +142,7 @@ async function testDevice(device) {
           selection: { anchor: 3 },
         });
       });
+      await page.getByRole('button', { name: 'More editor tools' }).click();
       await page.getByRole('button', { name: 'Complete' }).click();
       await page.locator('.cm-tooltip-autocomplete').waitFor({ timeout: 10000 });
       const options = await page.locator('.cm-tooltip-autocomplete').innerText();

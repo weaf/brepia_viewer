@@ -21,6 +21,35 @@
       .primary { background: #17649c; border-color: #327bac; font-weight: 700; }
       .file-picker { max-width: 100%; min-width: 180px; flex: 1 1 180px; }
       .toolbar { padding: 8px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
+      /* Controls stay compact while category menus can grow independently. */
+      .svg-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+      .toolbar { position: relative; z-index: 5; flex-wrap: nowrap; min-height: 56px; gap: 6px; }
+      .toolbar-spacer { flex: 1 1 auto; }
+      .icon { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .tool-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; flex: 0 0 44px; }
+      .tool-menu { flex: 0 0 auto; }
+      .tool-menu summary { cursor: pointer; border: 1px solid #475468; border-radius: 6px; color: #e9edf4; background: #242f40; list-style: none; }
+      .tool-menu summary::-webkit-details-marker { display: none; }
+      .tool-menu[open] summary, .tool-icon:hover, .tool-menu summary:hover { background: #314b64; border-color: #6793b6; }
+      .tool-menu summary:focus-visible { outline: 2px solid #76b8ec; outline-offset: 2px; }
+      .save-action { display: inline-flex; align-items: center; gap: 7px; justify-content: center; min-width: 90px; height: 44px; min-height: 44px; padding-inline: 13px; }
+      .menu-panel { position: absolute; z-index: 20; left: 0; top: calc(100% + 6px); width: min(340px, calc(100vw - 16px)); max-height: min(65dvh, 520px); overflow: auto; border: 1px solid #58677b; border-radius: 10px; background: #192432; box-shadow: 0 16px 40px #0009; padding: 12px; }
+      .menu-panel-wide { width: min(460px, calc(100vw - 16px)); }
+      .panel-title { font-size: 14px; font-weight: 650; padding-bottom: 9px; color: #e9edf4; }
+      .menu-section { padding-block: 8px; border-top: 1px solid #344256; }
+      .menu-section h2 { font-size: 12px; color: #aec4dc; font-weight: 600; margin: 0 0 7px; }
+      .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      .menu-list { display: grid; gap: 6px; }
+      .menu-panel button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 9px 11px; text-align: left; }
+      .menu-panel button small { font-size: 11px; font-weight: 400; color: #9eaec2; white-space: nowrap; }
+      .menu-panel button:disabled small { opacity: .65; }
+      @media (max-width: 600px) {
+        .toolbar { flex-wrap: nowrap; padding: 5px; gap: 5px; }
+        .toolbar .tool-icon { flex: 0 0 44px; }
+        .toolbar .save-action { flex: 0 0 auto; min-width: 83px; }
+        .menu-panel { width: min(340px, calc(100vw - 12px)); }
+        .menu-panel-wide { width: min(460px, calc(100vw - 12px)); }
+      }
       #editor { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 50dvh; overflow: hidden; border: 1px solid #354054; border-radius: 8px; }
       #editor .cm-editor { flex: 1 1 auto; min-height: 0; width: 100%; font-size: 14px; }
       #editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
@@ -31,7 +60,6 @@
         .workspace { padding: 6px; gap: 6px; }
         header { padding: 6px; }
         .toolbar { gap: 6px; padding: 6px; }
-        .toolbar button { flex: 1 0 auto; }
         #editor { min-height: 55dvh; }
       }
     </style>
@@ -48,16 +76,92 @@
           <option value="lib/shape.scad">lib/shape.scad</option>
         </select>
       </header>
+      <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7.2"/><path d="m16 16 5 5"/></symbol>
+        <symbol id="i-shapes" viewBox="0 0 24 24"><path d="m3 8 6-4 6 4v8l-6 4-6-4Z M3 8l6 4 6-4 M9 12v8"/><circle cx="18" cy="17" r="3.5"/></symbol>
+        <symbol id="i-select" viewBox="0 0 24 24"><rect x="3" y="5" width="8" height="7" rx="1"/><rect x="13" y="12" width="8" height="7" rx="1"/><path d="m11 8 5 4 M13 4v4 M11 18l-5 2"/></symbol>
+        <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+        <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H3V3h2Z M7 3v7h10V3 M6 21v-8h12v8"/></symbol>
+      </svg>
       <nav class="toolbar" aria-label="Editor tools">
-        <button id="cube" type="button">Cube</button>
-        <button id="translate" type="button">Translate</button>
-        <button id="find" type="button">Find / replace</button>
-        <button id="next" type="button">Next match</button>
-        <button id="all" type="button">Select all matches</button>
-        <button id="complete" type="button">Complete</button>
-        <button id="line" type="button">Go to line</button>
-        <button id="discard" type="button">Discard</button>
-        <button id="save" class="primary" type="button">Save</button>
+        <button id="find" class="tool-icon" type="button" aria-label="Find / replace" title="Find / replace">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+        </button>
+        <details id="insert-menu" class="tool-menu">
+          <summary class="tool-icon" aria-label="Insert OpenSCAD code" title="Insert OpenSCAD code">
+            <svg class="icon" aria-hidden="true"><use href="#i-shapes"/></svg>
+          </summary>
+          <div class="menu-panel menu-panel-wide" role="group" aria-label="OpenSCAD snippets">
+            <div class="panel-title">Insert OpenSCAD code</div>
+            <section class="menu-section" aria-label="Primitives">
+              <h2>Primitives</h2>
+              <div class="menu-grid">
+                <button id="cube" data-snippet="cube" type="button" aria-label="Cube">Cube <small aria-hidden="true">Box</small></button>
+                <button data-snippet="sphere" type="button" aria-label="Sphere">Sphere <small aria-hidden="true">Round</small></button>
+                <button data-snippet="cylinder" type="button" aria-label="Cylinder">Cylinder <small aria-hidden="true">Tube</small></button>
+              </div>
+            </section>
+            <section class="menu-section" aria-label="Transformations">
+              <h2>Transformations</h2>
+              <div class="menu-grid">
+                <button id="translate" data-snippet="translate" type="button" aria-label="Translate">Translate <small aria-hidden="true">Move</small></button>
+                <button data-snippet="rotate" type="button" aria-label="Rotate">Rotate</button>
+                <button data-snippet="scale" type="button" aria-label="Scale">Scale</button>
+                <button data-snippet="mirror" type="button" aria-label="Mirror">Mirror</button>
+              </div>
+            </section>
+            <section class="menu-section" aria-label="Boolean operations">
+              <h2>Boolean operations</h2>
+              <div class="menu-grid">
+                <button data-snippet="union" type="button" aria-label="Union">Union</button>
+                <button data-snippet="difference" type="button" aria-label="Difference">Difference</button>
+                <button data-snippet="intersection" type="button" aria-label="Intersection">Intersection</button>
+              </div>
+            </section>
+            <section class="menu-section" aria-label="Model and programming">
+              <h2>Model and programming</h2>
+              <div class="menu-grid">
+                <button data-snippet="color" type="button" aria-label="Color">Color</button>
+                <button data-snippet="linear-extrude" type="button" aria-label="Linear extrude">Linear extrude</button>
+                <button data-snippet="rotate-extrude" type="button" aria-label="Rotate extrude">Rotate extrude</button>
+                <button data-snippet="module" type="button" aria-label="Module">Module</button>
+                <button data-snippet="function" type="button" aria-label="Function">Function</button>
+                <button data-snippet="for" type="button" aria-label="For loop">For loop</button>
+                <button data-snippet="if-else" type="button" aria-label="If / else">If / else</button>
+                <button data-snippet="parameter" type="button" aria-label="Parameter">Parameter</button>
+              </div>
+            </section>
+          </div>
+        </details>
+        <details id="selection-menu" class="tool-menu">
+          <summary class="tool-icon" aria-label="Selection tools" title="Selection tools">
+            <svg class="icon" aria-hidden="true"><use href="#i-select"/></svg>
+          </summary>
+          <div class="menu-panel" role="group" aria-label="Selection actions">
+            <div class="panel-title">Selection tools</div>
+            <div class="menu-list">
+              <button id="next" type="button" aria-label="Next match">Next match <small aria-hidden="true">Add cursor</small></button>
+              <button id="all" type="button" aria-label="Select all matches">Select all matches <small aria-hidden="true">Multi-edit</small></button>
+            </div>
+          </div>
+        </details>
+        <details id="more-menu" class="tool-menu">
+          <summary class="tool-icon" aria-label="More editor tools" title="More editor tools">
+            <svg class="icon" aria-hidden="true"><use href="#i-more"/></svg>
+          </summary>
+          <div class="menu-panel" role="group" aria-label="Additional editor actions">
+            <div class="panel-title">Editor tools</div>
+            <div class="menu-list">
+              <button id="complete" type="button" aria-label="Complete">Complete <small aria-hidden="true">Ctrl+Space</small></button>
+              <button id="line" type="button" aria-label="Go to line">Go to line</button>
+              <button id="discard" type="button" aria-label="Discard">Discard <small aria-hidden="true">Restore saved content</small></button>
+            </div>
+          </div>
+        </details>
+        <span class="toolbar-spacer" aria-hidden="true"></span>
+        <button id="save" class="primary save-action" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-save"/></svg><span>Save</span>
+        </button>
       </nav>
       <section id="editor" aria-label="OpenSCAD editor"></section>
       <footer>

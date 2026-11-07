@@ -170,15 +170,71 @@ function insert(text) {
   view.focus();
 }
 
-document.querySelector('#cube').addEventListener('click', () => insert('cube([10, 10, 10], center = true);'));
-document.querySelector('#translate').addEventListener('click', () => {
-  const selection = view.state.selection.main;
-  const selected = view.state.sliceDoc(selection.from, selection.to);
-  const code = selected
-    ? 'translate([10, 0, 0]) {\n' + selected.split('\n').map(line => '    ' + line).join('\n') + '\n}'
-    : 'translate([10, 0, 0]) {\n    cube([10, 10, 10]);\n}';
-  insert(code);
+const snippets = {
+  cube: { code: 'cube([10, 10, 10], center = true);' },
+  sphere: { code: 'sphere(r = 10);' },
+  cylinder: { code: 'cylinder(h = 20, r = 5, center = true);' },
+  translate: { before: 'translate([10, 0, 0])', defaultBody: 'cube([10, 10, 10]);' },
+  rotate: { before: 'rotate([0, 0, 45])', defaultBody: 'cube([10, 10, 10]);' },
+  scale: { before: 'scale([1, 1, 1])', defaultBody: 'cube([10, 10, 10]);' },
+  mirror: { before: 'mirror([1, 0, 0])', defaultBody: 'cube([10, 10, 10]);' },
+  union: { before: 'union()', defaultBody: 'cube(10);\nsphere(5);' },
+  difference: { before: 'difference()', defaultBody: 'cube(20);\nsphere(9);' },
+  intersection: { before: 'intersection()', defaultBody: 'cube(20);\nsphere(13);' },
+  color: { before: 'color("steelblue")', defaultBody: 'cube(10);' },
+  'linear-extrude': { before: 'linear_extrude(height = 10)', defaultBody: 'circle(r = 5);' },
+  'rotate-extrude': { before: 'rotate_extrude(angle = 360)', defaultBody: 'translate([10, 0, 0]) circle(r = 2);' },
+  module: { before: 'module my_part(size = 10)', defaultBody: 'cube(size);' },
+  function: { code: 'function double_value(x) = x * 2;' },
+  for: { before: 'for (i = [0:4])', defaultBody: 'translate([i * 10, 0, 0]) sphere(r = 3);' },
+  'if-else': { code: 'if (true) {\n    cube(10);\n} else {\n    sphere(5);\n}' },
+  parameter: { code: 'width = 30; // [10:1:100]' },
+};
+
+function applySnippet(name) {
+  const item = snippets[name];
+  if (!item) return;
+  const range = view.state.selection.main;
+  const selected = view.state.sliceDoc(range.from, range.to);
+  if (!item.before) { insert(item.code); return; }
+  const body = (selected || item.defaultBody)
+    .split('\n')
+    .map(line => line.trim() ? '    ' + line : line)
+    .join('\n');
+  insert(item.before + ' {\n' + body + '\n}');
+}
+
+document.querySelectorAll('[data-snippet]').forEach(button => {
+  button.addEventListener('click', () => applySnippet(button.dataset.snippet));
 });
+
+// Native details/summary supports pointer, keyboard, and assistive technology.
+// Keep one category open; dismiss by Escape, outside pointer or an action click.
+const toolbar = document.querySelector('.toolbar');
+const menus = [...toolbar.querySelectorAll('details.tool-menu')];
+menus.forEach(menu => {
+  menu.addEventListener('toggle', () => {
+    if (menu.open) menus.filter(other => other !== menu).forEach(other => { other.open = false; });
+  });
+});
+function closeMenus() {
+  for (const menu of menus) menu.open = false;
+}
+toolbar.addEventListener('click', event => {
+  if (event.target.closest('.menu-panel button')) queueMicrotask(closeMenus);
+});
+document.addEventListener('pointerdown', event => {
+  if (!toolbar.contains(event.target)) closeMenus();
+});
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  const open = menus.find(menu => menu.open);
+  if (!open) return;
+  event.preventDefault();
+  open.open = false;
+  open.querySelector('summary')?.focus();
+});
+
 document.querySelector('#find').addEventListener('click', () => { openSearchPanel(view); view.focus(); });
 document.querySelector('#next').addEventListener('click', () => { selectNextOccurrence(view); view.focus(); });
 document.querySelector('#all').addEventListener('click', () => {

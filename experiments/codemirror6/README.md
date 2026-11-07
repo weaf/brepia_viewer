@@ -21,6 +21,16 @@ standalone prototype bundles. A dedicated GitHub Actions workflow builds this ex
 smoke checks at desktop and mobile-touch viewports. A physical Android or iOS
 IME and production WebAssembly integration remain untested.
 
+## Toolbar UI refinement
+
+The isolated prototype now uses a **compact, icon-led toolbar**: direct Find,
+one Insert menu (primitives, transformations, Boolean operations, and programming),
+one Selection menu, one More tools menu, and an always-visible **Save** action.
+Menus use native `details/summary`, semantic names, 44px targets, Escape/outside
+dismissal, and do not shrink the editor when expanded. The additional snippets
+are demonstration fixtures; production integration must reuse the real project
+completion logic and preserve Save/Discard.
+
 ## Scope
 
 * CodeMirror 6, line numbers, bracket pairing, base multi-cursor/search/undo/folding
@@ -29,7 +39,7 @@ IME and production WebAssembly integration remain untested.
   This is intentionally **not a full OpenSCAD grammar**.
 * Sample built-in keyword/module suggestions and sample project-file completions.
 * Sample 2-file switching, with in-memory per-file draft and Save/Discard behavior.
-* Cube snippet and Translate wrapping of the current selection.
+* A grouped snippet library with primitives, transforms, Booleans, color, extrusions, programming and parameters, including wrapping the selected source.
 * No persisted user models, no production data and no render/export operations.
 
 ## Verified prototype baseline (2026-11-07)
