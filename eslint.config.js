@@ -1,5 +1,4 @@
 import js from "@eslint/js";
-import query from "@tanstack/eslint-plugin-query";
 import prettier from "eslint-config-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
@@ -15,7 +14,6 @@ export default tseslint.config(
       "**/coverage/**",
       "src/routeTree.gen.ts",
       "src/vendor/**",
-      "supabase/**",
     ],
   },
   js.configs.recommended,
@@ -40,13 +38,6 @@ export default tseslint.config(
         ...globals.browser,
         ...globals.node,
       },
-    },
-  },
-  {
-    files: ["**/*.{ts,tsx,mts,cts}"],
-    ...query.configs["flat/recommended"][0],
-    rules: {
-      ...query.configs["flat/recommended"][0].rules,
     },
   },
   {

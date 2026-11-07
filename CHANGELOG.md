@@ -3,6 +3,7 @@
 ## Unreleased — OpenSCAD-only simplification
 
 - Removed the legacy Brepia AI, chat, BREP, Rhino/Grasshopper, Supabase, and build123d subsystems.
+- Removed remaining Supabase auth/API stubs, unused Creative model definitions, and Supabase/React Query dependencies; legal information routes no longer depend on a removed backend.
 - Removed STEP export completely from both server and static builds.
 - Kept the browser-side OpenSCAD editor, local models, model gallery, WebAssembly preview, and supported OpenSCAD export formats.
 - Retained the optional Node server and GitHub Pages deployment with the same OpenSCAD feature set.
