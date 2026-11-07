@@ -57,7 +57,8 @@ async function testDevice(device) {
         const control = page.getByRole('button', { name });
         assert.equal(await control.count(), 1, 'missing toolbar control: ' + name);
         const bounds = await control.boundingBox();
-        assert.ok(bounds && bounds.height >= 42 && bounds.width >= 42, 'toolbar control too small: ' + name);
+        const size = device.name === 'desktop' ? 36 : 42;
+        assert.ok(bounds && bounds.height >= size && bounds.width >= size, 'toolbar control too small: ' + name);
       }
       const chrome = await page.evaluate(() => {
         const bar = document.querySelector('.toolbar').getBoundingClientRect();
@@ -71,6 +72,10 @@ async function testDevice(device) {
       assert.ok(chrome.height <= 50, 'toolbar occupies too much vertical space: ' + JSON.stringify(chrome));
       assert.ok(chrome.visualIcon <= 20, 'visual icon should remain compact');
       assert.ok(chrome.controlYs.every(y => Math.abs(y - chrome.toolbarTop) < 3), 'toolbar controls are not on a single row');
+      if (device.width <= 375) {
+        assert.equal(await page.getByRole('button', { name: 'Save' }).count(), 1, 'icon-only Save must retain its accessible name');
+        assert.equal(await page.locator('.save-action span').isVisible(), false, 'narrow Save should use only the icon');
+      }
       assert.equal(await page.locator('header').count(), 0, 'large introductory header should not be visible');
       assert.equal(await page.locator('.notice').count(), 0, 'prototype notice should not consume permanent workspace');
       assert.equal(await page.getByRole('button', { name: 'Cube' }).isVisible(), false, 'snippet unexpectedly visible with menu closed');

@@ -15,10 +15,10 @@
       .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
       .workspace { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 0; padding: 6px; gap: 4px; max-width: 1440px; margin: auto; }
       /* One compact chrome row; hit targets remain 44px while visual tiles are 30px. */
-      .toolbar { position: relative; z-index: 5; display: flex; flex: 0 0 48px; flex-wrap: nowrap; align-items: center; height: 48px; min-height: 48px; gap: 3px; padding: 1px 4px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
-      .file-picker { width: clamp(66px, 24vw, 165px); min-width: 0; flex: 0 1 auto; height: 44px; min-height: 44px; padding: 0 16px 0 7px; border: 0; border-radius: 5px; background: transparent; color: #e9edf4; font-size: 12px; text-overflow: ellipsis; }
+      .toolbar { position: relative; z-index: 5; display: flex; flex: 0 0 48px; flex-wrap: nowrap; align-items: center; height: 48px; min-height: 48px; gap: 2px; padding: 1px 3px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
+      .file-picker { width: clamp(78px, 27vw, 190px); min-width: 0; flex: 0 1 auto; height: 44px; min-height: 44px; padding: 0 17px 0 5px; border: 0; border-radius: 5px; appearance: none; background-color: transparent; background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23bdcce0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="m6 9 6 6 6-6"/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 3px center; background-size: 12px; color: #e9edf4; font-size: 12px; text-overflow: ellipsis; }
       .file-picker:hover { background: #29384c; }
-      .toolbar-divider { display: block; height: 22px; flex: 0 0 1px; background: #344256; margin: 0 2px; }
+      .toolbar-divider { display: block; height: 22px; flex: 0 0 1px; background: #344256; margin: 0; }
       .toolbar-spacer { flex: 1 1 auto; min-width: 0; }
       .svg-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
       .icon { position: relative; z-index: 1; display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
@@ -59,7 +59,18 @@
         /* At 320px, hide only a secondary menu; its actions remain in More. */
         #selection-menu { display: none; }
         .menu-panel button.compact-selection-action { display: flex; }
-        .file-picker { width: clamp(66px, 23vw, 82px); padding-left: 3px; }
+        .file-picker { width: clamp(92px, 29vw, 110px); padding-left: 3px; }
+        .save-action { flex: 0 0 44px; width: 44px; min-width: 44px; }
+        .save-action span { display: none; }
+      }
+      @media (hover: hover) and (pointer: fine) {
+        /* Mouse + trackpad: denser hit targets than on touch devices. */
+        .toolbar { flex-basis: 42px; height: 42px; min-height: 42px; }
+        .tool-menu { flex-basis: 38px; }
+        .tool-icon { flex-basis: 38px; width: 38px; min-width: 38px; height: 38px; min-height: 38px; }
+        .tool-icon::before { inset: 4px; }
+        .file-picker, .save-action { height: 38px; min-height: 38px; }
+        .menu-panel button { min-height: 38px; }
       }
       @media (min-width: 800px) {
         .workspace { padding: 8px; gap: 6px; }
@@ -163,7 +174,7 @@
           </div>
         </details>
         <span class="toolbar-spacer" aria-hidden="true"></span>
-        <button id="save" class="primary save-action" type="button">
+        <button id="save" class="primary save-action" type="button" aria-label="Save" title="Save">
           <svg class="icon" aria-hidden="true"><use href="#i-save"/></svg><span>Save</span>
         </button>
       </nav>

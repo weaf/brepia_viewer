@@ -66,6 +66,15 @@ Acceptance: GitHub Actions smoke at 1440×900, 390×844 and 320×700 verifies
 toolbar one-row sizing, accessibility labels, menu behavior, code editing and
 absence of horizontal page overflow. Physical iOS/Android keyboard remains unverified.
 
+### Final density refinement
+
+The file selector now keeps a compact custom chevron instead of a full-width
+native select arrow. At 320–375px Save is an icon-only 44px hit target with an
+explicit accessible name; at 390px+ the Save label remains visible. Mouse/fine
+pointer desktops use 38px action targets and a 42px toolbar, while touch inputs
+retain the larger 44px control targets. This intentionally differentiates the
+visual treatment from hit area size.
+
 ## Scope
 
 * CodeMirror 6, line numbers, bracket pairing, base multi-cursor/search/undo/folding
