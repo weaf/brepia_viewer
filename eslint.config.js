@@ -46,7 +46,6 @@ export default tseslint.config(
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
-      "@tanstack/query/exhaustive-deps": "warn",
     },
   },
   {
