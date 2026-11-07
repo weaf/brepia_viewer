@@ -134,9 +134,9 @@ export function ProjectFilesEditor({
       >
         <DialogContent
           className={cn(
-            'flex h-[calc(100dvh-0.5rem)] max-h-[calc(100dvh-0.5rem)] w-[calc(100vw-0.5rem)] max-w-none min-w-0 flex-col gap-3 overflow-hidden rounded-lg bg-adam-bg-secondary-dark p-3 sm:gap-4 sm:p-5',
+            'flex h-[96dvh] max-h-[96dvh] w-[calc(100vw-0.5rem)] max-w-none min-w-0 flex-col gap-3 overflow-hidden rounded-lg bg-adam-bg-secondary-dark p-3 sm:gap-4 sm:p-5',
             isExpanded
-              ? 'sm:h-[calc(100dvh-0.75rem)] sm:max-h-[calc(100dvh-0.75rem)] sm:w-[calc(100vw-0.75rem)] sm:max-w-none'
+              ? 'h-[100dvh] max-h-[100dvh] w-screen max-w-none sm:h-[calc(100dvh-0.75rem)] sm:max-h-[calc(100dvh-0.75rem)] sm:w-[calc(100vw-0.75rem)] sm:max-w-none'
               : 'sm:h-[88dvh] sm:max-h-[88dvh] sm:w-[92vw] sm:max-w-6xl',
           )}
         >
