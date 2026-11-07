@@ -102,6 +102,50 @@ try {
     });
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     await assertRepositoryLink('model editor');
+    // Mobile scroll lock must preserve a visible 3D preview while the parameters
+    // remain independently scrollable. Unlocked mode restores whole-page scroll.
+    if (device.name === 'mobile') {
+      await page.getByRole('button',{name:'Lock viewer while scrolling parameters'}).click();
+      const locked = await page.evaluate(() => {
+        const viewer = document.querySelector('[aria-label="3D model preview"]');
+        const panel = document.querySelector('aside');
+        const scroller = panel?.querySelector('.overflow-auto');
+        if (!viewer || !panel || !scroller) return null;
+        const extra = document.createElement('div');
+        extra.style.height = '1600px';
+        extra.setAttribute('data-scroll-test', '');
+        scroller.appendChild(extra);
+        scroller.scrollTop = scroller.scrollHeight;
+        const viewerRect = viewer.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const details = {
+          viewerTop: viewerRect.top,
+          viewerBottom: viewerRect.bottom,
+          panelTop: panelRect.top,
+          panelBottom: panelRect.bottom,
+          viewportHeight: innerHeight,
+          scrollable: scroller.scrollTop > 0,
+          scrollerOverflow: getComputedStyle(scroller).overflowY,
+          gridOverflow: getComputedStyle(viewer.parentElement).overflowY,
+        };
+        extra.remove();
+        scroller.scrollTop = 0;
+        return details;
+      });
+      findings.push({type:'mobile-scroll-locked-layout',...locked});
+      if (!locked || !locked.scrollable || locked.scrollerOverflow !== 'auto' ||
+          locked.gridOverflow !== 'hidden' || locked.viewerTop < 0 ||
+          locked.viewerBottom > locked.viewportHeight + 3 ||
+          locked.panelTop < locked.viewerBottom ||
+          locked.panelBottom > locked.viewportHeight + 3) {
+        violations.push('mobile locked scroll layout did not keep viewer visible and parameter panel scrollable');
+      }
+      await page.getByRole('button',{name:'Unlock scrolling layout'}).click();
+      const unlockedOverflow = await page.locator('[aria-label="3D model preview"]').evaluate(
+        el => getComputedStyle(el.parentElement).overflowY,
+      );
+      if (unlockedOverflow !== 'auto') violations.push('mobile unlocked layout did not restore page scrolling');
+    }
     // Project source UI: file action, compact editor and Save/Discard on one row.
     const openSourceButton = page.getByRole('button',{name:/^Open .+\.scad$/i}).first();
     await openSourceButton.waitFor({timeout:30000});
