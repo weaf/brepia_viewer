@@ -70,6 +70,41 @@ test autocomplete and the Insert menu, Save/Discard, render and export. Check
 portrait and landscape, including virtual-keyboard resizing and cursor
 visibility. Record any defects before the draft PR is merged or released.
 
+## Phase 3.5 – icon + short caption owner-preview (2026-11-07)
+
+**User feedback:** screenshots of the icon-only menu showed indistinguishable
+icons in Programming, Parameters and Files. The approved next slice was to
+retain the compact grid while adding a short caption immediately below each icon.
+
+**Implemented and deployed:** `src/components/parameter/OpenScadSourceEditor.tsx`
+and CSS now display a 17px glyph and 9px caption within the **same 44px
+touch target** and six-column grid. `getOpenScadSnippetCaption` in
+`src/lib/openScadSnippets.ts` supplies brief names while the original full
+label and description remain in `aria-label`, tooltip and help footer.
+Examples: Function / For / If/Else, Slider / Group / Toggle / $fn and
+Include / Use / STL / SVG. All 57 snippets and categories remain intact.
+
+**Verified code SHA:** `70fdcbbc707ba2c8f7bbca61f53acafecf0d65c3`.
+Acceptance: [CI 42402447176](https://github.com/weaf/brepia_viewer/actions/runs/42402447176) PASS,
+[static browser smoke 42402447108](https://github.com/weaf/brepia_viewer/actions/runs/42402447108) PASS,
+[integration and two-file smoke 42402441250](https://github.com/weaf/brepia_viewer/actions/runs/42402441250) PASS.
+The new tests check shortened label uniqueness/length, six columns, visible
+captions, category-specific disambiguation, search, snippet insertion and
+Save/Discard. A first run found a too-long Disable caption, which was corrected
+before all final checks passed.
+
+**Isolated Pages preview:** [deployment 42402441350](https://github.com/weaf/brepia_viewer/actions/runs/42402441350)
+PASS at https://viewer.notydesign.se/editor-preview/ . Preview runs `npm run
+check` before publishing, keeps the published production-root artifact byte
+identical, and retains separate IndexedDB storage.
+
+**Visual evidence:** `mobile-labeled-insert-menu.png` and
+`desktop-labeled-insert-menu.png` from the static-smoke artifact.
+Both reviewed: labels appear directly below icons, the panel remains
+compact, and editor layout does not shift. Physical keyboard/IME and owner
+visual sign-off are still pending. No `main` merge or production-homepage
+change was performed.
+
 ## Phase 3.4 – compact icon palette and expanded OpenSCAD library (2026-11-07)
 
 **Owner test URL:** https://viewer.notydesign.se/editor-preview/
