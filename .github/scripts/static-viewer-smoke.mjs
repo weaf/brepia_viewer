@@ -137,7 +137,14 @@ try {
     await page.screenshot({path:path.join(evidence,device.name+'-source-expanded.png'),fullPage:true});
     await sourceDialog.getByRole('button',{name:'Restore editor'}).click();
     await sourceDialog.getByRole('button',{name:'Expand editor'}).waitFor({timeout:5000});
-    await page.waitForTimeout(250);
+    try {
+      await page.waitForFunction(expectedHeight => {
+        const dialog = document.querySelector('[role="dialog"]');
+        return !!dialog && Math.abs(dialog.getBoundingClientRect().height - expectedHeight) < 6;
+      }, initialDialogBounds.height, {timeout:5000});
+    } catch {
+      // The size mismatch is recorded in the explicit assertion below.
+    }
     const restoredDialogBounds = await sourceDialog.boundingBox();
     findings.push({type:'source-editor-layout',device:device.name,open:openBounds,openStyle,initial:initialDialogBounds,expanded:expandedDialogBounds,restored:restoredDialogBounds});
     if(!restoredDialogBounds || !initialDialogBounds ||
