@@ -26,8 +26,10 @@ jobs:
     if: github.ref == 'refs/heads/prototype/codemirror6-openscad-editor'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # Separate deployment environment: github-pages is restricted to main.
+    # The deployment still uses GitHub Pages, but never changes main source.
     environment:
-      name: github-pages
+      name: editor-preview
       url: https://viewer.notydesign.se/editor-preview/
     steps:
       - name: Checkout exact production source (do not merge)
