@@ -27,10 +27,15 @@ async function testDevice(device) {
     deviceScaleFactor: device.name === 'mobile' ? 2 : 1,
   });
   const page = await context.newPage();
+  page.setDefaultTimeout(12000);
+  page.setDefaultNavigationTimeout(45000);
+  console.log('Starting ' + device.name + ' browser checks');
   const errors = [];
   page.on('pageerror', err => errors.push(String(err.message)));
   const check = async (name, fn) => {
+    console.log('[' + device.name + '] RUN ' + name);
     await fn();
+    console.log('[' + device.name + '] PASS ' + name);
     results.push({ device: device.name, test: name, status: 'PASS' });
   };
   try {
@@ -127,6 +132,7 @@ async function testDevice(device) {
     results.push({ device: device.name, test: 'physical virtual keyboard / composition', status: 'NOT_RUN' });
   } catch (error) {
     failed = true;
+    console.error('[' + device.name + '] FAIL', error);
     results.push({ device: device.name, test: 'failed step', status: 'FAIL', message: String(error?.stack || error).slice(0, 1800) });
   } finally {
     await page.screenshot({ path: path.join(evidenceDir, device.name + '.png'), fullPage: true }).catch(() => {});
