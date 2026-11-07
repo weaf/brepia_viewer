@@ -113,16 +113,25 @@ async function testDevice(device) {
       await page.locator('.cm-tooltip-autocomplete').waitFor({ timeout: 10000 });
       const options = await page.locator('.cm-tooltip-autocomplete').innerText();
       assert.ok(options.includes('cube'), 'cube completion missing');
-      console.log('[' + device.name + '] Completion active element:', await page.evaluate(() => ({
-        tag: document.activeElement?.tagName,
-        className: document.activeElement?.className,
-      })));
-      console.log('[' + device.name + '] Completion status before Enter:', await page.evaluate(() => window.__brepiaSmokeCompletion?.()));
+      // CodeMirror deliberately ignores acceptance during the first 75ms of
+      // an opened popup to avoid accidental Enter from earlier key presses.
+      await page.waitForTimeout(140);
       await page.keyboard.press('Enter');
-      console.log('[' + device.name + '] Completion status after Enter:', await page.evaluate(() => window.__brepiaSmokeCompletion?.()));
       const applied = await read();
-      console.log('[' + device.name + '] Completion result:', JSON.stringify(applied));
       assert.ok(applied.includes('cube([10, 10, 10], center = true);'), 'completion insertion mismatch: ' + JSON.stringify(applied));
+    });
+
+    await check('ordinary Enter still inserts a newline', async () => {
+      await page.evaluate(() => {
+        const view = window.__brepiaSmokeView;
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: 'cube(10);' },
+          selection: { anchor: 9 },
+        });
+      });
+      await page.locator('.cm-content').focus();
+      await page.keyboard.press('Enter');
+      assert.ok((await read()).includes('\\n'), 'normal Enter did not insert a newline');
     });
 
     await check('no page-width overflow and no uncaught errors', async () => {

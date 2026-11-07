@@ -10,13 +10,16 @@ From this directory (requires Node compatible with Vite 8):
 
 ```sh
 npm install
+npm run build
+npx playwright install chromium
+npm run test:smoke
 npm run dev
 ```
 
 Open the local Vite URL. A second command, `npm run build`, checks whether this
-standalone prototype bundles. Neither command has been executed by the authoring
-assistant because the Dquark workstation transport is unavailable and its isolated
-container does not have network access for npm dependencies.
+standalone prototype bundles. A dedicated GitHub Actions workflow builds this experiment and runs Chromium
+smoke checks at desktop and mobile-touch viewports. A physical Android or iOS
+IME and production WebAssembly integration remain untested.
 
 ## Scope
 
@@ -31,9 +34,11 @@ container does not have network access for npm dependencies.
 
 ## Not yet verified
 
-This prototype has not yet passed a real browser/manual/mobile test. It is not
-an integration pass. Selection preservation, Android/iOS virtual-keyboard input,
-composition, search behavior, and snippets need live Playwright/owner validation.
+This prototype is still separate from the production application. The branch
+runs Chromium smoke checks for both viewport profiles; these are NOT physical
+Android/iOS keyboard tests. OS-level composition, the real project save path,
+the WebAssembly renderer and production export have not been verified in this
+experiment.
 
 ## Integration gate before replacing OpenScadSourceEditor.tsx
 

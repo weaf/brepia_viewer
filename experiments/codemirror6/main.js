@@ -1,16 +1,7 @@
 import { EditorView, basicSetup } from 'codemirror';
-import { keymap } from '@codemirror/view';
-import { Prec } from '@codemirror/state';
 import { StreamLanguage } from '@codemirror/language';
 import { clike } from '@codemirror/legacy-modes/mode/clike';
-import {
-  autocompletion,
-  startCompletion,
-  acceptCompletion,
-  completionKeymap,
-  selectedCompletion,
-  completionStatus,
-} from '@codemirror/autocomplete';
+import { autocompletion, startCompletion } from '@codemirror/autocomplete';
 import {
   openSearchPanel,
   gotoLine,
@@ -118,19 +109,6 @@ const view = new EditorView({
   parent: document.querySelector('#editor'),
   doc: drafts.get(activePath),
   extensions: [
-    // Some browser/input combinations dispatch an Enter insertion before the
-    // completion keymap accepts the selected item. Guard only the active
-    // completion case; ordinary Enter must still insert a newline.
-    Prec.highest(EditorView.domEventHandlers({
-      keydown(event, editor) {
-        if (event.key !== 'Enter' || event.isComposing ||
-            completionStatus(editor.state) !== 'active') return false;
-        if (!acceptCompletion(editor)) return false;
-        event.preventDefault();
-        return true;
-      },
-    })),
-    Prec.highest(keymap.of(completionKeymap)),
     basicSetup,
     oneDark,
     scadLanguage,
@@ -145,10 +123,6 @@ const view = new EditorView({
 // The smoke harness can inspect CodeMirror state without affecting normal use.
 if (new URLSearchParams(window.location.search).has('smoke')) {
   window.__brepiaSmokeView = view;
-  window.__brepiaSmokeCompletion = () => ({
-    status: completionStatus(view.state),
-    selected: selectedCompletion(view.state)?.label ?? null,
-  });
 }
 view.contentDOM.setAttribute('aria-label', 'OpenSCAD source editor');
 view.contentDOM.setAttribute('spellcheck', 'false');

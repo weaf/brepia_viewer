@@ -9,6 +9,10 @@ on:
       - '.github/workflows/prototype-codemirror-smoke.yml'
   workflow_dispatch:
 
+concurrency:
+  group: codemirror-prototype-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
