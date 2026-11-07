@@ -72,7 +72,6 @@ async function testDevice(device) {
       assert.equal(await page.locator('#insert-menu').evaluate(el => el.open), false, 'Escape did not close menu');
       await page.getByRole('button', { name: 'More editor tools' }).click();
       assert.ok(await page.getByRole('button', { name: 'Discard' }).isVisible(), 'discard not available in More');
-      await page.getByRole('button', { name: 'More editor tools' }).click();
       await page.getByRole('button', { name: 'Discard' }).click();
       assert.equal(await read(), original);
     });
