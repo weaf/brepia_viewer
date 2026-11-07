@@ -69,6 +69,8 @@ import {
   Download,
   FileUp,
   FolderOpen,
+  Lock,
+  Unlock,
   RefreshCw,
   Search,
   Trash2,
@@ -116,6 +118,7 @@ export function ModelGalleryView() {
     useState<ModelExportFormat | null>(null);
   const [isOpeningModel, setIsOpeningModel] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sourceScrollLocked, setSourceScrollLocked] = useState(false);
   const [pendingFolder, setPendingFolder] =
     useState<PendingScadFolderImport | null>(null);
   const [folderEntrypoint, setFolderEntrypoint] = useState("");
@@ -921,11 +924,26 @@ export function ModelGalleryView() {
             onExportStateChange={handlePreviewExportStateChange}
           />
           <aside className="flex min-h-[32rem] min-w-0 flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-bg-secondary-dark lg:min-h-0">
-            <div className="flex shrink-0 items-center gap-2 border-b border-adam-neutral-700 px-4 py-3 text-xs font-semibold">
-              <Code2 className="h-4 w-4 text-adam-neutral-300" /> Source and
-              parameters
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-adam-neutral-700 px-4 py-2 text-xs font-semibold">
+              <span className="flex min-w-0 items-center gap-2">
+                <Code2 className="h-4 w-4 shrink-0 text-adam-neutral-300" />
+                <span>Source and parameters</span>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant={sourceScrollLocked ? "secondary" : "outline"}
+                className="h-8 shrink-0 gap-1 px-2 text-xs"
+                aria-pressed={sourceScrollLocked}
+                aria-label={sourceScrollLocked ? "Enable source panel scrolling" : "Lock source panel scrolling"}
+                title={sourceScrollLocked ? "Enable source panel scrolling" : "Lock source panel scrolling"}
+                onClick={() => setSourceScrollLocked((locked) => !locked)}
+              >
+                {sourceScrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                {sourceScrollLocked ? "Scroll locked" : "Scroll on"}
+              </Button>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className={`min-h-0 flex-1 ${sourceScrollLocked ? "overflow-hidden" : "overflow-auto"}`}>
               <ProjectFilesEditor
                 key={`local:${activeRecord.id}:${activeRecord.project.files.length}`}
                 project={activeRecord.project}
