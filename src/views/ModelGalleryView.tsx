@@ -29,7 +29,7 @@ import {
   readScadImportFolder,
   type PendingScadFolderImport,
 } from "@/lib/scadImport";
-import { updateParameter } from "@/lib/utils";
+import { cn, updateParameter } from "@/lib/utils";
 import {
   getModelRepositories,
   modelRepositoryUrl,
@@ -118,7 +118,7 @@ export function ModelGalleryView() {
     useState<ModelExportFormat | null>(null);
   const [isOpeningModel, setIsOpeningModel] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [sourceScrollLocked, setSourceScrollLocked] = useState(false);
+  const [scrollLocked, setScrollLocked] = useState(false);
   const [pendingFolder, setPendingFolder] =
     useState<PendingScadFolderImport | null>(null);
   const [folderEntrypoint, setFolderEntrypoint] = useState("");
@@ -916,14 +916,26 @@ export function ModelGalleryView() {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(350px,0.8fr)] lg:overflow-hidden lg:p-6">
+        <div
+          className={cn(
+            "grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(350px,0.8fr)] lg:overflow-hidden lg:p-6",
+            scrollLocked &&
+              "max-lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] max-lg:gap-2 max-lg:overflow-hidden max-lg:p-2",
+          )}
+        >
           <LocalOpenScadPreview
             key={activeRecord.id}
             project={activeRecord.project}
             assets={activeRecord.assetBlobs}
             onExportStateChange={handlePreviewExportStateChange}
+            constrainedHeight={scrollLocked}
           />
-          <aside className="flex min-h-[32rem] min-w-0 flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-bg-secondary-dark lg:min-h-0">
+          <aside
+            className={cn(
+              "flex min-h-[32rem] min-w-0 flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-bg-secondary-dark lg:min-h-0",
+              scrollLocked && "max-lg:min-h-0",
+            )}
+          >
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-adam-neutral-700 px-4 py-2 text-xs font-semibold">
               <span className="flex min-w-0 items-center gap-2">
                 <Code2 className="h-4 w-4 shrink-0 text-adam-neutral-300" />
@@ -932,18 +944,18 @@ export function ModelGalleryView() {
               <Button
                 type="button"
                 size="sm"
-                variant={sourceScrollLocked ? "secondary" : "outline"}
+                variant={scrollLocked ? "secondary" : "outline"}
                 className="h-8 shrink-0 gap-1 px-2 text-xs"
-                aria-pressed={sourceScrollLocked}
-                aria-label={sourceScrollLocked ? "Enable source panel scrolling" : "Lock source panel scrolling"}
-                title={sourceScrollLocked ? "Enable source panel scrolling" : "Lock source panel scrolling"}
-                onClick={() => setSourceScrollLocked((locked) => !locked)}
+                aria-pressed={scrollLocked}
+                aria-label={scrollLocked ? "Unlock scrolling layout" : "Lock viewer while scrolling parameters"}
+                title={scrollLocked ? "Allow full-page scrolling" : "Keep 3D viewer visible while scrolling parameters"}
+                onClick={() => setScrollLocked((locked) => !locked)}
               >
-                {sourceScrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                {sourceScrollLocked ? "Scroll locked" : "Scroll on"}
+                {scrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                {scrollLocked ? "Scroll locked" : "Scroll on"}
               </Button>
             </div>
-            <div className={`min-h-0 flex-1 ${sourceScrollLocked ? "overflow-hidden" : "overflow-auto"}`}>
+            <div className="min-h-0 flex-1 overflow-auto">
               <ProjectFilesEditor
                 key={`local:${activeRecord.id}:${activeRecord.project.files.length}`}
                 project={activeRecord.project}
