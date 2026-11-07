@@ -33,6 +33,62 @@ viewports. See Phase 3.1 below.
 IME composition, plus the owner's visual acceptance. Do not merge/release
 or switch the live site without that approval.
 
+## Phase 3.2 – Unicode, keyboard completion, simulated IME (2026-11-07)
+
+Code under test: `df74f869f01d3bbc3c84289aa36f27f1ae5f5a71`.
+[Static Playwright run 42373648374](https://github.com/weaf/brepia_viewer/actions/runs/42373648374):
+**PASS**, 11/11 desktop and 11/11 mobile-touch Chromium checks, including
+the prior two-file, source-save, 3D and parameter regression. CI run
+[42373648329](https://github.com/weaf/brepia_viewer/actions/runs/42373648329)
+also passed.
+
+The additional checks verify:
+
+- Unicode entry of `åäö ÅÄÖ`, an insertion immediately before the final
+  character, Backspace and no duplicated characters.
+- A **synthetic** `compositionstart` → Unicode insertion →
+  `compositionend` sequence, without lost or duplicated committed text.
+- `cube(` automatically yields `cube()`, and the caret remains between the
+  brackets; an explicit `sphere` completion is accepted by Enter after the
+  CodeMirror interaction-delay safety window.
+- Discard restores the original `main.scad` after each test.
+
+Evidence in GitHub artifact `static-viewer-smoke` includes
+`desktop-unicode-editor.png`, `mobile-unicode-editor.png` and
+`multifile-results.json`. The screenshots were inspected: the text and
+insertion caret are visible, but the upload-success toast temporarily overlays
+the toolbar at the beginning of the mobile capture; therefore this screenshot
+**does not** establish full mobile-toolbar visual acceptance. The overlay
+can be assessed separately; it is not an editor input failure.
+
+**Still not verified:** a real Android/iOS virtual keyboard (Gboard, Samsung
+Keyboard, iOS keyboard), native IME candidate selection / composition, keyboard
+viewport resizing or owner sign-off. Chromium touch emulation and synthetic
+composition events cannot prove those behaviors. No merge or deploy.
+
+### Physical-device owner acceptance checklist
+
+Using the existing development checkout and `./start.sh` (do not test or
+overwrite the live gallery), import a disposable two-file fixture and open the
+source editor on a real mobile device.
+
+1. Type `mått = 10; // åäö ÅÄÖ` using the device keyboard and replace a
+   character in the middle of the comment; confirm cursor and characters
+   remain correct without doubling.
+2. Use the keyboard's native composition/candidate suggestions (for instance,
+   Swedish predictive input or another installed IME); confirm candidate
+   acceptance does not insert duplicate text or move the cursor.
+3. Type `cube(` and a number between the paired brackets; use explicit
+   completion on `sph` and confirm Enter accepts the suggestion once.
+4. Switch between `main.scad` and `lib/geometry.scad` with an unsaved
+   draft, then Discard the active file and Save the other; verify reopening.
+5. With the on-screen keyboard open, check that the caret remains visible,
+   the compact toolbar can still be reached, and the page does not overflow
+   horizontally. Capture screenshots on both portrait and landscape if useful.
+
+Record device, OS, keyboard/IME, browser version, test date, observed outcome,
+and screenshots before marking physical keyboard acceptance as PASS.
+
 ## Phase 3.1 – multi-file and parameter acceptance (2026-11-07)
 
 Tested commit: `24a773355c29f1d8fafdfc0133ae0742b217b071`.
