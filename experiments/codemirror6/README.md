@@ -23,10 +23,41 @@ errors, missing assets or HTTP failures; the OpenSCAD WASM requests returned
 HTTP 200. The exact tested dependency lockfile was committed automatically as
 `c047714d87a33ca0df66ffd2df66898a09473437`.
 
-**Next unverified gates:** an actual Android/iOS virtual keyboard and
-IME/composition, a full two-file project lifecycle with independently
-saved drafts, parameter slider regression, and visual owner acceptance.
-Do not merge/release or switch the live site without that approval.
+**Completed follow-up gates:** real folder import using `use`/`include`,
+two-file independent unsaved drafts, single-file Discard, consecutive Save
+without losing the other file, re-opening saved files, parameter slider
+source persistence, and visible 3D model at desktop and emulated mobile
+viewports. See Phase 3.1 below.
+
+**Next unverified gates:** physical Android/iOS virtual keyboard and actual
+IME composition, plus the owner's visual acceptance. Do not merge/release
+or switch the live site without that approval.
+
+## Phase 3.1 – multi-file and parameter acceptance (2026-11-07)
+
+Tested commit: `24a773355c29f1d8fafdfc0133ae0742b217b071`.
+The test fixtures are
+`.github/fixtures/editor-twofiles/main.scad` and
+`.github/fixtures/editor-twofiles/lib/geometry.scad`; test runner:
+`.github/scripts/multifile-editor-smoke.mjs`.
+
+- [PR static smoke run 42370899070](https://github.com/weaf/brepia_viewer/actions/runs/42370899070):
+  **PASS**, 8/8 desktop + 8/8 mobile-touch emulation.
+- [Integration run 42370893758](https://github.com/weaf/brepia_viewer/actions/runs/42370893758):
+  **PASS**, same 16/16 multi-file assertions plus previous build/regression gates.
+- Verified: real folder import; two separate drafts across switching; Discard
+  isolation; Save one file without losing the other draft; reopening saved
+  source; replace `use <lib/geometry.scad>` with `include <lib/geometry.scad>`;
+  change parameter `width` 16 → 22 and confirm `width = 22;` appears in
+  `main.scad`; visible 3D canvas and no horizontal page overflow.
+- Screenshot evidence: `desktop-multifile-final.png`,
+  `mobile-multifile-final.png`, import screenshots and
+  `multifile-results.json` in the workflow artifact `static-viewer-smoke`.
+  Visual inspection confirms the parameter panel and visible model at both
+  viewport sizes.
+- This is automated Chromium/mobile **touch emulation**, not a physical
+  Android/iOS soft-keyboard or IME verification. No owner approval claimed.
+- PR #10 remains a draft; main and the public GitHub Pages site are unchanged.
 
 ## Run
 
