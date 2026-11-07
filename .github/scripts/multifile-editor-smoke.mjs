@@ -77,6 +77,67 @@ async function deviceCheck(device) {
 
     const mainSource = await read(textbox());
     assert.ok(mainSource.includes('use <lib/geometry.scad>'));
+
+    await step('Swedish text and caret positioning with mobile-style input', async () => {
+      await textbox().fill('cube(10);');
+      await textbox().focus();
+      await page.keyboard.press('ControlOrMeta+End');
+      await page.keyboard.insertText('\n// mått: åäö ÅÄÖ');
+      const entered = await read(textbox());
+      assert.equal(entered.split('// mått: åäö ÅÄÖ').length - 1, 1, 'Swedish text missing or duplicated');
+      await page.keyboard.press('ArrowLeft');
+      await page.keyboard.insertText('X');
+      assert.ok((await read(textbox())).includes('// mått: åäö ÅÄXÖ'), 'caret changed position while inserting');
+      await page.keyboard.press('Backspace');
+      assert.ok((await read(textbox())).includes('// mått: åäö ÅÄÖ'), 'backspace changed wrong character');
+      await page.screenshot({ path: path.join(output, device.name + '-unicode-editor.png'), fullPage: true });
+      await more.click();
+      await discard.click();
+      assert.equal(await read(textbox()), mainSource, 'Discard after Unicode typing did not restore file');
+    });
+
+    await step('synthetic composition events do not duplicate committed text', async () => {
+      // Only synthetic composition event coverage: NOT a physical OS or Android IME.
+      await textbox().fill('// sammansättning: ');
+      await textbox().focus();
+      await page.keyboard.press('ControlOrMeta+End');
+      await textbox().evaluate(element => {
+        element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+      });
+      await page.keyboard.insertText('räv');
+      await textbox().evaluate(element => {
+        element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'räv' }));
+      });
+      await page.waitForTimeout(100);
+      const composed = await read(textbox());
+      assert.equal(composed, '// sammansättning: räv', 'composition text was lost or duplicated');
+      await more.click();
+      await discard.click();
+      assert.equal(await read(textbox()), mainSource, 'Discard after composition did not restore file');
+    });
+
+    await step('auto-brackets and keyboard completion', async () => {
+      await textbox().fill('');
+      await textbox().focus();
+      await page.keyboard.type('cube(', { delay: 35 });
+      assert.equal(await read(textbox()), 'cube()', 'opening parenthesis did not insert matching close');
+      await page.keyboard.insertText('10');
+      assert.equal(await read(textbox()), 'cube(10)', 'caret was not placed inside automatically closed brackets');
+      await textbox().fill('sphe');
+      await textbox().focus();
+      await page.keyboard.press('ControlOrMeta+End');
+      await page.keyboard.press('ControlOrMeta+Space');
+      await page.locator('.cm-tooltip-autocomplete').waitFor({ state: 'visible', timeout: 8000 });
+      // CodeMirror suppresses accidental Enter acceptance within its 75 ms safety window.
+      await page.waitForTimeout(160);
+      await page.keyboard.press('Enter');
+      const completed = await read(textbox());
+      assert.equal(completed, 'sphere', 'Enter should accept the OpenSCAD completion, not insert a newline');
+      await more.click();
+      await discard.click();
+      assert.equal(await read(textbox()), mainSource, 'Discard after completion did not restore file');
+    });
+
     await step('separate drafts survive switching', async () => {
       await textbox().fill(mainSource + '\n// main draft only');
       await selector.selectOption('lib/geometry.scad');
