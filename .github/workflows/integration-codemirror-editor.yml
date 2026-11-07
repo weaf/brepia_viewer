@@ -46,6 +46,9 @@ jobs:
         run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
       - name: Playwright gallery / editor Save-Discard / rendering / export
         run: node .github/scripts/static-viewer-smoke.mjs
+      - name: Verify two-file OpenSCAD editing and parameter sliders
+        run: node .github/scripts/multifile-editor-smoke.mjs
+
       - name: Pin tested dependency lockfile on the prototype branch
         if: success() && github.ref == 'refs/heads/prototype/codemirror6-openscad-editor'
         run: |
