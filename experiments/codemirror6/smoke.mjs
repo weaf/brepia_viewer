@@ -10,7 +10,7 @@ const evidenceDir = path.resolve('.evidence');
 await mkdir(evidenceDir, { recursive: true });
 const results = [];
 let serverLog = '';
-const server = spawn('npm', ['run', 'preview', '--', '--host', '127.0.0.1', '--port', '4175', '--strictPort'], {
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4175', '--strictPort'], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 server.stdout.on('data', data => { serverLog += data.toString().slice(-1000); });
