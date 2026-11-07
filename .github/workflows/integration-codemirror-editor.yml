@@ -23,6 +23,8 @@ jobs:
   integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      STATIC_VIEWER_BASE: "/"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
