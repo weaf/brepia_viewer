@@ -61,7 +61,11 @@ async function testDevice(device) {
     });
 
     await check('category menu opens, closes, and inserts primitives', async () => {
+      const before = await page.locator('.cm-editor').boundingBox();
       await page.getByRole('button', { name: 'Insert OpenSCAD code' }).click();
+      const after = await page.locator('.cm-editor').boundingBox();
+      assert.ok(before && after && Math.abs(before.height - after.height) < 2, 'menu resize unexpectedly shrank the editor');
+      await page.screenshot({ path: path.join(evidenceDir, device.name + '-insert-menu.png'), fullPage: true });
       assert.ok(await page.getByRole('button', { name: 'Cube' }).isVisible());
       assert.ok(await page.getByRole('button', { name: 'Sphere' }).isVisible());
       await page.getByRole('button', { name: 'Sphere' }).click();
