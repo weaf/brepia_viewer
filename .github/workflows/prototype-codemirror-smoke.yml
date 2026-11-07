@@ -1,0 +1,41 @@
+name: CodeMirror 6 OpenSCAD prototype smoke
+
+on:
+  push:
+    branches:
+      - 'prototype/codemirror6-openscad-editor'
+    paths:
+      - 'experiments/codemirror6/**'
+      - '.github/workflows/prototype-codemirror-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prototype-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: experiments/codemirror6
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install prototype dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build isolated prototype
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test desktop + mobile touch emulation
+        run: npm run test:smoke
+      - name: Upload screenshots and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codemirror-prototype-smoke
+          path: experiments/codemirror6/.evidence/
+          if-no-files-found: warn
