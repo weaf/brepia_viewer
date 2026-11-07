@@ -103,12 +103,42 @@ try {
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     await assertRepositoryLink('model editor');
     // Project source UI: file action, compact editor and Save/Discard on one row.
-    const openSourceButton = page.getByRole('button',{name:/\.scad\s+Open$/i}).first();
+    const openSourceButton = page.getByRole('button',{name:/^Open .+\.scad$/i}).first();
     await openSourceButton.waitFor({timeout:30000});
+    const openBounds = await openSourceButton.boundingBox();
+    const openStyle = await openSourceButton.evaluate(el => {
+      const style = getComputedStyle(el);
+      return {background: style.backgroundColor, weight: style.fontWeight};
+    });
+    if(!openBounds || openBounds.height < 36 || Number(openStyle.weight) < 600 ||
+       openStyle.background === 'rgba(0, 0, 0, 0)') {
+      violations.push(device.name+' Open file button is not prominent or touch friendly');
+    }
     if(await page.getByText('Entrypoint',{exact:true}).count()) violations.push(device.name+' legacy entrypoint label still visible');
     await openSourceButton.click();
     const sourceDialog = page.getByRole('dialog');
     await sourceDialog.waitFor({timeout:15000});
+    const initialDialogBounds = await sourceDialog.boundingBox();
+    const viewport = page.viewportSize();
+    const minDialogRatio = device.name === 'mobile' ? 0.9 : 0.82;
+    if(!initialDialogBounds || initialDialogBounds.height < viewport.height * minDialogRatio) {
+      violations.push(device.name+' source editor does not use enough vertical space');
+    }
+    const expandEditor = sourceDialog.getByRole('button',{name:'Expand editor'});
+    await expandEditor.click();
+    const expandedDialogBounds = await sourceDialog.boundingBox();
+    if(!expandedDialogBounds || !initialDialogBounds ||
+       expandedDialogBounds.height < initialDialogBounds.height + 10 ||
+       expandedDialogBounds.width < initialDialogBounds.width - 2) {
+      violations.push(device.name+' Expand editor did not enlarge the workspace');
+    }
+    await page.screenshot({path:path.join(evidence,device.name+'-source-expanded.png'),fullPage:true});
+    await sourceDialog.getByRole('button',{name:'Restore editor'}).click();
+    const restoredDialogBounds = await sourceDialog.boundingBox();
+    if(!restoredDialogBounds || !initialDialogBounds ||
+       Math.abs(restoredDialogBounds.height - initialDialogBounds.height) > 6) {
+      violations.push(device.name+' Restore editor did not restore its size');
+    }
     const saveSource = sourceDialog.getByRole('button',{name:'Save',exact:true});
     const discardSource = sourceDialog.getByRole('button',{name:'Discard',exact:true});
     const sourceTextbox = sourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i});
