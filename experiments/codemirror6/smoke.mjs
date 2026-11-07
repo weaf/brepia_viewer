@@ -117,7 +117,9 @@ async function testDevice(device) {
         tag: document.activeElement?.tagName,
         className: document.activeElement?.className,
       })));
+      console.log('[' + device.name + '] Completion status before Enter:', await page.evaluate(() => window.__brepiaSmokeCompletion?.()));
       await page.keyboard.press('Enter');
+      console.log('[' + device.name + '] Completion status after Enter:', await page.evaluate(() => window.__brepiaSmokeCompletion?.()));
       const applied = await read();
       console.log('[' + device.name + '] Completion result:', JSON.stringify(applied));
       assert.ok(applied.includes('cube([10, 10, 10], center = true);'), 'completion insertion mismatch: ' + JSON.stringify(applied));
