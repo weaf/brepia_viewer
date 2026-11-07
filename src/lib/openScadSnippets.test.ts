@@ -7,7 +7,7 @@ describe('OpenSCAD toolbar snippets', () => {
     expect(snippetCategories).toHaveLength(9);
     expect(snippetCategories.every(category => openScadSnippets.some(item => item.category === category))).toBe(true);
     expect(openScadSnippets.every(item => item.description.trim() && item.icon.trim())).toBe(true);
-    expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(18);
+    expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(57);
   });
 
   it('inserts a complete cube statement', () => {
