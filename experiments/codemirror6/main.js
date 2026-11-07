@@ -6,6 +6,7 @@ import { clike } from '@codemirror/legacy-modes/mode/clike';
 import {
   autocompletion,
   startCompletion,
+  acceptCompletion,
   completionKeymap,
   selectedCompletion,
   completionStatus,
@@ -117,7 +118,18 @@ const view = new EditorView({
   parent: document.querySelector('#editor'),
   doc: drafts.get(activePath),
   extensions: [
-    // Completion acceptance must take priority over newline/indent handlers.
+    // Some browser/input combinations dispatch an Enter insertion before the
+    // completion keymap accepts the selected item. Guard only the active
+    // completion case; ordinary Enter must still insert a newline.
+    Prec.highest(EditorView.domEventHandlers({
+      keydown(event, editor) {
+        if (event.key !== 'Enter' || event.isComposing ||
+            completionStatus(editor.state) !== 'active') return false;
+        if (!acceptCompletion(editor)) return false;
+        event.preventDefault();
+        return true;
+      },
+    })),
     Prec.highest(keymap.of(completionKeymap)),
     basicSetup,
     oneDark,
