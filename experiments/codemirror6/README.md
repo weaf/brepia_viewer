@@ -33,6 +33,43 @@ viewports. See Phase 3.1 below.
 IME composition, plus the owner's visual acceptance. Do not merge/release
 or switch the live site without that approval.
 
+## Owner test preview – published without merging (2026-11-07)
+
+**Test link:** https://viewer.notydesign.se/editor-preview/
+
+**Deployment:** [isolated test preview run 42395166767](https://github.com/weaf/brepia_viewer/actions/runs/42395166767)
+at source commit `0d8511b6568068a5f42304d34efec5cea4998368` – **SUCCESS**.
+The GitHub Pages upload/deploy succeeded. Browser smoke passed at
+`/editor-preview/` for desktop and mobile, with a visible WebAssembly-rendered
+3D model and valid STL download; all generated preview asset requests returned
+200 and no browser exceptions were reported.
+
+**Production root protection:** the workflow retrieved the exact artifact
+(`github-pages`) from the last approved main deployment
+[42352859741](https://github.com/weaf/brepia_viewer/actions/runs/42352859741),
+retained all existing root files byte-for-byte and added only the
+`/editor-preview/` subtree. The main branch stayed unchanged. The workflow
+checks equality against the original artifact before deploying and refuses
+to publish if the pinned main SHA changes.
+
+**Storage isolation:** the preview builds with
+`VITE_PREVIEW_STORAGE_NAMESPACE=pr10`; IndexedDB uses
+`brepia-local-models-preview-pr10` and appearance preference uses
+`brepia-appearance-preview-pr10`. Ordinary models stored at the root under
+`brepia-local-models` are not read or written by this test build.
+Browser storage is still local to the device; preview models are disposable.
+
+**External access qualification:** external command-line requests to the custom
+domain returned HTTP 403, so the preview's public URL was not independently
+opened outside GitHub's build runner. GitHub Pages accepted the deployment;
+the owner should confirm access in the signed-in browser.
+
+**Owner acceptance:** on a physical phone, open the link, import a disposable
+`.scad` model, use Open, type Swedish characters with the real soft keyboard,
+test autocomplete and the Insert menu, Save/Discard, render and export. Check
+portrait and landscape, including virtual-keyboard resizing and cursor
+visibility. Record any defects before the draft PR is merged or released.
+
 ## Phase 3.3 – import notice must not cover mobile toolbar (2026-11-07)
 
 **Verified code commit:** `7e2ddaf9c1db7c5a9e5dbdc862f95652a3f8e16d`.
