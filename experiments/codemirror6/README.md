@@ -32,13 +32,27 @@ IME and production WebAssembly integration remain untested.
 * Cube snippet and Translate wrapping of the current selection.
 * No persisted user models, no production data and no render/export operations.
 
-## Not yet verified
+## Verified prototype baseline (2026-11-07)
 
-This prototype is still separate from the production application. The branch
-runs Chromium smoke checks for both viewport profiles; these are NOT physical
-Android/iOS keyboard tests. OS-level composition, the real project save path,
-the WebAssembly renderer and production export have not been verified in this
-experiment.
+* Branch: `prototype/codemirror6-openscad-editor`.
+* Verified code SHA: `39a95210c37a18161deacf9b8f7e82e406a0d2ea`.
+* [GitHub Actions smoke run 42360696889](https://github.com/weaf/brepia_viewer/actions/runs/42360696889):
+  dependency install PASS, Vite build PASS, eight Chromium assertions PASS on
+  desktop (1440 × 900) and eight PASS on emulated mobile (390 × 844).
+* Inspected screenshots show the actual CodeMirror content surface now stretches
+  to fill the editor viewport on both layouts, without horizontal page overflow.
+  The workflow retains a `codemirror-prototype-smoke` artifact with screenshots
+  and `results.json`.
+* Auto-completion acceptance must not be tested during CodeMirror's default
+  75 ms `interactionDelay` safety window. The smoke test waits 140 ms rather
+  than weakening the editor behavior.
+
+## Still unverified
+
+This is **not** a real Brepia Viewer integration or a physical Android/iOS
+virtual-keyboard test. IME composition, real IndexedDB persistence,
+multi-file project save semantics, rendering, parameter sliders and export
+must be tested against the production application when integrating.
 
 ## Integration gate before replacing OpenScadSourceEditor.tsx
 
