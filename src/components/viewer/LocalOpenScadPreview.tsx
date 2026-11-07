@@ -32,10 +32,12 @@ export function LocalOpenScadPreview({
   project,
   assets,
   onExportStateChange,
+  constrainedHeight = false,
 }: {
   project: OpenScadProject;
   assets: Record<string, Blob>;
   onExportStateChange?: (state: LocalOpenScadPreviewExportState) => void;
+  constrainedHeight?: boolean;
 }) {
   const {
     compileProject,
@@ -183,7 +185,7 @@ export function LocalOpenScadPreview({
   const entrypoint = getOpenScadEntrypoint(project);
   return (
     <section
-      className="relative flex h-full min-h-[22rem] flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800"
+      className={`relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrainedHeight ? "min-h-0" : "min-h-[22rem]"}`}
       aria-label="3D model preview"
     >
       <div className="absolute left-3 top-3 z-10 rounded-md border border-white/10 bg-black/45 px-2.5 py-1.5 font-mono text-[10px] text-white/75">
@@ -205,7 +207,7 @@ export function LocalOpenScadPreview({
         </div>
       )}
       {!isCompiling && !geometry && !coloredGroup && (
-        <div className="flex min-h-[22rem] flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className={`flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center ${constrainedHeight ? "min-h-0" : "min-h-[22rem]"}`}>
           {isError ? (
             <AlertTriangle className="h-7 w-7 text-amber-400" />
           ) : (
