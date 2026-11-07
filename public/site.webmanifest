@@ -1,12 +1,12 @@
 {
-  "name": "Brepia-viewer",
-  "short_name": "Brepia-viewer",
-  "description": "AI-assisted parametric 3D design",
+  "name": "Brepia Viewer - OpenSCAD Editor and 3D Viewer",
+  "short_name": "Brepia Viewer",
+  "description": "Edit OpenSCAD projects, preview parametric 3D models, and export STL locally in your browser.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#151515",
-  "theme_color": "#151515",
+  "background_color": "#191a1a",
+  "theme_color": "#191a1a",
   "icons": [
     {
       "src": "brepia-mark.svg",

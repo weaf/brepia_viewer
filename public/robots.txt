@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /editor-preview/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /editor-preview/
+
+Sitemap: https://viewer.notydesign.se/sitemap.xml

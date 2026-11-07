@@ -43,9 +43,9 @@ const appearanceBootstrapScript = `
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      { title: 'Brepia-viewer' },
+      { title: 'Brepia Viewer - Online OpenSCAD Editor and 3D Viewer' },
       { name: 'theme-color', content: '#191A1A' },
-      { name: 'description', content: 'Browse, view, and edit parametric OpenSCAD models without signing in.' },
+      { name: 'description', content: 'Free browser-based OpenSCAD model editing, 3D previews and STL export. No account required.' },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },

@@ -1020,6 +1020,12 @@ export function ModelGalleryView() {
               View and edit OpenSCAD models directly in your browser. No sign-in
               required; uploaded models are saved locally on this device.
             </p>
+            <a
+              href="/about/"
+              className="mt-3 inline-flex min-h-9 items-center text-xs font-medium text-adam-neutral-200 underline underline-offset-4 hover:text-adam-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue"
+            >
+              How the OpenSCAD editor works
+            </a>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryLink />

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as LayoutRouteImport } from './routes/_layout';
+import { Route as AboutRouteImport } from './routes/about';
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy';
 import { Route as TermsOfServiceRouteImport } from './routes/terms-of-service';
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index';
@@ -17,6 +18,11 @@ import { Route as AssetsSplatRouteImport } from './routes/assets.$';
 
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any);
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -39,13 +45,16 @@ const AssetsSplatRoute = AssetsSplatRouteImport.update({
   path: '/assets/$',
   getParentRoute: () => rootRouteImport,
 } as any);
+
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute;
+  '/about': typeof AboutRoute;
   '/privacy-policy': typeof PrivacyPolicyRoute;
   '/terms-of-service': typeof TermsOfServiceRoute;
   '/assets/$': typeof AssetsSplatRoute;
 }
 export interface FileRoutesByTo {
+  '/about': typeof AboutRoute;
   '/privacy-policy': typeof PrivacyPolicyRoute;
   '/terms-of-service': typeof TermsOfServiceRoute;
   '/assets/$': typeof AssetsSplatRoute;
@@ -54,6 +63,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/_layout': typeof LayoutRouteWithChildren;
+  '/about': typeof AboutRoute;
   '/privacy-policy': typeof PrivacyPolicyRoute;
   '/terms-of-service': typeof TermsOfServiceRoute;
   '/assets/$': typeof AssetsSplatRoute;
@@ -62,19 +72,13 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/privacy-policy'
-    | '/terms-of-service'
-    | '/assets/$';
+    '/' | '/about' | '/privacy-policy' | '/terms-of-service' | '/assets/$';
   fileRoutesByTo: FileRoutesByTo;
-  to:
-    | '/privacy-policy'
-    | '/terms-of-service'
-    | '/assets/$'
-    | '/';
+  to: '/about' | '/privacy-policy' | '/terms-of-service' | '/assets/$' | '/';
   id:
     | '__root__'
     | '/_layout'
+    | '/about'
     | '/privacy-policy'
     | '/terms-of-service'
     | '/assets/$'
@@ -83,6 +87,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   LayoutRoute: typeof LayoutRouteWithChildren;
+  AboutRoute: typeof AboutRoute;
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute;
   TermsOfServiceRoute: typeof TermsOfServiceRoute;
   AssetsSplatRoute: typeof AssetsSplatRoute;
@@ -95,6 +100,13 @@ declare module '@tanstack/react-router' {
       path: '';
       fullPath: '/';
       preLoaderRoute: typeof LayoutRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/about': {
+      id: '/about';
+      path: '/about';
+      fullPath: '/about';
+      preLoaderRoute: typeof AboutRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/privacy-policy': {
@@ -141,6 +153,7 @@ const LayoutRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   LayoutRoute: LayoutRouteWithChildren,
+  AboutRoute: AboutRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   TermsOfServiceRoute: TermsOfServiceRoute,
   AssetsSplatRoute: AssetsSplatRoute,

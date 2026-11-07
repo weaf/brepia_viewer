@@ -33,6 +33,12 @@ Browse parametric OpenSCAD designs, preview them in 3D, adjust exposed parameter
 
 Local models are stored in this browser, not uploaded to a Brepia account. Clearing browser data or using another browser or device will not carry those local copies over. Moving between `weaf.github.io` and `viewer.notydesign.se` also changes the storage origin; models saved under one address are not automatically transferred to the other.
 
+## Search and AI discoverability
+
+The production GitHub Pages build provides descriptive HTML metadata, a canonical URL, a crawlable About page, SoftwareApplication JSON-LD, an Open Graph image, [robots.txt](public/robots.txt), [sitemap.xml](public/sitemap.xml), and an optional [llms.txt](public/llms.txt). The sitemap is intended for search engine discovery. The llms.txt file is informational; it is not a Google ranking mechanism. Content stays accessible without an account, and locally imported models are never published as individual pages.
+
+The Pages workflow validates these files and prerendered content using `node scripts/check-seo.mjs` before deployment. Google Search Console ownership verification and sitemap submission can be completed separately by the site owner to monitor actual indexing.
+
 ## Model sources
 
 Built-in models are listed in [`src/lib/modelRepositories.ts`](src/lib/modelRepositories.ts). Add a source by setting its stable `id`, display `label`, GitHub `owner`, `repository`, and `branch`; set `path` to a folder within the repository, or use an empty string for the repository root. Each source must contain public GitHub content that can be read through the GitHub API and raw-content URLs.

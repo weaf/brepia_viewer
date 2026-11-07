@@ -1,0 +1,20 @@
+# Brepia Viewer
+
+> Brepia Viewer is a free, open-source, browser-based OpenSCAD editor, model gallery, and 3D viewer.
+
+The official website is https://viewer.notydesign.se/ and the source is available at https://github.com/weaf/brepia_viewer.
+
+## Useful pages
+
+- [Open Brepia Viewer](https://viewer.notydesign.se/): Browse OpenSCAD models, edit .scad projects, preview geometry, and export STL.
+- [About Brepia Viewer](https://viewer.notydesign.se/about/): Features, how the viewer works, common questions, and local storage information.
+- [Source code](https://github.com/weaf/brepia_viewer): Public GPL-3.0 project and documentation.
+- [Privacy policy](https://viewer.notydesign.se/privacy-policy/): Privacy information.
+
+## Important details
+
+- OpenSCAD previews are rendered using WebAssembly in the visitor browser.
+- The CodeMirror 6 editor supports syntax highlighting, autocomplete, search, replace, and code snippets.
+- Imported OpenSCAD projects and edits are saved in browser IndexedDB on the same device and origin, not synced through a Brepia account.
+- Built-in model catalogs and source files may be fetched from public GitHub repositories.
+- STL is an available export format; STEP is not supported by Brepia Viewer.

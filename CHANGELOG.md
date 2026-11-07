@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased - Search and AI discoverability
+
+- Add crawlable product information, improved titles and descriptions, canonical URLs and social sharing metadata.
+- Add SoftwareApplication JSON-LD, sitemap, robots directives, an optional AI information guide, and social preview artwork.
+- Publish an indexed About page explaining OpenSCAD editing, WebAssembly rendering and browser-local storage.
+- Add a static SEO validation gate to the GitHub Pages deployment.
+
 ## 0.3.0 - 2026-11-07 (CodeMirror 6 OpenSCAD editor and mobile UX)
 
 - Replace the previous source textbox with the integrated CodeMirror 6 OpenSCAD editor.
