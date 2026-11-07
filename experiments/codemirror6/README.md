@@ -33,6 +33,37 @@ viewports. See Phase 3.1 below.
 IME composition, plus the owner's visual acceptance. Do not merge/release
 or switch the live site without that approval.
 
+## Phase 3.3 – import notice must not cover mobile toolbar (2026-11-07)
+
+**Verified code commit:** `7e2ddaf9c1db7c5a9e5dbdc862f95652a3f8e16d`.
+The previous mobile screenshot proved that the global `Model uploaded`
+toast, shown at higher z-index than the source dialog, blocked the
+compact editor controls.
+
+The fix is scoped to successful uploads only: `ModelGalleryView` retains
+the latest successful upload toast handle, and the `ProjectFilesEditor`
+open callback dismisses it before opening the source dialog.
+Error notifications, unrelated toasts, file drafts, Save/Discard and
+the shared toaster layout remain unchanged.
+
+- [Static smoke run 42383946205](https://github.com/weaf/brepia_viewer/actions/runs/42383946205):
+  **PASS**, **24/24** Playwright assertions (12 desktop + 12 mobile touch
+  emulation), including the previous keyboard, 3D, file and export checks.
+- [Independent CodeMirror integration run 42383940747](https://github.com/weaf/brepia_viewer/actions/runs/42383940747):
+  **PASS**.
+- New acceptance check:
+  `upload confirmation does not obscure editor toolbar`. It verifies
+  the toast is hidden when the dialog opens and the Find button is the
+  frontmost clickable element at its center.
+- Screenshot evidence in the `static-viewer-smoke` artifact:
+  `mobile-editor-toolbar-after-import.png` and
+  `desktop-editor-toolbar-after-import.png`. Both screenshots have
+  been reviewed: the toast no longer covers the toolbar, the editor
+  fills its existing space and no visual regression is apparent.
+
+Physical Android/iOS keyboard behavior remains **unverified**. PR #10
+continues as draft. No merge, release or live-site change is authorized.
+
 ## Phase 3.2 – Unicode, keyboard completion, simulated IME (2026-11-07)
 
 Code under test: `df74f869f01d3bbc3c84289aa36f27f1ae5f5a71`.
