@@ -47,6 +47,7 @@
       .menu-panel button:hover { background: #314259; }
       .menu-panel button small { font-size: 10px; color: #9eaec2; white-space: nowrap; }
       .menu-note { margin: 9px 2px 1px; padding-top: 8px; border-top: 1px solid #344256; font-size: 11px; line-height: 1.5; color: #a9b9ce; }
+      .menu-panel button.compact-selection-action { display: none; }
       #editor { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; border: 1px solid #354054; border-radius: 7px; }
       #editor .cm-editor { flex: 1 1 auto; min-height: 0; width: 100%; font-size: 14px; }
       #editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
@@ -57,6 +58,7 @@
       @media (max-width: 375px) {
         /* At 320px, hide only a secondary menu; its actions remain in More. */
         #selection-menu { display: none; }
+        .menu-panel button.compact-selection-action { display: flex; }
         .file-picker { width: clamp(66px, 23vw, 82px); padding-left: 3px; }
       }
       @media (min-width: 800px) {

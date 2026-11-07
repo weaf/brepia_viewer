@@ -236,11 +236,15 @@ document.addEventListener('keydown', event => {
 });
 
 document.querySelector('#find').addEventListener('click', () => { openSearchPanel(view); view.focus(); });
-document.querySelector('#next').addEventListener('click', () => { selectNextOccurrence(view); view.focus(); });
-document.querySelector('#all').addEventListener('click', () => {
-  if (view.state.selection.main.empty) selectNextOccurrence(view);
-  selectSelectionMatches(view);
-  view.focus();
-});
+for (const button of document.querySelectorAll('#next, #next-compact')) {
+  button.addEventListener('click', () => { selectNextOccurrence(view); view.focus(); });
+}
+for (const button of document.querySelectorAll('#all, #all-compact')) {
+  button.addEventListener('click', () => {
+    if (view.state.selection.main.empty) selectNextOccurrence(view);
+    selectSelectionMatches(view);
+    view.focus();
+  });
+}
 document.querySelector('#complete').addEventListener('click', () => { view.focus(); startCompletion(view); });
 document.querySelector('#line').addEventListener('click', () => { gotoLine(view); view.focus(); });
