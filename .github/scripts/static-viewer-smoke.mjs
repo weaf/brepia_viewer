@@ -182,8 +182,38 @@ try {
     await discardSource.click();
     if(await readSource()!==originalSource) violations.push(device.name+' Discard failed to restore source');
 
-    // The compact insert menu must change real source and be undoable by Discard.
+    // The category picker must remain icon-dense, keyboard accessible, and searchable.
     await insertCode.click();
+    const snippetPanel=editorToolbar.locator('.scad-editor__panel--wide');
+    const paletteMetrics=await snippetPanel.evaluate(panel=>{
+      const rect=panel.getBoundingClientRect();
+      const buttons=[...panel.querySelectorAll('.scad-editor__snippet')];
+      const first=buttons[0];
+      const target=first?.getBoundingClientRect();
+      return {height:rect.height,visible:buttons.length,targetWidth:target?.width,targetHeight:target?.height,
+        iconCount:buttons.filter(button=>button.querySelector('svg') && !button.textContent.trim()).length};
+    });
+    if(paletteMetrics.height>370 || paletteMetrics.visible>9 ||
+       paletteMetrics.iconCount!==paletteMetrics.visible ||
+       paletteMetrics.targetHeight<40) {
+      violations.push(device.name+' OpenSCAD palette is not a compact accessible icon grid: '+JSON.stringify(paletteMetrics));
+    }
+    await page.screenshot({path:path.join(evidence,device.name+'-compact-insert-menu.png'),fullPage:true});
+    await snippetPanel.getByRole('button',{name:'Templates',exact:true}).click();
+    await snippetPanel.getByRole('button',{name:'Tube',exact:true}).click();
+    if(!(await readSource()).includes('difference()')) {
+      violations.push(device.name+' ready-made Tube template did not insert');
+    }
+    await moreTools.click();
+    await discardSource.click();
+    if(await readSource()!==originalSource) violations.push(device.name+' Discard after ready-made template failed');
+
+    await insertCode.click();
+    await snippetPanel.getByRole('searchbox',{name:'Search OpenSCAD snippets'}).fill('cylind');
+    if(!(await snippetPanel.getByRole('button',{name:'Cylinder',exact:true}).isVisible())) {
+      violations.push(device.name+' search did not reveal Cylinder');
+    }
+    await snippetPanel.getByRole('button',{name:'Shapes',exact:true}).click();
     await editorToolbar.getByRole('button',{name:'Cube',exact:true}).click();
     if(!(await readSource()).includes('cube([10, 10, 10], center = true);')) {
       violations.push(device.name+' OpenSCAD snippet menu did not insert Cube');
