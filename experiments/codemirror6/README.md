@@ -31,6 +31,20 @@ dismissal, and do not shrink the editor when expanded. The additional snippets
 are demonstration fixtures; production integration must reuse the real project
 completion logic and preserve Save/Discard.
 
+## Compact toolbar acceptance (2026-11-07)
+
+* Code SHA: `74f31dd37172915f7bfa21d35e125fbf7b814493`.
+* [GitHub Actions run 42365296855](https://github.com/weaf/brepia_viewer/actions/runs/42365296855):
+  build PASS, **20/20** Chromium checks PASS (10 desktop, 10 emulated mobile).
+* The updated smoke artifact contains `desktop-insert-menu.png`,
+  `mobile-insert-menu.png`, `desktop.png`, `mobile.png`, and `results.json`.
+* The open snippet menu overlays the editor without resizing the CodeMirror
+  content area; actions have accessible labels, Escape dismissal, and touch-sized
+  targets. A physical mobile keyboard has not been tested.
+* Next: integrate only into the real React editor without changing the published
+  GitHub Pages app until the existing project, storage, rendering, and export
+  checks pass.
+
 ## Scope
 
 * CodeMirror 6, line numbers, bracket pairing, base multi-cursor/search/undo/folding
