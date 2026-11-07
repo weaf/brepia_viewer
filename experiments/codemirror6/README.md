@@ -4,6 +4,30 @@ This is a **non-production proof of concept**, created for Brepia Viewer. It is 
 outside `src/` and is **not imported** by the application, CI bundle, WebAssembly renderer,
 IndexedDB storage or GitHub Pages deployment. The main site is unchanged.
 
+## Phase 3 – real React integration (2026-11-07)
+
+**Implemented on this branch, not deployed to main.** The reusable React
+CodeMirror editor is now in `src/components/parameter/OpenScadSourceEditor.tsx`,
+with compact responsive controls in its CSS and a dedicated snippet catalog in
+`src/lib/openScadSnippets.ts`. `ProjectFilesEditor.tsx` connects it to the
+existing model persistence via `onSaveFile`, keeps drafts per source file,
+and confirms before closing unsaved work. Completion calls the existing
+`getOpenScadCompletionContext`.
+
+**Verified against the real static viewer:**
+[GitHub Actions run 42369587983](https://github.com/weaf/brepia_viewer/actions/runs/42369587983)
+passed ESLint, Vitest, TypeScript, production and GitHub Pages builds,
+Playwright desktop and mobile checks, real Save/Discard, snippet insertion,
+visible 3D rendering and STL export. No Playwright violations, JavaScript
+errors, missing assets or HTTP failures; the OpenSCAD WASM requests returned
+HTTP 200. The exact tested dependency lockfile was committed automatically as
+`c047714d87a33ca0df66ffd2df66898a09473437`.
+
+**Next unverified gates:** an actual Android/iOS virtual keyboard and
+IME/composition, a full two-file project lifecycle with independently
+saved drafts, parameter slider regression, and visual owner acceptance.
+Do not merge/release or switch the live site without that approval.
+
 ## Run
 
 From this directory (requires Node compatible with Vite 8):
