@@ -44,6 +44,23 @@ jobs:
       - name: Verify custom-domain root, OpenSCAD, desktop/mobile and STL
         run: node .github/scripts/static-viewer-smoke.mjs
 
+      - name: Keep legacy /editor address working
+        run: |
+          mkdir -p .output/public/editor
+          cat > .output/public/editor/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <meta http-equiv="refresh" content="0; url=/" />
+              <title>Brepia Viewer – opening editor</title>
+              <script>location.replace("/");</script>
+            </head>
+            <body><a href="/">Open Brepia Viewer</a></body>
+          </html>
+          HTML
+
       - name: Include Pages static metadata
         run: touch .output/public/.nojekyll
 
@@ -58,3 +75,18 @@ jobs:
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Diagnose published custom-domain availability
+        if: ${{ steps.deployment.outcome == 'success' }}
+        run: |
+          for url in \
+            'https://viewer.notydesign.se/' \
+            'https://viewer.notydesign.se/editor/' \
+            'http://viewer.notydesign.se/' \
+            'https://weaf.github.io/brepia_viewer/'; do
+            echo "Checking $url"
+            curl -sS -L --connect-timeout 8 --max-time 20 \
+              -o /dev/null \
+              -w 'HTTP=%{http_code} EFFECTIVE=%{url_effective} SSL_VERIFY=%{ssl_verify_result}\n' \
+              "$url" || echo "Connection failed for $url"
+          done
