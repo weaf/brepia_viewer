@@ -75,6 +75,24 @@ pointer desktops use 38px action targets and a 42px toolbar, while touch inputs
 retain the larger 44px control targets. This intentionally differentiates the
 visual treatment from hit area size.
 
+## Dense-toolbar verified acceptance
+
+* Evaluated code commit: `cb9d0fbd584d4440ec5961f13e49e1007f2b0133`.
+* [GitHub Actions smoke run 42368262154](https://github.com/weaf/brepia_viewer/actions/runs/42368262154):
+  Vite build **PASS**, Chromium **30/30 PASS** (10 desktop 1440 × 900,
+  10 mobile 390 × 844, 10 narrow mobile 320 × 700).
+* Evidence artifact: `codemirror-prototype-smoke`, containing
+  `desktop.png`, `mobile.png`, `narrow-mobile.png`,
+  the three `*-insert-menu.png` screenshots, and `results.json`.
+* The 320px profile uses `isMobile: true`, `hasTouch: true` and validates
+  `(pointer: coarse)`; merely reducing a desktop viewport is insufficient.
+* Manual screenshot review confirms `main.scad` is readable at 320px, Save
+  is icon-only on narrow touch screens, and the editor begins immediately
+  below the compact toolbar. No unintended horizontal scroll is observed.
+* Remaining: physical mobile IME behavior and integration with Brepia's
+  persisted project, parameters, rendering and export have NOT been tested.
+* Published `main` remains untouched.
+
 ## Scope
 
 * CodeMirror 6, line numbers, bracket pairing, base multi-cursor/search/undo/folding
