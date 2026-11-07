@@ -45,6 +45,27 @@ completion logic and preserve Save/Discard.
   GitHub Pages app until the existing project, storage, rendering, and export
   checks pass.
 
+## Dense editor chrome refinement (2026-11-07)
+
+The toolbar now includes the project-file selector and editor commands on one
+row, removing the separate two-line title/header. Visual icons are 18px with
+30px highlighted tiles, but actual pointer targets remain **44 × 44 CSS px**
+on mobile; the compact shell is **48px high**. Save remains explicitly labeled.
+At <=375px width the Selection menu moves into More so the toolbar does not wrap.
+The prototype disclaimer is accessible inside More instead of permanently
+occupying code space. The editor status is a narrow footer.
+
+Research used:
+* [Microsoft Fluent toolbar](https://fluent2.microsoft.design/components/web/react/core/toolbar/usage): one row, labeled overflow items, grouped actions.
+* [Apple HIG buttons](https://developer.apple.com/design/human-interface-guidelines/buttons): 44pt hit targets.
+* [W3C WCAG 2.2 SC 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum): 24px AA floor, which is not a recommended touch size.
+* [Material icons](https://m1.material.io/style/icons.html): 20px dense glyphs, 40px targeting.
+* [Nielsen Norman Group](https://www.nngroup.com/articles/contextual-menus-guidelines/): keep primary commands visible; secondary actions in menus.
+
+Acceptance: GitHub Actions smoke at 1440×900, 390×844 and 320×700 verifies
+toolbar one-row sizing, accessibility labels, menu behavior, code editing and
+absence of horizontal page overflow. Physical iOS/Android keyboard remains unverified.
+
 ## Scope
 
 * CodeMirror 6, line numbers, bracket pairing, base multi-cursor/search/undo/folding

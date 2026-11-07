@@ -5,77 +5,71 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <title>Brepia Viewer · CodeMirror 6 evaluation</title>
     <style>
-      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10151f; color: #e9edf4; }
+      :root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; background: #10151f; color: #e9edf4; }
       * { box-sizing: border-box; }
-      html, body { margin: 0; min-height: 100%; }
-      .workspace { display: flex; flex-direction: column; min-height: 100dvh; padding: 12px; gap: 10px; max-width: 1440px; margin: auto; }
-      header, .toolbar, footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-      header { justify-content: space-between; min-height: 38px; }
-      h1 { font-size: 17px; margin: 0; font-weight: 650; }
-      .subtitle { font-size: 12px; color: #9eaec2; }
-      select, button { border: 1px solid #475468; border-radius: 6px; color: #e9edf4; background: #242f40; font: inherit; font-size: 13px; min-height: 42px; padding: 8px 12px; }
-      select:focus-visible, button:focus-visible { outline: 2px solid #76b8ec; outline-offset: 2px; }
+      html, body { margin: 0; height: 100%; overflow-x: hidden; }
+      button, select { font: inherit; color: inherit; }
       button { cursor: pointer; }
-      button:hover { background: #314259; }
-      button:disabled { cursor: default; opacity: .5; }
-      .primary { background: #17649c; border-color: #327bac; font-weight: 700; }
-      .file-picker { max-width: 100%; min-width: 180px; flex: 1 1 180px; }
-      .toolbar { padding: 8px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
-      /* Controls stay compact while category menus can grow independently. */
+      button:disabled { cursor: default; opacity: .48; }
+      button:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid #76b8ec; outline-offset: 1px; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      .workspace { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 0; padding: 6px; gap: 4px; max-width: 1440px; margin: auto; }
+      /* One compact chrome row; hit targets remain 44px while visual tiles are 30px. */
+      .toolbar { position: relative; z-index: 5; display: flex; flex: 0 0 48px; flex-wrap: nowrap; align-items: center; height: 48px; min-height: 48px; gap: 3px; padding: 1px 4px; border: 1px solid #354054; border-radius: 8px; background: #192231; }
+      .file-picker { width: clamp(66px, 24vw, 165px); min-width: 0; flex: 0 1 auto; height: 44px; min-height: 44px; padding: 0 16px 0 7px; border: 0; border-radius: 5px; background: transparent; color: #e9edf4; font-size: 12px; text-overflow: ellipsis; }
+      .file-picker:hover { background: #29384c; }
+      .toolbar-divider { display: block; height: 22px; flex: 0 0 1px; background: #344256; margin: 0 2px; }
+      .toolbar-spacer { flex: 1 1 auto; min-width: 0; }
       .svg-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
-      .toolbar { position: relative; z-index: 5; flex-wrap: nowrap; min-height: 56px; gap: 6px; }
-      .toolbar-spacer { flex: 1 1 auto; }
-      .icon { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .tool-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; flex: 0 0 44px; }
-      .tool-menu { flex: 0 0 auto; }
-      .tool-menu summary { cursor: pointer; border: 1px solid #475468; border-radius: 6px; color: #e9edf4; background: #242f40; list-style: none; }
-      .tool-menu summary::-webkit-details-marker { display: none; }
-      .tool-menu[open] summary, .tool-icon:hover, .tool-menu summary:hover { background: #314b64; border-color: #6793b6; }
-      .tool-menu summary:focus-visible { outline: 2px solid #76b8ec; outline-offset: 2px; }
-      .save-action { display: inline-flex; align-items: center; gap: 7px; justify-content: center; min-width: 90px; height: 44px; min-height: 44px; padding-inline: 13px; }
-      .menu-panel { position: absolute; z-index: 20; left: 0; top: calc(100% + 6px); width: min(340px, calc(100vw - 16px)); max-height: min(65dvh, 520px); overflow: auto; border: 1px solid #58677b; border-radius: 10px; background: #192432; box-shadow: 0 16px 40px #0009; padding: 12px; }
-      .menu-panel-wide { width: min(460px, calc(100vw - 16px)); }
-      .panel-title { font-size: 14px; font-weight: 650; padding-bottom: 9px; color: #e9edf4; }
-      .menu-section { padding-block: 8px; border-top: 1px solid #344256; }
-      .menu-section h2 { font-size: 12px; color: #aec4dc; font-weight: 600; margin: 0 0 7px; }
-      .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-      .menu-list { display: grid; gap: 6px; }
-      .menu-panel button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 9px 11px; text-align: left; }
-      .menu-panel button small { font-size: 11px; font-weight: 400; color: #9eaec2; white-space: nowrap; }
-      .menu-panel button:disabled small { opacity: .65; }
-      @media (max-width: 600px) {
-        .toolbar { flex-wrap: nowrap; padding: 5px; gap: 5px; }
-        .toolbar .tool-icon { flex: 0 0 44px; }
-        .toolbar .save-action { flex: 0 0 auto; min-width: 83px; }
-        .menu-panel { width: min(340px, calc(100vw - 12px)); }
-        .menu-panel-wide { width: min(460px, calc(100vw - 12px)); }
-      }
-      #editor { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 50dvh; overflow: hidden; border: 1px solid #354054; border-radius: 8px; }
+      .icon { position: relative; z-index: 1; display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+      .tool-menu { flex: 0 0 44px; }
+      .tool-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: #c9d6e6; }
+      .tool-icon::before { content: ''; position: absolute; inset: 7px; border-radius: 6px; background: #263243; transition: background-color 100ms ease; }
+      .tool-icon:hover::before, .tool-menu[open] > summary::before { background: #35506b; }
+      .tool-menu > summary { cursor: pointer; list-style: none; }
+      .tool-menu > summary::-webkit-details-marker { display: none; }
+      .tool-menu > summary::marker { content: ''; }
+      .save-action { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 70px; gap: 4px; min-width: 70px; width: 70px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; font-size: 12px; font-weight: 650; color: #fff; }
+      .save-action::before { content: ''; position: absolute; inset: 6px 1px; border-radius: 6px; background: #17649c; }
+      .save-action:hover::before { background: #2479b4; }
+      .save-action:disabled::before { background: #2c3a4a; }
+      .save-action span { position: relative; z-index: 1; }
+      .save-action .icon { width: 16px; height: 16px; }
+      /* Menus overlay the code area; they never force a second toolbar row. */
+      .menu-panel { position: absolute; z-index: 20; left: 2px; top: calc(100% + 4px); width: min(330px, calc(100vw - 14px)); max-height: min(62dvh, 470px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid #58677b; border-radius: 9px; background: #192432; box-shadow: 0 16px 40px #0009; padding: 9px; }
+      .menu-panel-wide { width: min(420px, calc(100vw - 14px)); }
+      .panel-title { font-size: 13px; font-weight: 650; padding: 0 2px 7px; }
+      .menu-section { padding-block: 6px; border-top: 1px solid #344256; }
+      .menu-section h2 { font-size: 12px; color: #aec4dc; font-weight: 600; margin: 0 0 5px; }
+      .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+      .menu-list { display: grid; gap: 5px; }
+      .menu-panel button { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-height: 44px; padding: 7px 9px; text-align: left; border: 1px solid #475468; border-radius: 6px; background: #242f40; font-size: 12px; }
+      .menu-panel button:hover { background: #314259; }
+      .menu-panel button small { font-size: 10px; color: #9eaec2; white-space: nowrap; }
+      .menu-note { margin: 9px 2px 1px; padding-top: 8px; border-top: 1px solid #344256; font-size: 11px; line-height: 1.5; color: #a9b9ce; }
+      #editor { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; border: 1px solid #354054; border-radius: 7px; }
       #editor .cm-editor { flex: 1 1 auto; min-height: 0; width: 100%; font-size: 14px; }
       #editor .cm-scroller { overflow: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-      footer { font-size: 12px; justify-content: space-between; color: #a9b9ce; }
+      footer { display: flex; flex: 0 0 18px; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; overflow: hidden; padding-inline: 5px; font-size: 11px; color: #a9b9ce; }
+      #status { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
       #status[data-dirty="true"] { color: #fac783; }
-      .notice { font-size: 12px; color: #a9b9ce; }
-      @media (max-width: 600px) {
-        .workspace { padding: 6px; gap: 6px; }
-        header { padding: 6px; }
-        .toolbar { gap: 6px; padding: 6px; }
-        #editor { min-height: 55dvh; }
+      #position { flex: 0 0 auto; }
+      @media (max-width: 375px) {
+        /* At 320px, hide only a secondary menu; its actions remain in More. */
+        #selection-menu { display: none; }
+        .file-picker { width: clamp(66px, 23vw, 82px); padding-left: 3px; }
+      }
+      @media (min-width: 800px) {
+        .workspace { padding: 8px; gap: 6px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tool-icon::before { transition: none; }
       }
     </style>
   </head>
   <body>
     <main class="workspace">
-      <header>
-        <div>
-          <h1>Brepia Viewer · CodeMirror 6</h1>
-          <div class="subtitle">Isolated OpenSCAD editor prototype · no model storage or rendering</div>
-        </div>
-        <select id="file" class="file-picker" aria-label="Open project file">
-          <option value="main.scad">main.scad</option>
-          <option value="lib/shape.scad">lib/shape.scad</option>
-        </select>
-      </header>
+      <h1 class="visually-hidden">Brepia Viewer · OpenSCAD editor prototype</h1>
       <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
         <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7.2"/><path d="m16 16 5 5"/></symbol>
         <symbol id="i-shapes" viewBox="0 0 24 24"><path d="m3 8 6-4 6 4v8l-6 4-6-4Z M3 8l6 4 6-4 M9 12v8"/><circle cx="18" cy="17" r="3.5"/></symbol>
@@ -84,6 +78,11 @@
         <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H3V3h2Z M7 3v7h10V3 M6 21v-8h12v8"/></symbol>
       </svg>
       <nav class="toolbar" aria-label="Editor tools">
+        <select id="file" class="file-picker" aria-label="Open project file" title="Open project file">
+          <option value="main.scad">main.scad</option>
+          <option value="lib/shape.scad">lib/shape.scad</option>
+        </select>
+        <span class="toolbar-divider" aria-hidden="true"></span>
         <button id="find" class="tool-icon" type="button" aria-label="Find / replace" title="Find / replace">
           <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
         </button>
@@ -155,7 +154,10 @@
               <button id="complete" type="button" aria-label="Complete">Complete <small aria-hidden="true">Ctrl+Space</small></button>
               <button id="line" type="button" aria-label="Go to line">Go to line</button>
               <button id="discard" type="button" aria-label="Discard">Discard <small aria-hidden="true">Restore saved content</small></button>
+              <button id="next-compact" class="compact-selection-action" type="button" aria-label="Next match">Next match <small aria-hidden="true">Add cursor</small></button>
+              <button id="all-compact" class="compact-selection-action" type="button" aria-label="Select all matches">Select all matches <small aria-hidden="true">Multi-edit</small></button>
             </div>
+            <p class="menu-note">Prototype only · Saves stay in memory; reload resets sample files. No real model storage or rendering.</p>
           </div>
         </details>
         <span class="toolbar-spacer" aria-hidden="true"></span>
@@ -168,7 +170,6 @@
         <span id="status" role="status">Unchanged</span>
         <span id="position">Line 1, column 1</span>
       </footer>
-      <p class="notice">Test fixture only. Save updates an in-memory copy; reload resets all sample files. No connection to Brepia models, IndexedDB, OpenSCAD WebAssembly or GitHub Pages.</p>
     </main>
     <script type="module" src="/main.js"></script>
   </body>

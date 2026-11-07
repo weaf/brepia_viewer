@@ -51,12 +51,28 @@ async function testDevice(device) {
     });
 
     await check('compact icon toolbar with accessible names', async () => {
-      for (const name of ['Find / replace', 'Insert OpenSCAD code', 'Selection tools', 'More editor tools', 'Save']) {
+      const names = ['Find / replace', 'Insert OpenSCAD code', 'More editor tools', 'Save'];
+      if (device.width > 375) names.push('Selection tools');
+      for (const name of names) {
         const control = page.getByRole('button', { name });
         assert.equal(await control.count(), 1, 'missing toolbar control: ' + name);
         const bounds = await control.boundingBox();
         assert.ok(bounds && bounds.height >= 42 && bounds.width >= 42, 'toolbar control too small: ' + name);
       }
+      const chrome = await page.evaluate(() => {
+        const bar = document.querySelector('.toolbar').getBoundingClientRect();
+        const file = document.querySelector('#file').getBoundingClientRect();
+        const controls = [...document.querySelectorAll('.toolbar > button, .toolbar > details:not([hidden]) > summary')]
+          .filter(el => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width);
+        return { height: bar.height, width: bar.width, fileTop: file.y, toolbarTop: bar.y,
+          controlYs: controls.map(el => el.getBoundingClientRect().y), visualIcon: document.querySelector('.toolbar .icon').getBoundingClientRect().width,
+          workspaceWidth: document.querySelector('.workspace').getBoundingClientRect().width };
+      });
+      assert.ok(chrome.height <= 50, 'toolbar occupies too much vertical space: ' + JSON.stringify(chrome));
+      assert.ok(chrome.visualIcon <= 20, 'visual icon should remain compact');
+      assert.ok(chrome.controlYs.every(y => Math.abs(y - chrome.toolbarTop) < 3), 'toolbar controls are not on a single row');
+      assert.equal(await page.locator('header').count(), 0, 'large introductory header should not be visible');
+      assert.equal(await page.locator('.notice').count(), 0, 'prototype notice should not consume permanent workspace');
       assert.equal(await page.getByRole('button', { name: 'Cube' }).isVisible(), false, 'snippet unexpectedly visible with menu closed');
     });
 
@@ -129,7 +145,11 @@ async function testDevice(device) {
           selection: { anchor: 0, head: 5 },
         });
       });
-      await page.getByRole('button', { name: 'Selection tools' }).click();
+      if (device.width > 375) {
+        await page.getByRole('button', { name: 'Selection tools' }).click();
+      } else {
+        await page.getByRole('button', { name: 'More editor tools' }).click();
+      }
       await page.getByRole('button', { name: 'Select all matches' }).click();
       const ranges = await page.evaluate(() => window.__brepiaSmokeView.state.selection.ranges.length);
       assert.equal(ranges, 2, 'select all did not create two selection ranges');
@@ -208,6 +228,7 @@ try {
   browser = await chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
   await testDevice({ name: 'desktop', width: 1440, height: 900 });
   await testDevice({ name: 'mobile', width: 390, height: 844 });
+  await testDevice({ name: 'narrow-mobile', width: 320, height: 700 });
 } catch (error) {
   failed = true;
   results.push({ device: 'runner', test: 'startup', status: 'FAIL', message: String(error?.stack || error).slice(0, 1800) });
