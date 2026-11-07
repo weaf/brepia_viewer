@@ -98,6 +98,18 @@ export function ModelGalleryView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const uploadConfirmationRef = useRef<{ dismiss: () => void } | null>(null);
+  const showUploadConfirmation = (name: string) => {
+    uploadConfirmationRef.current?.dismiss();
+    uploadConfirmationRef.current = toast({
+      title: 'Model uploaded',
+      description: `${name} is saved in this browser.`,
+    });
+  };
+  const dismissUploadConfirmation = () => {
+    uploadConfirmationRef.current?.dismiss();
+    uploadConfirmationRef.current = null;
+  };
   const [builtIns, setBuiltIns] = useState<BuiltInModel[]>([]);
   const [builtInsUpdatedAt, setBuiltInsUpdatedAt] = useState<number | null>(
     null,
@@ -671,10 +683,7 @@ export function ModelGalleryView() {
     });
     await refreshLocalModels();
     openUploadedModel(record);
-    toast({
-      title: "Model uploaded",
-      description: `${record.name} is saved in this browser.`,
-    });
+    showUploadConfirmation(record.name);
   };
 
   useEffect(() => {
@@ -693,10 +702,7 @@ export function ModelGalleryView() {
         const record = await uploadSourceFile(files[0]);
         await refreshLocalModels();
         openUploadedModel(record);
-        toast({
-          title: "Model uploaded",
-          description: `${record.name} is saved in this browser.`,
-        });
+        showUploadConfirmation(record.name);
       } else {
         await uploadFolder(files);
       }
@@ -728,10 +734,7 @@ export function ModelGalleryView() {
       setFolderEntrypoint("");
       await refreshLocalModels();
       openUploadedModel(record);
-      toast({
-        title: "Model uploaded",
-        description: `${record.name} is saved in this browser.`,
-      });
+      showUploadConfirmation(record.name);
     } catch (error) {
       const message =
         error instanceof Error
@@ -926,6 +929,7 @@ export function ModelGalleryView() {
                 key={`local:${activeRecord.id}:${activeRecord.project.files.length}`}
                 project={activeRecord.project}
                 onSaveFile={saveProjectFile}
+                onEditorOpen={dismissUploadConfirmation}
               />
               <section className="p-4">
                 <h2 className="mb-3 text-xs font-semibold text-adam-text-primary">

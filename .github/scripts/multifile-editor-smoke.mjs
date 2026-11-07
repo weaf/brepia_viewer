@@ -55,6 +55,7 @@ async function deviceCheck(device) {
       await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 40000 });
       assert.equal(await page.getByRole('button', { name: 'Open main.scad' }).count(), 1);
       assert.equal(await page.getByRole('button', { name: 'Open lib/geometry.scad' }).count(), 1);
+      await page.getByText('Model uploaded', { exact: true }).waitFor({ state: 'visible' });
       await page.screenshot({ path: path.join(output, device.name + '-multifile-import.png'), fullPage: true });
     });
 
@@ -74,6 +75,19 @@ async function deviceCheck(device) {
     const more = toolbar.getByRole('button', { name: 'More editor tools' });
     const save = toolbar.getByRole('button', { name: 'Save', exact: true });
     const discard = toolbar.getByRole('button', { name: 'Discard', exact: true });
+
+    await step('upload confirmation does not obscure editor toolbar', async () => {
+      // Verify dismissal when editing begins rather than the eventual toast timeout.
+      await page.getByText('Model uploaded', { exact: true }).waitFor({ state: 'hidden', timeout: 5000 });
+      const search = toolbar.getByRole('button', { name: 'Find / replace' });
+      const unobstructed = await search.evaluate(button => {
+        const rect = button.getBoundingClientRect();
+        const topmost = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return topmost === button || button.contains(topmost);
+      });
+      assert.ok(unobstructed, 'find button is covered by a notification or overlay');
+      await page.screenshot({ path: path.join(output, device.name + '-editor-toolbar-after-import.png'), fullPage: true });
+    });
 
     const mainSource = await read(textbox());
     assert.ok(mainSource.includes('use <lib/geometry.scad>'));

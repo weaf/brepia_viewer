@@ -10,9 +10,10 @@ interface ProjectFilesEditorProps {
   project?: OpenScadProject;
   onSaveFile?: (path: string, content: string) => Promise<void>;
   disabled?: boolean;
+  onEditorOpen?: () => void;
 }
 
-export function ProjectFilesEditor({ project, onSaveFile, disabled = false }: ProjectFilesEditorProps) {
+export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEditorOpen }: ProjectFilesEditorProps) {
   const files = useMemo(() => project?.files ?? [], [project]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -50,6 +51,8 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false }: Pr
     setSelectedPath(path);
     setIsExpanded(false);
     setSaveError(null);
+    // Clear the stale import confirmation before the editor becomes interactive.
+    onEditorOpen?.();
     setDialogOpen(true);
   };
 
