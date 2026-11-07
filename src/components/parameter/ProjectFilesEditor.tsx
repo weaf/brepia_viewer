@@ -1,6 +1,7 @@
-import { FileCode2, Save, Undo2 } from 'lucide-react';
+import { FileCode2, Maximize2, Minimize2, Save, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ export function ProjectFilesEditor({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -51,6 +53,7 @@ export function ProjectFilesEditor({
     setSelectedPath(path);
     setDraftContent(file.content);
     setSaveError(null);
+    setIsExpanded(false);
     setDialogOpen(true);
   };
 
@@ -98,34 +101,67 @@ export function ProjectFilesEditor({
         {files.map((file) => {
           const depth = Math.max(0, file.path.split('/').length - 1);
           return (
-            <button
+            <div
               key={file.path}
-              type="button"
-              onClick={() => openFile(file.path)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-adam-neutral-300 transition-colors hover:bg-adam-neutral-800 hover:text-adam-text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-adam-neutral-500"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-adam-neutral-300"
               style={{ paddingLeft: `${8 + Math.min(depth, 4) * 10}px` }}
             >
               <FileCode2 className="h-3.5 w-3.5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate font-mono">
+              <span className="min-w-0 flex-1 truncate font-mono" title={file.path}>
                 {file.path}
               </span>
-              <span className="shrink-0 rounded-full border border-adam-neutral-600 px-1.5 py-0.5 text-[9px] font-medium text-adam-neutral-300">
+              <Button
+                type="button"
+                variant="light"
+                size="default"
+                className="h-10 min-h-10 shrink-0 px-4 font-semibold"
+                aria-label={`Open ${file.path}`}
+                onClick={() => openFile(file.path)}
+              >
                 Open
-              </span>
-            </button>
+              </Button>
+            </div>
           );
         })}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-4xl flex-col gap-4 bg-adam-bg-secondary-dark p-4 sm:p-6">
-          <DialogHeader>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setIsExpanded(false);
+        }}
+      >
+        <DialogContent
+          className={cn(
+            'flex min-w-0 flex-col gap-3 overflow-hidden rounded-lg bg-adam-bg-secondary-dark p-3 sm:gap-4 sm:p-5',
+            isExpanded
+              ? 'h-[100dvh] max-h-[100dvh] w-screen max-w-none sm:h-[calc(100dvh-0.75rem)] sm:max-h-[calc(100dvh-0.75rem)] sm:w-[calc(100vw-0.75rem)] sm:max-w-none'
+              : 'h-[96dvh] max-h-[96dvh] w-[calc(100vw-0.5rem)] max-w-none sm:h-[88dvh] sm:max-h-[88dvh] sm:w-[92vw] sm:max-w-6xl',
+          )}
+        >
+          <DialogHeader className="shrink-0 pr-20">
             <DialogTitle className="flex min-w-0 items-center gap-2 text-adam-text-primary">
               <FileCode2 className="h-4 w-4 shrink-0" />
               <span className="truncate font-mono text-sm sm:text-base">
                 {selectedFile?.path ?? 'Project file'}
               </span>
             </DialogTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-12 top-2 h-9 w-9 text-adam-neutral-200 hover:bg-adam-neutral-800 sm:top-3"
+              aria-label={isExpanded ? 'Restore editor' : 'Expand editor'}
+              title={isExpanded ? 'Restore editor' : 'Expand editor'}
+              onClick={() => setIsExpanded((current) => !current)}
+            >
+              {isExpanded ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
             <DialogDescription className="sr-only">
               Edit the selected OpenSCAD source file. Save your changes or discard them.
             </DialogDescription>
@@ -150,7 +186,7 @@ export function ProjectFilesEditor({
             </p>
           )}
 
-          <DialogFooter className="flex-row items-center justify-end gap-2 sm:space-x-0">
+          <DialogFooter className="flex shrink-0 flex-row items-center justify-end gap-2 sm:space-x-0">
             <Button
               type="button"
               variant="ghost"
