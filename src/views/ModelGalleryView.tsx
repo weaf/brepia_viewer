@@ -787,8 +787,8 @@ export function ModelGalleryView() {
   if (activeRecord) {
     return (
       <main className="flex h-full min-h-0 flex-col bg-[#191a1a] text-adam-text-primary">
-        <header className="flex min-h-16 shrink-0 flex-col items-stretch gap-3 border-b border-adam-neutral-700 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
-          <div className="flex min-w-0 items-center gap-3 sm:flex-1">
+        <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-adam-neutral-700 px-2 py-1.5 sm:min-h-16 sm:flex-wrap sm:justify-between sm:gap-3 sm:px-6 sm:py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
             <Button
               type="button"
               variant="ghost"
@@ -802,12 +802,12 @@ export function ModelGalleryView() {
               <p className="truncate text-sm font-semibold">
                 {activeRecord.name}
               </p>
-              <p className="truncate font-mono text-[10px] text-adam-neutral-400">
+              <p className="hidden truncate font-mono text-[10px] text-adam-neutral-400 sm:block">
                 {activeRecord.project.entrypointPath}
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-1 sm:flex-wrap sm:gap-2">
             <span className="hidden items-center gap-1.5 text-[11px] text-adam-neutral-400 sm:flex">
               <Check className="h-3.5 w-3.5 text-emerald-400" /> Saved locally
             </span>
@@ -827,7 +827,7 @@ export function ModelGalleryView() {
                       (format) => format.enabled && exportFormatAvailable(format.id),
                     )
                   }
-                  className="gap-2"
+                  className="h-9 w-9 gap-1 p-0 sm:w-auto sm:gap-2 sm:px-3"
                   aria-label="Export model"
                 >
                   {exportingFormat ? (
@@ -838,7 +838,7 @@ export function ModelGalleryView() {
                   ) : (
                     <Download className="h-4 w-4" />
                   )}
-                  Export
+                  <span className="hidden sm:inline">Export</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-[min(80vh,36rem)] w-64 overflow-y-auto">
@@ -883,18 +883,22 @@ export function ModelGalleryView() {
               type="button"
               size="sm"
               onClick={() => void saveActiveRecord()}
-              className="gap-2"
+              aria-label="Save model locally"
+              title="Save model locally"
+              className="h-9 w-9 gap-1 p-0 sm:w-auto sm:gap-2 sm:px-3"
             >
-              <Check className="h-4 w-4" /> Save
+              <Check className="h-4 w-4" /> <span className="hidden sm:inline">Save</span>
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => void clearViewerData()}
-              className="gap-2 text-adam-neutral-300"
+              aria-label="Clear local data"
+              title="Clear local data"
+              className="h-9 w-9 gap-1 p-0 text-adam-neutral-300 sm:w-auto sm:gap-2 sm:px-3"
             >
-              <Trash2 className="h-4 w-4" /> Clear local data
+              <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Clear local data</span>
             </Button>
           </div>
         </header>
