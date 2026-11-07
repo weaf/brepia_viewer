@@ -68,6 +68,7 @@ jobs:
         run: |
           cd editor
           npm ci --no-audit --no-fund
+          npm run check
           STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 \
             STATIC_VIEWER_BASE=/editor-preview/ \
             VITE_PREVIEW_STORAGE_NAMESPACE=pr10 \

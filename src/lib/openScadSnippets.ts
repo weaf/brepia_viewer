@@ -531,6 +531,7 @@ const snippetCaptions: Record<string, string> = {
   "polyhedron": "Polyhed",
   "multmatrix": "Matrix",
   "difference": "Diff",
+  "disable": "Disable",
   "intersection": "Intersect",
   "linear-extrude": "Lin.Ext",
   "rotate-extrude": "Rot.Ext",
