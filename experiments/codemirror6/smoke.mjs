@@ -230,7 +230,9 @@ try {
     try {
       const response = await fetch(url);
       if (response.ok) { ready = true; break; }
-    } catch {}
+    } catch {
+      // Preview server may still be starting; retry until the deadline.
+    }
     await sleep(300);
   }
   assert.ok(ready, 'Vite preview did not start: ' + serverLog);
