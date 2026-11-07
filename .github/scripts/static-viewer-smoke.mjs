@@ -103,7 +103,7 @@ try {
     await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:40000});
     await assertRepositoryLink('model editor');
     // Project source UI: file action, compact editor and Save/Discard on one row.
-    const openSourceButton = page.getByRole('button',{name:/\\.scad\\s+Open$/i}).first();
+    const openSourceButton = page.getByRole('button',{name:/\.scad\s+Open$/i}).first();
     await openSourceButton.waitFor({timeout:30000});
     if(await page.getByText('Entrypoint',{exact:true}).count()) violations.push(device.name+' legacy entrypoint label still visible');
     await openSourceButton.click();
@@ -123,10 +123,10 @@ try {
     if(await visibleDescription.count()) violations.push(device.name+' legacy editor description still rendered');
     await page.screenshot({path:path.join(evidence,device.name+'-source-dialog.png'),fullPage:true});
     const originalSource = await sourceTextbox.inputValue();
-    await sourceTextbox.fill(originalSource+'\\n// discard test');
+    await sourceTextbox.fill(originalSource+'\n// discard test');
     await discardSource.click();
     if(await sourceTextbox.inputValue() !== originalSource) violations.push(device.name+' Discard failed to restore source');
-    await sourceTextbox.fill(originalSource+'\\n// saved UI smoke test');
+    await sourceTextbox.fill(originalSource+'\n// saved UI smoke test');
     await saveSource.click();
     await sourceDialog.waitFor({state:'hidden',timeout:35000});
     await openSourceButton.click();
