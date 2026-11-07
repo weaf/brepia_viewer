@@ -9,6 +9,11 @@ on:
       - 'src/components/parameter/**'
       - 'src/lib/openScadSnippets*'
       - '.github/scripts/static-viewer-smoke.mjs'
+      - '.github/scripts/multifile-editor-smoke.mjs'
+      - '.github/fixtures/editor-twofiles/**'
+      - 'src/views/ModelGalleryView.tsx'
+      - 'src/components/viewer/LocalOpenScadPreview.tsx'
+      - 'src/components/RepositoryLink.tsx'
       - '.github/workflows/integration-codemirror-editor.yml'
   workflow_dispatch:
 
