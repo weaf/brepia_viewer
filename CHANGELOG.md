@@ -1,33 +1,16 @@
 # Changelog
 
-## Unreleased - Orca 3MF integration and repository maintenance
+## 0.4.0 - 2026-11-08 (Orca Color 3MF and Viewer improvements)
 
-- Publish **Export → Orca Color → Single Object / Parts** as separate choices in the production Viewer.
-- Preserve all model RGB colors independently of physical nozzle count; include Orca paint metadata for up to 16 virtual filament slots.
-- Improve multipart 3MF export for spatially isolated printable-design components, retaining per-part filament colors and labeling open meshes requiring slicer validation.
-- Verify Megabot and Chain Ring in browser export tests, and record Snapmaker Orca CLI import limitations without claiming unverified GUI slicing.
-- Retire superseded one-off preview and CodeMirror integration workflows from `main`; keep live CI, GitHub Pages and desktop/mobile smoke checks.
-- Remove preview-only geometric diagnostics from the production smoke harness; retain unit-level Orca export regression coverage.
+- Add **Export → Orca Color → Single Object / Parts** with full RGB model colors and Orca-compatible color and filament metadata.
+- Export separate selectable 3MF parts when possible, keeping part-level filament assignments; label meshes that still need checking or repair.
+- Keep the original single-object color export and the standard STL/3MF export options.
+- Add Undo and Redo in the OpenSCAD editor menu and code templates for text, arrows and manual dimensions.
+- Improve mobile editor controls, search metadata, public model browsing and browser-based exports.
+- Remove the superseded standalone CodeMirror experiment after integrating the editor into the main application.
+- Simplify the README and retain concise local installation instructions.
 
-
-## Unreleased - Editor history controls
-
-- Add Undo and Redo to the editor's existing More (...) menu using native CodeMirror history.
-- Disable unavailable actions, preserve keyboard shortcuts, and cover text and snippet changes in mobile/desktop smoke tests.
-
-## Unreleased - OpenSCAD annotations
-
-- Add a Noteringar category to the existing editor code-template menu: extruded 3D text, arrow, double arrow and editable dimension label/lines.
-- The dimension value is a manually edited OpenSCAD parameter, not an automatic model measurement.
-- Verify generated text and annotation geometry as STL, including web-browser WebAssembly text export on mobile and desktop.
-- Increase the snippet palette from 57 to 60 commands while keeping the compact mobile toolbar.
-
-## Unreleased - Search and AI discoverability
-
-- Add crawlable product information, improved titles and descriptions, canonical URLs and social sharing metadata.
-- Add SoftwareApplication JSON-LD, sitemap, robots directives, an optional AI information guide, and social preview artwork.
-- Publish an indexed About page explaining OpenSCAD editing, WebAssembly rendering and browser-local storage.
-- Add a static SEO validation gate to the GitHub Pages deployment.
+**Slicer note:** Part topology, filament mapping and actual slicing should still be checked in Snapmaker Orca or OrcaSlicer; open meshes are not automatically repaired.
 
 ## 0.3.0 - 2026-11-07 (CodeMirror 6 OpenSCAD editor and mobile UX)
 
