@@ -25,4 +25,17 @@ Browse OpenSCAD models or open your own `.scad` files and project folders. Edit 
 
 Check part geometry and filament assignments in OrcaSlicer or Snapmaker Orca before printing.
 
+## Run locally
+
+Requires [Node.js](https://nodejs.org/) 20.19+ or 22.12+ and npm 10+.
+
+```bash
+git clone https://github.com/weaf/brepia_viewer.git
+cd brepia_viewer
+npm ci
+./start.sh
+```
+
+Open the local address shown in the terminal (usually `http://localhost:8005/`). For development with live reload, run `npm run dev` instead of `./start.sh`.
+
 Brepia Viewer is open source under [GPL-3.0](LICENSE). See [Third-party notices](THIRD_PARTY_NOTICES.md) for credits.
