@@ -31,6 +31,55 @@ const findings = [];
 const violations = [];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Diagnostic only: report exact connected edge shells for an exported 3MF.
+ * This reveals whether coloring or OpenSCAD's manifold/lazy-union output
+ * fragments a semantic printable solid into open painted surfaces.
+ */
+function analyzeOrcaMeshTopology(xml, palette, limit = 20) {
+  const meshes = [];
+  for (const match of xml.matchAll(/<object\b[^>]*\bid="(\d+)"[^>]*\bname="([^"]*)"[^>]*><mesh>([\s\S]*?)<\/mesh><\/object>/g)) {
+    const [, id, name, body] = match;
+    const verts = [...body.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g)]
+      .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
+    const faces = [...body.matchAll(/<triangle\b([^>]*)\/>/g)].map(m => {
+      const attr=m[1], a=attr.match(/\bv1="(\d+)"/), b=attr.match(/\bv2="(\d+)"/), c=attr.match(/\bv3="(\d+)"/), color=attr.match(/\bp1="(\d+)"/);
+      return {v:[Number(a?.[1]),Number(b?.[1]),Number(c?.[1])], slot: color ? Number(color[1]) : null};
+    });
+    const parent=Int32Array.from({length:faces.length},(_,i)=>i);
+    function find(i){let t=i;while(parent[t]!==t)t=parent[t];while(parent[i]!==i){const x=parent[i];parent[i]=t;i=x}return t}
+    function unite(a,b){a=find(a);b=find(b);if(a!==b)parent[b]=a}
+    const coordKeys=verts.map(v=>v.join(','));
+    const edgeToFace=new Map(), edgeCounts=new Map();
+    for(let f=0;f<faces.length;f++){
+      const v=faces[f].v;for(const [a,b] of [[v[0],v[1]],[v[1],v[2]],[v[2],v[0]]]){
+        const x=coordKeys[a],y=coordKeys[b],e=x<y?x+'|'+y:y+'|'+x;
+        if(edgeToFace.has(e))unite(f,edgeToFace.get(e));else edgeToFace.set(e,f);
+        edgeCounts.set(e,(edgeCounts.get(e)||0)+1);
+      }
+    }
+    const groups=new Map();
+    for(let i=0;i<faces.length;i++){
+      const root=find(i);
+      if(!groups.has(root))groups.set(root,{faces:0,edges:0,openEdges:0,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity],colors:new Map()});
+      const g=groups.get(root);g.faces++;
+      const col=faces[i].slot===null?'none':(palette?.[faces[i].slot]||String(faces[i].slot));
+      g.colors.set(col,(g.colors.get(col)||0)+1);
+      for(const v of faces[i].v)for(let k=0;k<3;k++){g.min[k]=Math.min(g.min[k],verts[v][k]);g.max[k]=Math.max(g.max[k],verts[v][k]);}
+      for(const [a,b] of [[faces[i].v[0],faces[i].v[1]],[faces[i].v[1],faces[i].v[2]],[faces[i].v[2],faces[i].v[0]]]){
+        const x=coordKeys[a],y=coordKeys[b],e=x<y?x+'|'+y:y+'|'+x;g.edges++;
+        if(edgeCounts.get(e)!==2)g.openEdges++;
+      }
+    }
+    const short=(arr)=>arr.map(x=>Number(x.toFixed(2)));
+    const shells=[...groups.values()].sort((a,b)=>b.faces-a.faces);
+    meshes.push({id,name,faces:faces.length,vertexCount:verts.length,shells:shells.length,closedShells:shells.filter(s=>s.openEdges===0).length,
+      largest:shells.slice(0,limit).map(g=>({faces:g.faces,openEdges:g.openEdges,
+        min:short(g.min),max:short(g.max),colors:[...g.colors.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8)}))});
+  }
+  return meshes;
+}
+
 try {
   let ready = false;
   for (let i=0;i<45;i++) {
@@ -191,8 +240,12 @@ try {
     await sourceDialog.getByRole('button',{name:'Restore editor'}).waitFor({timeout:5000});
     await page.waitForTimeout(250);
     const expandedDialogBounds = await sourceDialog.boundingBox();
+    // On a narrow phone the default dialog is already near viewport height:
+    // a smaller but measurable expansion is the correct responsive behavior.
+    const minGrowth = device.name === 'mobile' && initialDialogBounds &&
+      initialDialogBounds.height >= viewport.height * 0.94 ? 3 : 10;
     if(!expandedDialogBounds || !initialDialogBounds ||
-       expandedDialogBounds.height < initialDialogBounds.height + 10 ||
+       expandedDialogBounds.height < initialDialogBounds.height + minGrowth ||
        expandedDialogBounds.width < initialDialogBounds.width - 2) {
       violations.push(device.name+' Expand editor did not enlarge the workspace');
     }
@@ -479,6 +532,7 @@ try {
           result.metadataParts = (metadata.match(/<part id=/g)||[]).length;
           result.metadataExtruders = (metadata.match(/key="extruder" value="/g)||[]).length;
           result.palette = settings.filament_colour || [];
+          result.topology = analyzeOrcaMeshTopology(model, result.palette, 22);
           result.objectNames = [...model.matchAll(/<object id="[^"]+" type="model" name="([^"]*)"/g)]
             .map(match=>match[1]).slice(0,35);
           result.toast = (await page.locator('[data-sonner-toast],[role="status"]').allTextContents())
