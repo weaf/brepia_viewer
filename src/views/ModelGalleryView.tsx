@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { downloadFile } from "@/utils/downloadUtils";
+import { getOrcaPartsExportOutcome } from "@/utils/orcaSplitSafeThreeMf";
 import { getSafeFilename } from "@/utils/file-utils";
 import { generatePreview, generateColoredPreview } from "@/utils/meshUtils";
 import {
@@ -509,7 +510,7 @@ export function ModelGalleryView() {
       return false;
     }
     if (format === "scad" || format === "dxf") return true;
-    if (format === "stl" || format === "3mf" || format === "orca3mf")
+    if (format === "stl" || format === "3mf" || format === "orca3mf" || format === "orcaparts3mf")
       return Boolean(previewExportState.output);
     return OPENSCAD_EXPORT_FORMATS.some(
       (candidate) => candidate.id === format && candidate.enabled,
@@ -552,9 +553,30 @@ export function ModelGalleryView() {
         const exported = await previewExportState.exportFormat(format);
         downloadFile({
           content: exported,
-          filename: format === "orca3mf" ? `${filename}.orca.3mf` : `${filename}.${format}`,
+          filename: format === "orca3mf" ? `${filename}.orca.3mf` : format === "orcaparts3mf" ? `${filename}.orca-parts.3mf` : `${filename}.${format}`,
           mimeType: metadata.mimeType,
         });
+        if (format === "orcaparts3mf") {
+          const outcome = getOrcaPartsExportOutcome(exported);
+          const fallback = outcome?.mode === "color-only";
+          const partial = outcome?.mode === "partial";
+          const reason = outcome?.reason;
+          const description = fallback
+            ? reason === "single-shell"
+              ? "This model is one connected shell. Exported with its original colors, without inventing separate printable parts. Cutting in Orca may remove surface painting."
+              : reason === "complexity"
+                ? "This model is too detailed for safe browser part detection. Exported with all colors intact; automatic splitting is not guaranteed."
+                : reason === "part-count"
+                  ? "Too many separate components for safe browser part detection. Exported with all colors intact; splitting may remove surface painting."
+                  : "No independently closed solids were detected. Exported with all colors intact; verify geometry and filament assignments in Orca."
+            : partial
+              ? `${outcome.closedParts} closed parts and ${outcome.separatedOpenParts ?? 0} isolated OPEN mesh parts exported. Single-color islands keep their filament assignment, but open meshes require repair before slicing; overlapping open surfaces remain grouped.`
+              : `${outcome?.closedParts ?? "Multiple"} closed solids exported as separately colored parts. Check filament slots and slicing in Orca.`;
+          toast({
+            title: fallback ? "Orca color 3MF fallback exported" : partial ? "Orca parts 3MF partially separated" : "Orca parts 3MF exported",
+            description,
+          });
+        }
         if (format === "orca3mf") {
           toast({
             title: "Orca color 3MF exported",
