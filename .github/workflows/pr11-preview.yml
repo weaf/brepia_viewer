@@ -1,0 +1,111 @@
+name: PR11 Undo Redo isolated test preview
+
+on:
+  push:
+    branches:
+      - preview/pr11-undo-redo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: brepia-viewer-github-pages
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/preview/pr11-undo-redo'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: editor-preview
+      url: https://viewer.notydesign.se/editor-preview/
+    steps:
+      - name: Checkout only tested PR11 candidate with preview deployment workflow
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Restore production artifact without rebuilding the live root
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          expected_main=9796809c60ec9c40d0d32784695bc93393e77872
+          current_main="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
+          test "$current_main" = "$expected_main"
+          mkdir -p /tmp/pr11-original /tmp/pr11-original-files production/.output/public
+          gh run download 42448462237 --repo weaf/brepia_viewer --name github-pages --dir /tmp/pr11-original
+          test -s /tmp/pr11-original/artifact.tar
+          tar -xf /tmp/pr11-original/artifact.tar -C /tmp/pr11-original-files
+          cp -a /tmp/pr11-original-files/. production/.output/public/
+          test -f production/.output/public/index.html
+          diff -qr /tmp/pr11-original-files production/.output/public
+          echo "PRODUCTION_ARTIFACT_RETAINED=PASS"
+
+      - name: Build isolated editor preview (no shared browser storage)
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run check
+          STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/editor-preview/ VITE_PREVIEW_STORAGE_NAMESPACE=pr11 npm run build
+          grep -R -l 'brepia-local-models-preview-pr11' .output/public/assets >/dev/null
+          echo "PR11_ISOLATED_BUILD=PASS"
+
+      - name: Test preview with desktop and mobile Chromium
+        run: |
+          set -euo pipefail
+          STATIC_VIEWER_BASE=/editor-preview/ VITE_PREVIEW_STORAGE_NAMESPACE=pr11 node .github/scripts/static-viewer-smoke.mjs
+          echo "PR11_DESKTOP_MOBILE=PASS"
+
+      - name: Add preview only; confirm production root bytes identical
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf production/.output/public/editor-preview
+          mkdir -p production/.output/public/editor-preview
+          cp -a .output/public/. production/.output/public/editor-preview/
+          python3 - <<'PY_PREVIEW_NOINDEX'
+          from pathlib import Path
+          root=Path('production/.output/public/editor-preview')
+          html=list(root.rglob('*.html'))
+          assert html, 'No HTML pages in preview'
+          for p in html:
+              s=p.read_text()
+              assert '<head>' in s
+              p.write_text(s.replace('<head>','<head><meta name="robots" content="noindex,nofollow"/>',1))
+          print('PREVIEW_NOINDEX_PAGES='+str(len(html)))
+          PY_PREVIEW_NOINDEX
+          test -f production/.output/public/editor-preview/index.html
+          grep -q 'noindex,nofollow' production/.output/public/editor-preview/index.html
+          diff -qr /tmp/pr11-original-files production/.output/public --exclude=editor-preview
+          new_main="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
+          test "$new_main" = 9796809c60ec9c40d0d32784695bc93393e77872
+          echo "PRODUCTION_ROOT_UNCHANGED=PASS"
+
+      - uses: actions/configure-pages@v6
+
+      - name: Upload composite artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: production/.output/public
+
+      - name: Deploy isolated preview
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Record preview URL
+        run: |
+          echo 'PREVIEW_URL=https://viewer.notydesign.se/editor-preview/'
+          echo 'SOURCE_PR_HEAD=12241eff5cd09eb77c49fcf70cea2ccb9b9af736'
+          echo 'PRODUCTION_ROOT_UNCHANGED=PASS'
