@@ -29,85 +29,24 @@ Browse parametric OpenSCAD designs, preview them in 3D, adjust exposed parameter
 - Edit OpenSCAD project files and supported project dependencies in the browser.
 - Upload a `.scad` file or a project folder containing source files and supported assets.
 - Save uploaded models and edits in browser storage, then return to them later on the same browser and device.
-- Download a model preview as an STL file.
+- Export STL, standard 3MF, and Orca Color 3MF models (Single Object or Parts), alongside other supported OpenSCAD formats.
 
 Local models are stored in this browser, not uploaded to a Brepia account. Clearing browser data or using another browser or device will not carry those local copies over. Moving between `weaf.github.io` and `viewer.notydesign.se` also changes the storage origin; models saved under one address are not automatically transferred to the other.
 
-## Preserving colors when splitting in OrcaSlicer
+## Orca Color 3MF export
 
-**Export → Orca Parts .3MF** is an experimental alternative for assemblies
-made of **two or more separate, closed solids**. It identifies connected
-watertight triangle shells, preserves their original millimeter coordinates,
-and writes a true 3MF multipart assembly. When a part contains one color,
-the color is assigned at **part/filament level**, not as fragile per-triangle
-paint, which is more likely to remain after Orca's Split to Parts/Objects.
+In the **Export** menu, expand **Orca Color** and choose:
 
-This is not a general-purpose boolean separator or cutter. A shell that
-contains two or more colors stays one closed part and retains its painted
-triangles; cutting this shell can still erase painting in some slicer builds.
-For mixed-quality assemblies, **independently closed solids** become real parts.
-Spatially isolated **open meshes** may also become individually selectable
-parts with an explicit **[OPEN MESH]** name; a large, uniformly painted open
-mesh can carry its filament assignment so that its original color remains
-associated with that part when splitting to objects. Overlapping open surfaces
-remain grouped to avoid splitting a single multicolor feature.
+- **Single Object** — export the original colored OpenSCAD geometry as one 3MF object, without attempting to separate components. This is useful for a combined mesh or when you do not want automatic part detection.
+- **Parts** — attempt to separate disconnected mesh shells into individually selectable 3MF parts. Uniformly colored parts get part-level filament assignments to improve color preservation after Orca's **Split to Objects**. Multicolor surfaces retain triangle painting where supported.
 
-An OPEN MESH is not watertight and is **not declared printable** by Brepia.
-This export does not manufacture missing caps or repair OpenSCAD geometry;
-inspect and repair such parts in Orca before slicing. In Orca, an already
-multipart model normally exposes **Split to Objects**, while **Split to Parts**
-is intended for subdividing a single mesh that contains multiple shells.
+The **Parts** exporter uses the same color data and underlying color exporter as **Single Object**. It falls back to a single colored object when no safe split can be inferred, the model is too complex, or the part count exceeds its limit. It never splits a solid solely on triangle colors.
 
-When the entire model is one connected shell (such as a key ring), all shells
-are open, or the model exceeds the safe on-device split budget, the exporter
-instead returns the original **Orca Color .3MF** with full per-face color data,
-and the UI clearly labels it a fallback. It never claims a split was successful
-when there are no independently printable solids. Orca's Cut/Split operations
-may still remove paint for these fallback cases.
+Some isolated meshes can have **[OPEN MESH]** in their part names. These parts remain selectable and may retain a filament assignment, but they are **not certified watertight or printable**. Inspect/repair them in Snapmaker Orca or OrcaSlicer before slicing. Cutting or splitting a multicolor shell may still remove face painting in some slicer versions.
 
-The original per-triangle RGB and all source geometry remain in the file.
-Up to sixteen virtual filament entries may be declared in Orca metadata;
-this does **not** mean sixteen physical filaments can be printed on Snapmaker
-U1 at once. Always verify/assign the printer's actual loaded filament
-slots, profiles and resulting slice before sending it to the printer.
+Both modes preserve all RGB model colors in the standards-based 3MF color group, regardless of a printer's physical nozzle count. When the palette has at most **16 virtual filament slots**, compatible Orca paint and provisional material settings are included. With more than 16 colors, the RGB data is still exported, but automatic Orca filament painting is not guaranteed. A four-nozzle printer such as Snapmaker U1 still requires mapping the desired colors to available physical filaments before printing.
 
-## Experimental Snapmaker Orca / OrcaSlicer color export
-
-The development branch exposes **Export → Orca Color .3MF**. This produces a
-3MF model containing both standards-based colors and slicer-specific per-face
-paint/filament assignments, using the same OFF color data as the OpenSCAD
-preview. It exports the source geometry in millimeters and does not bake in
-the viewer's camera rotation or centering. Standard STL and 3MF options stay
-unchanged.
-
-Brepia stores **all OpenSCAD RGB model colors**, independently of the
-physical nozzle or spool count of the selected printer. For palettes with up
-to sixteen distinct entries, the file also contains Orca-compatible painted
-virtual filament assignments, including models with more than four colors.
-This does not give a four-nozzle printer more than four simultaneously
-available actual filaments. Assign/remap colors to the physical slots in
-OrcaSlicer or adjust the design to fit your printing workflow.
-
-For models with **more than sixteen colors**, the export still succeeds and
-keeps every per-triangle RGB color in the standard 3MF color group, but omits
-Orca-specific paint and filament settings rather than silently assigning the
-wrong physical extruders. OrcaSlicer may display those models as a single
-filament because it does not reliably read standard per-triangle color groups
-for automatic painting; those models require manual painting/mapping before
-printing. Uncolored OpenSCAD surfaces use a neutral placeholder when paint
-metadata is emitted; OpenSCAD's renderer-default yellow is not treated as
-an additional user-selected color.
-
-**Important:** Colors are only candidate filament identifiers. The
-provisional `Generic PLA` slicer metadata does **not** identify the user's
-real spools. After opening the 3MF in Snapmaker Orca or OrcaSlicer, verify
-physical filament slot order and select the correct material profiles
-(PLA, PETG, etc.) before slicing or printing. Transparent OpenSCAD colors
-cannot become transparent when printed with opaque filament.
-
-The dedicated import/slicing compatibility check against the actual
-Snapmaker Orca version must pass before this export is treated as
-production-ready. This feature is not yet released on the public Viewer.
+The ordinary **.3MF** and **.STL** exports remain separate. The Orca modes preserve authored millimeter coordinates and do not bake in the 3D viewer's camera rotation or centering. The supplied `Generic PLA` assignments are placeholders, not verification of loaded spools or material profiles. Always check the actual filament mapping, mesh warnings, generated slice and toolpaths in your slicer. CLI import/slicing behavior may differ from GUI import.
 
 ## Search and AI discoverability
 

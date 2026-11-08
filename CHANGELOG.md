@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased - Orca 3MF integration and repository maintenance
+
+- Publish **Export → Orca Color → Single Object / Parts** as separate choices in the production Viewer.
+- Preserve all model RGB colors independently of physical nozzle count; include Orca paint metadata for up to 16 virtual filament slots.
+- Improve multipart 3MF export for spatially isolated printable-design components, retaining per-part filament colors and labeling open meshes requiring slicer validation.
+- Verify Megabot and Chain Ring in browser export tests, and record Snapmaker Orca CLI import limitations without claiming unverified GUI slicing.
+- Retire superseded one-off preview and CodeMirror integration workflows from `main`; keep live CI, GitHub Pages and desktop/mobile smoke checks.
+- Remove preview-only geometric diagnostics from the production smoke harness; retain unit-level Orca export regression coverage.
+
+
 ## Unreleased - Editor history controls
 
 - Add Undo and Redo to the editor's existing More (...) menu using native CodeMirror history.

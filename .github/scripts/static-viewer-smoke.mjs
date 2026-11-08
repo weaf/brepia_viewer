@@ -5,48 +5,6 @@ import { unzipSync } from 'fflate';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-// Read-only diagnostic: exact edge topology of OpenSCAD's uncolored binary STL.
-// This proves whether the colored OFF topology loses otherwise closed caps.
-function analyzeBinaryStlTopology(bytes, limit=16) {
-  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
-  if(bytes.byteLength<84)throw Error('STL too short');
-  const count=view.getUint32(80,true);
-  if(84+count*50!==bytes.byteLength)throw Error('Expected binary STL, got '+bytes.byteLength+' bytes for '+count+' facets');
-  const vertices=new Array(count*3), keys=new Array(count*3);
-  for(let f=0;f<count;f++){
-    const base=84+f*50+12;
-    for(let v=0;v<3;v++){
-      const p=base+v*12, xyz=[view.getFloat32(p,true),view.getFloat32(p+4,true),view.getFloat32(p+8,true)];
-      vertices[f*3+v]=xyz;keys[f*3+v]=xyz.join(',');
-    }
-  }
-  const parents=Int32Array.from({length:count},(_,i)=>i);
-  function find(i){let r=i;while(parents[r]!==r)r=parents[r];while(parents[i]!==i){const x=parents[i];parents[i]=r;i=x}return r}
-  function join(a,b){a=find(a);b=find(b);if(a!==b)parents[b]=a}
-  const first=new Map(), edgeCount=new Map();
-  function edge(a,b){const x=keys[a],y=keys[b];return x<y?x+'|'+y:y+'|'+x}
-  for(let f=0;f<count;f++){
-    const i=f*3;
-    for(const [a,b] of [[i,i+1],[i+1,i+2],[i+2,i]]){
-      const k=edge(a,b);if(first.has(k))join(f,first.get(k));else first.set(k,f);
-      edgeCount.set(k,(edgeCount.get(k)||0)+1);
-    }
-  }
-  const groups=new Map();
-  for(let f=0;f<count;f++){
-    const root=find(f);
-    if(!groups.has(root))groups.set(root,{faces:0,openEdges:0,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
-    const g=groups.get(root);g.faces++;
-    const i=f*3;
-    for(const k of [i,i+1,i+2])for(let d=0;d<3;d++){g.min[d]=Math.min(g.min[d],vertices[k][d]);g.max[d]=Math.max(g.max[d],vertices[k][d]);}
-    for(const [a,b] of [[i,i+1],[i+1,i+2],[i+2,i]])if(edgeCount.get(edge(a,b))!==2)g.openEdges++;
-  }
-  const all=[...groups.values()].sort((a,b)=>b.faces-a.faces);
-  const round=a=>a.map(n=>Number(n.toFixed(2)));
-  return {triangles:count,shells:all.length,closedShells:all.filter(g=>g.openEdges===0).length,
-    largest:all.slice(0,limit).map(g=>({faces:g.faces,openEdges:g.openEdges,min:round(g.min),max:round(g.max)}))};
-}
-
 const origin = 'http://127.0.0.1:4179';
 const basePath = process.env.STATIC_VIEWER_BASE || '/';
 // Serve at the real deployment path. A custom-domain Pages site serves at /;
@@ -73,54 +31,6 @@ const findings = [];
 const violations = [];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Diagnostic only: report exact connected edge shells for an exported 3MF.
- * This reveals whether coloring or OpenSCAD's manifold/lazy-union output
- * fragments a semantic printable solid into open painted surfaces.
- */
-function analyzeOrcaMeshTopology(xml, palette, limit = 20) {
-  const meshes = [];
-  for (const match of xml.matchAll(/<object\b[^>]*\bid="(\d+)"[^>]*\bname="([^"]*)"[^>]*><mesh>([\s\S]*?)<\/mesh><\/object>/g)) {
-    const [, id, name, body] = match;
-    const verts = [...body.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g)]
-      .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
-    const faces = [...body.matchAll(/<triangle\b([^>]*)\/>/g)].map(m => {
-      const attr=m[1], a=attr.match(/\bv1="(\d+)"/), b=attr.match(/\bv2="(\d+)"/), c=attr.match(/\bv3="(\d+)"/), color=attr.match(/\bp1="(\d+)"/);
-      return {v:[Number(a?.[1]),Number(b?.[1]),Number(c?.[1])], slot: color ? Number(color[1]) : null};
-    });
-    const parent=Int32Array.from({length:faces.length},(_,i)=>i);
-    function find(i){let t=i;while(parent[t]!==t)t=parent[t];while(parent[i]!==i){const x=parent[i];parent[i]=t;i=x}return t}
-    function unite(a,b){a=find(a);b=find(b);if(a!==b)parent[b]=a}
-    const coordKeys=verts.map(v=>v.join(','));
-    const edgeToFace=new Map(), edgeCounts=new Map();
-    for(let f=0;f<faces.length;f++){
-      const v=faces[f].v;for(const [a,b] of [[v[0],v[1]],[v[1],v[2]],[v[2],v[0]]]){
-        const x=coordKeys[a],y=coordKeys[b],e=x<y?x+'|'+y:y+'|'+x;
-        if(edgeToFace.has(e))unite(f,edgeToFace.get(e));else edgeToFace.set(e,f);
-        edgeCounts.set(e,(edgeCounts.get(e)||0)+1);
-      }
-    }
-    const groups=new Map();
-    for(let i=0;i<faces.length;i++){
-      const root=find(i);
-      if(!groups.has(root))groups.set(root,{faces:0,edges:0,openEdges:0,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity],colors:new Map()});
-      const g=groups.get(root);g.faces++;
-      const col=faces[i].slot===null?'none':(palette?.[faces[i].slot]||String(faces[i].slot));
-      g.colors.set(col,(g.colors.get(col)||0)+1);
-      for(const v of faces[i].v)for(let k=0;k<3;k++){g.min[k]=Math.min(g.min[k],verts[v][k]);g.max[k]=Math.max(g.max[k],verts[v][k]);}
-      for(const [a,b] of [[faces[i].v[0],faces[i].v[1]],[faces[i].v[1],faces[i].v[2]],[faces[i].v[2],faces[i].v[0]]]){
-        const x=coordKeys[a],y=coordKeys[b],e=x<y?x+'|'+y:y+'|'+x;g.edges++;
-        if(edgeCounts.get(e)!==2)g.openEdges++;
-      }
-    }
-    const short=(arr)=>arr.map(x=>Number(x.toFixed(2)));
-    const shells=[...groups.values()].sort((a,b)=>b.faces-a.faces);
-    meshes.push({id,name,faces:faces.length,vertexCount:verts.length,shells:shells.length,closedShells:shells.filter(s=>s.openEdges===0).length,
-      largest:shells.slice(0,limit).map(g=>({faces:g.faces,openEdges:g.openEdges,
-        min:short(g.min),max:short(g.max),colors:[...g.colors.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8)}))});
-  }
-  return meshes;
-}
 
 try {
   let ready = false;
@@ -533,98 +443,6 @@ try {
       orcaColorExport={error:String(e?.message||e).slice(0,250)};
       violations.push(device.name+' Orca 3MF export failed');
     }
-    // Preview-only acceptance: compile the real public models using the same
-    // OpenSCAD 2025 WASM as the user, then inspect the exported Orca ZIPs.
-    // This is not exercised on production-root builds.
-    if (device.name === 'desktop' && basePath === '/orca-parts-preview/') {
-      const realFixtures = [
-        {name:'megabot-print-layout', remote:'Big%20Hero%20Megabot/Bighero_megabot.scad', mode:'print_layout'},
-        {name:'megabot-assembled', remote:'Big%20Hero%20Megabot/Bighero_megabot.scad', mode:'assembled'},
-        {name:'chain-ring', remote:'Chain_ring/key_ring.scad'},
-      ];
-      for (const fixture of realFixtures) {
-        const result = {type:'real-orca-parts', fixture:fixture.name};
-        try {
-          const sourceUrl = 'https://raw.githubusercontent.com/Noty-design/Parametric-designs/main/' + fixture.remote;
-          const response = await fetch(sourceUrl);
-          if (!response.ok) throw new Error('Source HTTP ' + response.status);
-          let scad = await response.text();
-          if (fixture.mode) {
-            const original = 'view_mode = "print_layout";';
-            if (!scad.includes(original)) throw new Error('Megabot view_mode setting missing');
-            scad = scad.replace(original, 'view_mode = "' + fixture.mode + '";');
-          }
-          await page.goto(origin + basePath, {waitUntil:'domcontentloaded',timeout:45000});
-          await page.getByText('Model gallery',{exact:true}).first().waitFor({timeout:30000});
-          await page.locator('input[type=file]').first().setInputFiles({
-            name:fixture.name+'.scad', mimeType:'text/plain', buffer:Buffer.from(scad),
-          });
-          await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:45000});
-          await page.locator('section[aria-label="3D model preview"] canvas').first().waitFor({state:'visible',timeout:300000});
-          await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
-          const [download] = await Promise.all([
-            page.waitForEvent('download',{timeout:120000}),
-            page.getByRole('menuitem',{name:'Orca Color: Parts'}).click({timeout:15000}),
-          ]);
-          const filePath = path.join(evidence,fixture.name+'.orca-parts.3mf');
-          await download.saveAs(filePath);
-          const archive = unzipSync(new Uint8Array(await readFile(filePath)));
-          const model = new TextDecoder().decode(archive['3D/3dmodel.model']);
-          const metadata = archive['Metadata/model_settings.config']
-            ? new TextDecoder().decode(archive['Metadata/model_settings.config']) : '';
-          const settings = archive['Metadata/project_settings.config']
-            ? JSON.parse(new TextDecoder().decode(archive['Metadata/project_settings.config'])) : {};
-          result.fileBytes = (await stat(filePath)).size;
-          result.triangles = (model.match(/<triangle /g)||[]).length;
-          result.buildItems = (model.match(/<item objectid=/g)||[]).length;
-          result.components = (model.match(/<component objectid=/g)||[]).length;
-          result.meshObjects = (model.match(/<object id="[^"]+" type="model"[^>]*><mesh>/g)||[]).length;
-          result.paintFaces = (model.match(/paint_color=/g)||[]).length;
-          result.metadataParts = (metadata.match(/<part id=/g)||[]).length;
-          result.metadataExtruders = (metadata.match(/key="extruder" value="/g)||[]).length;
-          // Real Megabot acceptance: three closed body shells, six spatially
-          // isolated monochrome open limbs, and one multicolor open face.
-          // Open meshes are explicitly labeled and never certified printable.
-          if (fixture.name === 'megabot-print-layout') {
-            if (result.components !== 10 || result.metadataParts !== 10 ||
-                result.metadataExtruders !== 10 ||
-                (model.match(/\[OPEN MESH\]/g)||[]).length !== 7) {
-              violations.push('Megabot print_layout did not preserve ten selectable parts with nine blue part assignments and explicit OPEN MESH labels');
-            }
-          }
-          result.palette = settings.filament_colour || [];
-          result.topology = analyzeOrcaMeshTopology(model, result.palette, 22);
-          result.objectNames = [...model.matchAll(/<object id="[^"]+" type="model" name="([^"]*)"/g)]
-            .map(match=>match[1]).slice(0,35);
-          result.toast = (await page.locator('[data-sonner-toast],[role="status"]').allTextContents())
-            .join(' ').slice(0,500);
-          // Compare printable raw STL shells to the colored OFF mesh only for
-          // Megabot print layout; never assume their topology is equivalent.
-          if (fixture.name === 'megabot-print-layout') {
-            await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
-            const [stlDownload] = await Promise.all([
-              page.waitForEvent('download',{timeout:120000}),
-              page.getByRole('menuitem',{name:/[.]STL/}).first().click({timeout:15000}),
-            ]);
-            const stlPath=path.join(evidence,fixture.name+'.stl');
-            await stlDownload.saveAs(stlPath);
-            result.stlTopology=analyzeBinaryStlTopology(await readFile(stlPath));
-            result.stlPath=stlPath;
-          }
-          result.filePath = filePath;
-          if (!result.triangles || !result.fileBytes || !model.includes('unit="millimeter"')) {
-            throw new Error('3MF has missing triangles, unit, or ZIP content');
-          }
-          console.log('REAL_ORCA_3MF ' + JSON.stringify(result));
-        } catch (error) {
-          result.error = String(error?.message || error).slice(0,600);
-          violations.push(fixture.name + ' real Orca parts export failed: ' + result.error);
-          console.log('REAL_ORCA_3MF_FAILED ' + JSON.stringify(result));
-        }
-        findings.push(result);
-      }
-    }
-
     // The OpenSCAD-only build keeps legal information pages self-contained:
     // they must render in the browser without the retired Supabase/API service.
     for (const legalPage of [
