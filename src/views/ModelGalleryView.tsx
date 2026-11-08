@@ -555,6 +555,12 @@ export function ModelGalleryView() {
           filename: format === "orca3mf" ? `${filename}.orca.3mf` : `${filename}.${format}`,
           mimeType: metadata.mimeType,
         });
+        if (format === "orca3mf") {
+          toast({
+            title: "Orca color 3MF exported",
+            description: "Filament colors are placeholders. In Snapmaker Orca, verify the actual spool slots and choose the correct PLA/PETG material profiles before slicing.",
+          });
+        }
       }
     } catch (error) {
       const message =
