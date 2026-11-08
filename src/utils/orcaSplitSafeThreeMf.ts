@@ -14,6 +14,24 @@ import { parseColoredOff, type ParsedOff } from './offParser';
  */
 const MAX_PARTS = 256;
 const MAX_SPLIT_TRIANGLES = 250_000;
+
+/** A file can preserve full RGB even when a reliable independent-part split
+ * is not possible. These outcomes must not be presented as split-safe. */
+export type OrcaPartsExportOutcome = {
+  mode: 'multipart' | 'partial' | 'color-only';
+  closedParts: number;
+  unsplittableComponents: number;
+  reason?: 'single-shell' | 'open-shells' | 'complexity' | 'part-count';
+};
+const outcomes = new WeakMap<Blob, OrcaPartsExportOutcome>();
+export function getOrcaPartsExportOutcome(blob: Blob): OrcaPartsExportOutcome | undefined {
+  return outcomes.get(blob);
+}
+function withOutcome(blob: Blob, outcome: OrcaPartsExportOutcome): Blob {
+  outcomes.set(blob, outcome);
+  return blob;
+}
+
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
@@ -122,7 +140,10 @@ function writeShell(
     });
     triangles.push(transformed);
   }
-  const singleColor = allColored && slots.size === 1 ? [...slots][0] : null;
+  // Only watertight, uniform-color shells can use a persistent part extruder.
+  // Open or mixed shells keep their original per-face paint and color metadata.
+  const singleColor = component.closed && allColored && slots.size === 1
+    ? [...slots][0] : null;
   // Once the whole *solid* has one color, its permanent part extruder carries
   // the color across Orca Split and edit operations. Painted triangles would
   // override that extruder and may disappear on splitting.
@@ -141,26 +162,44 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
 ): Promise<Blob> {
   const parsed = parseColoredOff(offText);
   if (parsed.faces.length === 0) throw new Error('OpenSCAD OFF has no printable triangles.');
+
+  // Always validate and retain the proven, color-preserving export before any
+  // shell operations. A failed / unsupported split must not block saving.
+  const regular = exportColoredOffAsOrcaThreeMf(offText, title);
+  const colorOnly = (
+    reason: OrcaPartsExportOutcome['reason'],
+    closedParts = 0,
+    unsplittableComponents = 1,
+  ): Blob => withOutcome(regular, {
+    mode: 'color-only', closedParts, unsplittableComponents, reason,
+  });
+
+  // Avoid expensive string edge maps for high-resolution meshes on mobile.
+  // Their geometry and paint still export unchanged instead of being rejected.
+  if (parsed.faces.length > MAX_SPLIT_TRIANGLES) {
+    return colorOnly('complexity');
+  }
   const shells = connectedClosedShells(parsed);
-  if (shells.length < 2) {
-    throw new Error(
-      'No independent solid parts found. This mesh is a single connected shell; use Orca Color .3MF. Cutting painted shells inside Orca may still remove painting.',
-    );
-  }
-  if (shells.length > MAX_PARTS) {
-    throw new Error(
-      `This model contains ${shells.length} separate solids (maximum ${MAX_PARTS} for split-safe export). Use Orca Color .3MF.`,
-    );
-  }
-  if (shells.some((s) => !s.closed)) {
-    throw new Error(
-      'At least one component is not a closed solid. Splitting would create invalid print parts; use Orca Color .3MF.',
-    );
+  if (shells.length < 2) return colorOnly('single-shell');
+  if (shells.length > MAX_PARTS) return colorOnly('part-count');
+
+  const closed = shells.filter((part) => part.closed);
+  const open = shells.filter((part) => !part.closed);
+  if (!closed.length) return colorOnly('open-shells', 0, open.length);
+
+  // Keep open fragments TOGETHER with every original triangle and per-face
+  // color; never misrepresent them as separate printable, closed solids.
+  // Closed components remain independently addressable, even when one small
+  // face detail is incomplete. This avoids rejecting the entire assembly.
+  const parts: Component[] = [...closed];
+  if (open.length) {
+    parts.push({
+      faceIndices: open.flatMap((part) => part.faceIndices).sort((a, b) => a - b),
+      closed: false,
+    });
   }
 
-  // Reuse the exact colors, paint codes, validation, geometry coordinate
-  // conventions and 3MF project palette from the production Orca exporter.
-  const regular = exportColoredOffAsOrcaThreeMf(offText, title);
+  // Reuse exact color and paint codes from the production Orca exporter.
   const files = unzipSync(new Uint8Array(await regular.arrayBuffer()));
   const originalModel = decoder.decode(files['3D/3dmodel.model']);
   const originalVertices = [...originalModel.matchAll(/<vertex\b[^>]*\/>/g)].map((m) => m[0]);
@@ -179,9 +218,9 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
     ? JSON.parse(decoder.decode(files['Metadata/project_settings.config'])) as { filament_colour?: string[] }
     : null;
 
-  for (let part = 0; part < shells.length; part++) {
+  for (let part = 0; part < parts.length; part++) {
     const id = part + 3; // id=1 is assembly, id=2 reserved for 3MF color group
-    const shell = writeShell(shells[part], parsed, originalTriangles, originalVertices);
+    const shell = writeShell(parts[part], parsed, originalTriangles, originalVertices);
     const candidateSlot = shell.slot ?? 1;
     const slot = palette && candidateSlot <= (palette.filament_colour?.length ?? 0)
       ? candidateSlot : 1;
@@ -206,5 +245,9 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
   files['Metadata/model_settings.config'] = encoder.encode(
     `<?xml version="1.0" encoding="UTF-8"?><config><object id="1"><metadata key="name" value="${xmlEscape(title)}"/><metadata key="extruder" value="1"/>${partSettings.join('')}</object></config>`,
   );
-  return new Blob([zipSync(files, { level: 6 })], { type: 'model/3mf' });
+  return withOutcome(new Blob([zipSync(files, { level: 6 })], { type: 'model/3mf' }), {
+    mode: open.length ? 'partial' : 'multipart',
+    closedParts: closed.length,
+    unsplittableComponents: open.length,
+  });
 }
