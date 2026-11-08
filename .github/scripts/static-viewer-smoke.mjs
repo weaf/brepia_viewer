@@ -360,6 +360,13 @@ try {
     const savedSourceDialog=page.getByRole('dialog');
     const savedSource=await savedSourceDialog.getByRole('textbox',{name:/OpenSCAD source for/i}).innerText();
     if(!savedSource.includes('// saved UI smoke test')) violations.push(device.name+' Save failed to persist edited source');
+    // A success toast from saving can temporarily cover the mobile editor's
+    // close control. Dismiss it as a user would before testing the dialog.
+    for (let i=0; i<3; i++) {
+      const toastClose = page.locator('button[toast-close]');
+      if (!(await toastClose.count())) break;
+      await toastClose.first().click({force:true,timeout:2500});
+    }
     await savedSourceDialog.getByRole('button',{name:'Close'}).click();
     let visibleCanvas=false;
     try {
