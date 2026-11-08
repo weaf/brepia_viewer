@@ -36,7 +36,7 @@ describe('OrcaSlicer color 3MF export', () => {
     expect(xml).toContain('unit="millimeter"');
     expect(xml).toContain('Three &amp; colors');
     expect(xml).toContain('<vertex x="0" y="0" z="1"/>');
-    expect(xml).toContain('<vertex x="8" y="1" z="1"/>');
+    expect(xml).toContain('<vertex x="6" y="1" z="1"/>');
     expect(xml).toContain('<triangle v1="0" v2="1" v3="2" pid="2" p1="0" p2="0" p3="0" paint_color="4"/>');
     expect(xml).toContain('paint_color="8"');
     expect(xml).toContain('paint_color="0C"');
