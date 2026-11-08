@@ -5,13 +5,17 @@ import { parseColoredOff } from './offParser';
  * Orca/Bambu 3MF color project, derived from the same colored OFF geometry
  * used for OpenSCAD preview. No viewer-only centering or rotation is applied.
  *
- * Orca's paint_color values are filament indices, NOT RGB values. The palette
- * is stored separately in Metadata/project_settings.config. Neither metadata
- * channel identifies real loaded spools or materials: users must select those
- * inside their slicer before printing.
+ * All unique OpenSCAD colors are preserved independently of the physical
+ * printer's nozzle count in the standard 3MF color group. Orca-specific
+ * paint_color encodes virtual filament indices (NOT RGB) for the subset
+ * OrcaSlicer's painting tool can address. Its matching palette goes in
+ * Metadata/project_settings.config. Neither channel identifies real spools:
+ * users must map filament colors to their available nozzles before printing.
  */
 const encoder = new TextEncoder();
-const MAX_SNAPMAKER_FILAMENTS = 4;
+// The painting tool supports sixteen virtual filaments. This is NOT a limit
+// on the RGB colors stored in standard 3MF geometry or on exporting a model.
+const MAX_SLICER_PAINT_FILAMENTS = 16;
 const MAX_OFF_CHARACTERS = 80_000_000;
 const MAX_TRIANGLES = 1_000_000;
 const UNCOLORED_PLACEHOLDER = '#A0A0A0';
@@ -50,7 +54,7 @@ function explicitFaceColor(
 function paintCode(slot: number): string {
   if (slot === 1) return '4';
   if (slot === 2) return '8';
-  if (slot >= 3 && slot <= MAX_SNAPMAKER_FILAMENTS) {
+  if (slot >= 3 && slot <= MAX_SLICER_PAINT_FILAMENTS) {
     return `${(slot - 3).toString(16).toUpperCase()}C`;
   }
   throw new Error('Unsupported OrcaSlicer filament slot.');
@@ -62,8 +66,9 @@ const relationships = `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
 
 /**
- * The result is a slicer-oriented 3MF PROJECT, not a pre-sliced print.
- * The maximum of four palette entries is intentional for Snapmaker U1.
+ * The result is a color-preserving 3MF PROJECT, not a pre-sliced print.
+ * There is no nozzle-dependent limit on colors in the file. Orca painting
+ * metadata is included only for palettes its painting tool can represent.
  */
 export function exportColoredOffAsOrcaThreeMf(offText: string, title: string): Blob {
   if (offText.length > MAX_OFF_CHARACTERS) {
@@ -86,11 +91,6 @@ export function exportColoredOffAsOrcaThreeMf(offText: string, title: string): B
   // Otherwise slot 1 is reserved for the neutral uncolored placeholder.
   for (const color of faceColors) {
     if (color === null || slotForColor.has(color)) continue;
-    if (palette.length >= MAX_SNAPMAKER_FILAMENTS) {
-      throw new Error(
-        `This model needs more than ${MAX_SNAPMAKER_FILAMENTS} filaments. Reduce the number of OpenSCAD colors for Snapmaker U1.`,
-      );
-    }
     palette.push(color);
     slotForColor.set(color, palette.length);
   }
@@ -106,6 +106,11 @@ export function exportColoredOffAsOrcaThreeMf(offText: string, title: string): B
   ).join('');
 
   const hasDeclaredColors = slotForColor.size > 0;
+  // Never silently assign an unsupported paint index to a different filament.
+  // For more than sixteen distinct colors, keep every RGB face in the standard
+  // 3MF material group, but omit Orca-specific filament/painting metadata.
+  const hasSlicerPainting = hasDeclaredColors &&
+    palette.length <= MAX_SLICER_PAINT_FILAMENTS;
   const triangles = parsed.faces.map((face, index) => {
     const [v1, v2, v3] = face.vertices;
     const color = faceColors[index];
@@ -114,7 +119,7 @@ export function exportColoredOffAsOrcaThreeMf(offText: string, title: string): B
     const standardColor = hasDeclaredColors
       ? ` pid="2" p1="${slot - 1}" p2="${slot - 1}" p3="${slot - 1}"`
       : '';
-    const paintColor = hasDeclaredColors && color !== null
+    const paintColor = hasSlicerPainting && color !== null
       ? ` paint_color="${paintCode(slot)}"`
       : '';
     return `<triangle v1="${v1}" v2="${v2}" v3="${v3}"${standardColor}${paintColor}/>`;
@@ -140,7 +145,9 @@ export function exportColoredOffAsOrcaThreeMf(offText: string, title: string): B
     '3D/3dmodel.model': encoder.encode(model),
   };
 
-  if (hasDeclaredColors) {
+  if (hasSlicerPainting) {
+    // The full logical palette is available to Orca even if the selected
+    // printer has fewer physical nozzles. This is not a physical spool map.
     // This is only a suggested RGB palette and provisional material type.
     // The user must choose actual filament profiles and verify availability.
     const settings = {
