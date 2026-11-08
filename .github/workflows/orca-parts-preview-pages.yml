@@ -6,6 +6,7 @@ on:
       - feature/orca-parts-color-preservation
     paths:
       - .github/workflows/orca-parts-preview-pages.yml
+      - .github/scripts/static-viewer-smoke.mjs
   workflow_dispatch:
 
 permissions:
