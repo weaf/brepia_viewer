@@ -232,6 +232,29 @@ try {
     const readSource=()=>sourceTextbox.innerText();
     const originalSource=await readSource();
 
+    // The ellipsis menu exposes the same CodeMirror history as keyboard Undo / Redo.
+    await moreTools.click();
+    const undoAction = editorToolbar.getByRole('button',{name:'Undo',exact:true});
+    const redoAction = editorToolbar.getByRole('button',{name:'Redo',exact:true});
+    if(!(await undoAction.isDisabled()) || !(await redoAction.isDisabled())) {
+      violations.push(device.name+' Undo / Redo should be disabled before editing');
+    }
+    await moreTools.click();
+    await sourceTextbox.fill(originalSource+'\n// undo redo history check');
+    await moreTools.click();
+    if(await undoAction.isDisabled()) violations.push(device.name+' Undo not enabled after edit');
+    await undoAction.click();
+    if(await readSource()!==originalSource) violations.push(device.name+' Undo did not restore original source');
+    await moreTools.click();
+    if(await redoAction.isDisabled()) violations.push(device.name+' Redo not enabled after Undo');
+    await redoAction.click();
+    if(!(await readSource()).includes('// undo redo history check')) {
+      violations.push(device.name+' Redo did not restore the edit');
+    }
+    await moreTools.click();
+    await undoAction.click();
+    if(await readSource()!==originalSource) violations.push(device.name+' second Undo failed');
+
     // Closing with changes must require explicit user confirmation.
     await sourceTextbox.fill(originalSource+'\n// close guard test');
     page.once('dialog',dialog=>{ void dialog.dismiss(); });
@@ -284,6 +307,16 @@ try {
     await snippetPanel.getByRole('button',{name:'Text',exact:true}).click();
     if(!(await readSource()).includes('linear_extrude(height = 3)')) {
       violations.push(device.name+' Noteringar Text did not insert extruded text');
+    }
+    await moreTools.click();
+    await undoAction.click();
+    if((await readSource()).includes('linear_extrude(height = 3)')) {
+      violations.push(device.name+' Undo failed for inserted Noteringar snippet');
+    }
+    await moreTools.click();
+    await redoAction.click();
+    if(!(await readSource()).includes('linear_extrude(height = 3)')) {
+      violations.push(device.name+' Redo failed for inserted Noteringar snippet');
     }
     await moreTools.click();
     await discardSource.click();
