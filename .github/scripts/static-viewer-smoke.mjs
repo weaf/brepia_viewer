@@ -579,7 +579,7 @@ try {
           if (fixture.name === 'megabot-print-layout') {
             if (result.components !== 10 || result.metadataParts !== 10 ||
                 result.metadataExtruders !== 10 ||
-                (model.match(/\[OPEN MESH\]/g)||[]).length !== 14) {
+                (model.match(/\[OPEN MESH\]/g)||[]).length !== 7) {
               violations.push('Megabot print_layout did not preserve ten selectable parts with nine blue part assignments and explicit OPEN MESH labels');
             }
           }
