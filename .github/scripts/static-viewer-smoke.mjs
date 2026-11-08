@@ -405,7 +405,7 @@ try {
       await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
       const [orcaDownload] = await Promise.all([
         page.waitForEvent('download',{timeout:40000}),
-        page.getByRole('menuitem',{name:/Orca Color \\.3MF/}).first().click({timeout:10000}),
+        page.getByRole('menuitem',{name:/Orca Color [.]3MF/}).first().click({timeout:10000}),
       ]);
       const filename = orcaDownload.suggestedFilename();
       const outputPath = path.join(evidence,device.name+'-cube.orca.3mf');
