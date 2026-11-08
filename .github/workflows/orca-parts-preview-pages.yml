@@ -7,6 +7,9 @@ on:
     paths:
       - .github/workflows/orca-parts-preview-pages.yml
       - .github/scripts/static-viewer-smoke.mjs
+      - src/utils/orcaSplitSafeThreeMf.ts
+      - src/utils/orcaSplitSafeThreeMf.test.ts
+      - src/views/ModelGalleryView.tsx
   workflow_dispatch:
 
 permissions:
