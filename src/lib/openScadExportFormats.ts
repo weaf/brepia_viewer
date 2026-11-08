@@ -4,7 +4,7 @@ export const OPENSCAD_EXPORT_FORMATS = [
   { id: 'wrl', label: '.WRL', description: 'VRML model', mimeType: 'model/vrml', exportFormat: 'wrl', enabled: true },
   { id: 'amf', label: '.AMF', description: 'Additive manufacturing', mimeType: 'application/x-amf', exportFormat: 'amf', enabled: true },
   { id: '3mf', label: '.3MF', description: '3D Manufacturing Format', mimeType: 'model/3mf', exportFormat: '3mf', enabled: true },
-  { id: 'orca3mf', label: 'Orca Color .3MF', description: 'Color-painted 3MF for OrcaSlicer / Snapmaker Orca (up to 4 filament slots; choose actual material in slicer)', mimeType: 'model/3mf', exportFormat: '3mf', enabled: true },
+  { id: 'orca3mf', label: 'Orca Color .3MF', description: '3MF with all model colors; Orca painting up to 16 virtual slots (map real filaments in slicer)', mimeType: 'model/3mf', exportFormat: '3mf', enabled: true },
   { id: 'csg', label: '.CSG', description: 'Constructive solid geometry', mimeType: 'text/plain', exportFormat: 'csg', enabled: true },
   { id: 'dxf', label: '.DXF', description: '2D projection', mimeType: 'application/dxf', exportFormat: 'dxf', enabled: true },
   { id: 'svg', label: '.SVG', description: '2D vector drawing', mimeType: 'image/svg+xml', exportFormat: 'svg', enabled: true },
