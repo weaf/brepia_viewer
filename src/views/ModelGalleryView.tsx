@@ -509,7 +509,7 @@ export function ModelGalleryView() {
       return false;
     }
     if (format === "scad" || format === "dxf") return true;
-    if (format === "stl" || format === "3mf")
+    if (format === "stl" || format === "3mf" || format === "orca3mf")
       return Boolean(previewExportState.output);
     return OPENSCAD_EXPORT_FORMATS.some(
       (candidate) => candidate.id === format && candidate.enabled,
@@ -552,9 +552,15 @@ export function ModelGalleryView() {
         const exported = await previewExportState.exportFormat(format);
         downloadFile({
           content: exported,
-          filename: `${filename}.${format}`,
+          filename: format === "orca3mf" ? `${filename}.orca.3mf` : `${filename}.${format}`,
           mimeType: metadata.mimeType,
         });
+        if (format === "orca3mf") {
+          toast({
+            title: "Orca color 3MF exported",
+            description: "Filament colors are placeholders. In Snapmaker Orca, verify the actual spool slots and choose the correct PLA/PETG material profiles before slicing.",
+          });
+        }
       }
     } catch (error) {
       const message =
