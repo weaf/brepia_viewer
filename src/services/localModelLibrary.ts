@@ -39,7 +39,9 @@ const DEFAULT_CATALOG_KEY = "built-in-model-catalog";
 const DATABASE_NAME =
   import.meta.env.VITE_PREVIEW_STORAGE_NAMESPACE === "pr10"
     ? "brepia-local-models-preview-pr10"
-    : "brepia-local-models";
+    : import.meta.env.VITE_PREVIEW_STORAGE_NAMESPACE === "pr12"
+      ? "brepia-local-models-preview-pr12"
+      : "brepia-local-models";
 const DATABASE_VERSION = 1;
 const MODEL_STORE = "models";
 const CACHE_STORE = "cache";

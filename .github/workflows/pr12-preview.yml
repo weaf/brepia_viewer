@@ -1,0 +1,105 @@
+name: PR12 Annotations English isolated test preview
+
+on:
+  push:
+    branches:
+      - preview/pr12-annotations
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: brepia-viewer-github-pages
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/preview/pr12-annotations'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: editor-preview
+      url: https://viewer.notydesign.se/editor-preview/
+    steps:
+      - name: Checkout only tested PR12 candidate with preview deployment workflow
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Restore production artifact without rebuilding the live root
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          expected_main=5501106c341117e09d0ac4e368e4387520f8773d
+          current_main="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
+          test "$current_main" = "$expected_main"
+          mkdir -p /tmp/pr12-original /tmp/pr12-original-files production/.output/public
+          gh run download 42451614335 --repo weaf/brepia_viewer --name github-pages --dir /tmp/pr12-original
+          test -s /tmp/pr12-original/artifact.tar
+          tar -xf /tmp/pr12-original/artifact.tar -C /tmp/pr12-original-files
+          cp -a /tmp/pr12-original-files/. production/.output/public/
+          test -f production/.output/public/index.html
+          diff -qr /tmp/pr12-original-files production/.output/public
+          echo "PRODUCTION_ARTIFACT_RETAINED=PASS"
+
+      - name: Build isolated editor preview (no shared browser storage)
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run check
+          STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 STATIC_VIEWER_BASE=/editor-preview/ VITE_PREVIEW_STORAGE_NAMESPACE=pr12 npm run build
+          grep -R -l 'brepia-local-models-preview-pr12' .output/public/assets >/dev/null
+          echo "PR12_ISOLATED_BUILD=PASS"
+
+      - name: Add preview only; confirm production root bytes identical
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf production/.output/public/editor-preview
+          mkdir -p production/.output/public/editor-preview
+          cp -a .output/public/. production/.output/public/editor-preview/
+          python3 - <<'PY_PREVIEW_NOINDEX'
+          from pathlib import Path
+          root=Path('production/.output/public/editor-preview')
+          html=list(root.rglob('*.html'))
+          assert html, 'No HTML pages in preview'
+          for p in html:
+              s=p.read_text()
+              assert '<head>' in s
+              p.write_text(s.replace('<head>','<head><meta name="robots" content="noindex,nofollow"/>',1))
+          print('PREVIEW_NOINDEX_PAGES='+str(len(html)))
+          PY_PREVIEW_NOINDEX
+          test -f production/.output/public/editor-preview/index.html
+          grep -q 'noindex,nofollow' production/.output/public/editor-preview/index.html
+          diff -qr /tmp/pr12-original-files production/.output/public --exclude=editor-preview
+          new_main="$(gh api repos/weaf/brepia_viewer/git/ref/heads/main --jq .object.sha)"
+          test "$new_main" = 5501106c341117e09d0ac4e368e4387520f8773d
+          echo "PRODUCTION_ROOT_UNCHANGED=PASS"
+
+      - uses: actions/configure-pages@v6
+
+      - name: Upload composite artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: production/.output/public
+
+      - name: Deploy isolated preview
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Record preview URL
+        run: |
+          echo 'PREVIEW_URL=https://viewer.notydesign.se/editor-preview/'
+          echo 'SOURCE_PR_HEAD=6fb8a680e5ebc8d1f74352d968746421865b9c74'
+          echo 'PRODUCTION_ROOT_UNCHANGED=PASS'
