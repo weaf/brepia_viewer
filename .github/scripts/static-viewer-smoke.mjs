@@ -5,6 +5,48 @@ import { unzipSync } from 'fflate';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+// Read-only diagnostic: exact edge topology of OpenSCAD's uncolored binary STL.
+// This proves whether the colored OFF topology loses otherwise closed caps.
+function analyzeBinaryStlTopology(bytes, limit=16) {
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  if(bytes.byteLength<84)throw Error('STL too short');
+  const count=view.getUint32(80,true);
+  if(84+count*50!==bytes.byteLength)throw Error('Expected binary STL, got '+bytes.byteLength+' bytes for '+count+' facets');
+  const vertices=new Array(count*3), keys=new Array(count*3);
+  for(let f=0;f<count;f++){
+    const base=84+f*50+12;
+    for(let v=0;v<3;v++){
+      const p=base+v*12, xyz=[view.getFloat32(p,true),view.getFloat32(p+4,true),view.getFloat32(p+8,true)];
+      vertices[f*3+v]=xyz;keys[f*3+v]=xyz.join(',');
+    }
+  }
+  const parents=Int32Array.from({length:count},(_,i)=>i);
+  function find(i){let r=i;while(parents[r]!==r)r=parents[r];while(parents[i]!==i){const x=parents[i];parents[i]=r;i=x}return r}
+  function join(a,b){a=find(a);b=find(b);if(a!==b)parents[b]=a}
+  const first=new Map(), edgeCount=new Map();
+  function edge(a,b){const x=keys[a],y=keys[b];return x<y?x+'|'+y:y+'|'+x}
+  for(let f=0;f<count;f++){
+    const i=f*3;
+    for(const [a,b] of [[i,i+1],[i+1,i+2],[i+2,i]]){
+      const k=edge(a,b);if(first.has(k))join(f,first.get(k));else first.set(k,f);
+      edgeCount.set(k,(edgeCount.get(k)||0)+1);
+    }
+  }
+  const groups=new Map();
+  for(let f=0;f<count;f++){
+    const root=find(f);
+    if(!groups.has(root))groups.set(root,{faces:0,openEdges:0,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
+    const g=groups.get(root);g.faces++;
+    const i=f*3;
+    for(const k of [i,i+1,i+2])for(let d=0;d<3;d++){g.min[d]=Math.min(g.min[d],vertices[k][d]);g.max[d]=Math.max(g.max[d],vertices[k][d]);}
+    for(const [a,b] of [[i,i+1],[i+1,i+2],[i+2,i]])if(edgeCount.get(edge(a,b))!==2)g.openEdges++;
+  }
+  const all=[...groups.values()].sort((a,b)=>b.faces-a.faces);
+  const round=a=>a.map(n=>Number(n.toFixed(2)));
+  return {triangles:count,shells:all.length,closedShells:all.filter(g=>g.openEdges===0).length,
+    largest:all.slice(0,limit).map(g=>({faces:g.faces,openEdges:g.openEdges,min:round(g.min),max:round(g.max)}))};
+}
+
 const origin = 'http://127.0.0.1:4179';
 const basePath = process.env.STATIC_VIEWER_BASE || '/';
 // Serve at the real deployment path. A custom-domain Pages site serves at /;
@@ -537,6 +579,19 @@ try {
             .map(match=>match[1]).slice(0,35);
           result.toast = (await page.locator('[data-sonner-toast],[role="status"]').allTextContents())
             .join(' ').slice(0,500);
+          // Compare printable raw STL shells to the colored OFF mesh only for
+          // Megabot print layout; never assume their topology is equivalent.
+          if (fixture.name === 'megabot-print-layout') {
+            await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
+            const [stlDownload] = await Promise.all([
+              page.waitForEvent('download',{timeout:120000}),
+              page.getByRole('menuitem',{name:/[.]STL/}).first().click({timeout:15000}),
+            ]);
+            const stlPath=path.join(evidence,fixture.name+'.stl');
+            await stlDownload.saveAs(stlPath);
+            result.stlTopology=analyzeBinaryStlTopology(await readFile(stlPath));
+            result.stlPath=stlPath;
+          }
           result.filePath = filePath;
           if (!result.triangles || !result.fileBytes || !model.includes('unit="millimeter"')) {
             throw new Error('3MF has missing triangles, unit, or ZIP content');

@@ -87,6 +87,19 @@ jobs:
             VITE_PREVIEW_STORAGE_NAMESPACE=orcaparts16 \
             node .github/scripts/static-viewer-smoke.mjs
 
+      # Keep only public regression-fixture exports; allow diagnosis on red
+      # browser gates without changing the production or preview deployment.
+      - name: Retain public Orca 3MF and STL fixtures for slicer verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orca-parts-model-fixtures
+          path: |
+            ${{ runner.temp }}/viewer-static-evidence/*.3mf
+            ${{ runner.temp }}/viewer-static-evidence/megabot-print-layout.stl
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Append preview without modifying the live site
         run: |
           set -euo pipefail
