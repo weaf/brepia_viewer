@@ -509,7 +509,7 @@ export function ModelGalleryView() {
       return false;
     }
     if (format === "scad" || format === "dxf") return true;
-    if (format === "stl" || format === "3mf" || format === "orca3mf")
+    if (format === "stl" || format === "3mf" || format === "orca3mf" || format === "orcaparts3mf")
       return Boolean(previewExportState.output);
     return OPENSCAD_EXPORT_FORMATS.some(
       (candidate) => candidate.id === format && candidate.enabled,
@@ -552,9 +552,15 @@ export function ModelGalleryView() {
         const exported = await previewExportState.exportFormat(format);
         downloadFile({
           content: exported,
-          filename: format === "orca3mf" ? `${filename}.orca.3mf` : `${filename}.${format}`,
+          filename: format === "orca3mf" ? `${filename}.orca.3mf` : format === "orcaparts3mf" ? `${filename}.orca-parts.3mf` : `${filename}.${format}`,
           mimeType: metadata.mimeType,
         });
+        if (format === "orcaparts3mf") {
+          toast({
+            title: "Orca parts 3MF exported",
+            description: "Separate solid shells are exported as editable parts. Uniform-color parts keep their filament selection when split; painted regions on mixed-color shells may still lose colors after cutting. Verify filament assignments before slicing.",
+          });
+        }
         if (format === "orca3mf") {
           toast({
             title: "Orca color 3MF exported",
