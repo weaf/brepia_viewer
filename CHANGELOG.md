@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased - Editor history controls
+
+- Add Undo and Redo to the editor's existing More (...) menu using native CodeMirror history.
+- Disable unavailable actions, preserve keyboard shortcuts, and cover text and snippet changes in mobile/desktop smoke tests.
+
 ## Unreleased - OpenSCAD annotations
 
 - Add a Noteringar category to the existing editor code-template menu: extruded 3D text, arrow, double arrow and editable dimension label/lines.

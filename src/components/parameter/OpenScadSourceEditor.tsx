@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { EditorView, basicSetup } from 'codemirror';
+import { redo, redoDepth, undo, undoDepth } from '@codemirror/commands';
 import { Compartment, EditorState } from '@codemirror/state';
 import { StreamLanguage } from '@codemirror/language';
 import { clike } from '@codemirror/legacy-modes/mode/clike';
@@ -139,6 +140,7 @@ export function OpenScadSourceEditor({
   const completionRef = useRef<CompletionState>({ project, currentPath });
   const syncingRef = useRef(false);
   const [position, setPosition] = useState('Line 1, column 1');
+  const [historyDepth, setHistoryDepth] = useState({ undo: 0, redo: 0 });
   const [snippetCategory, setSnippetCategory] = useState<OpenScadSnippetCategory>('Shapes');
   const [snippetQuery, setSnippetQuery] = useState('');
   const [snippetHint, setSnippetHint] = useState<OpenScadSnippet | null>(null);
@@ -187,6 +189,9 @@ export function OpenScadSourceEditor({
           EditorView.updateListener.of(update => {
             if (update.docChanged && !syncingRef.current) {
               onChangeRef.current(update.state.doc.toString());
+            }
+            if (update.docChanged) {
+              setHistoryDepth({ undo: undoDepth(update.state), redo: redoDepth(update.state) });
             }
             if (update.docChanged || update.selectionSet) {
               const head = update.state.selection.main.head;
@@ -425,6 +430,10 @@ export function OpenScadSourceEditor({
           <div className="scad-editor__panel" aria-label="Additional editor actions">
             <div className="scad-editor__panel-title">Editor tools</div>
             <div className="scad-editor__menu-actions">
+              <button type="button" aria-label="Undo" disabled={readOnly || historyDepth.undo === 0}
+                onClick={() => withView(view => { undo(view); })}>Undo</button>
+              <button type="button" aria-label="Redo" disabled={readOnly || historyDepth.redo === 0}
+                onClick={() => withView(view => { redo(view); })}>Redo</button>
               <button type="button" aria-label="Complete" onClick={() => withView(view => { startCompletion(view); })}>Complete</button>
               <button type="button" aria-label="Go to line" onClick={() => withView(view => { gotoLine(view); }, false)}>Go to line</button>
               <button type="button" aria-label="Discard" disabled={!isDirty || isSaving || !onDiscard}
