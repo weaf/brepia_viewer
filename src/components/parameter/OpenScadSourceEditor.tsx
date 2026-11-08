@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject, SyntheticEvent } from 'react';
 import {
-  Box, Circle, Code2, Cylinder, Ellipsis, Eye, EyeOff, FileCode2,
+  ArrowRight, MoveHorizontal, Ruler, Box, Circle, Code2, Cylinder, Ellipsis, Eye, EyeOff, FileCode2,
   FlipHorizontal, GitBranch, Grid3X3, Layers, Maximize2, Minus,
   MousePointer2, Move, Palette, Repeat, RotateCw, Save, Scan,
   Search, Settings2, Shapes, Square, Triangle, Type,
@@ -65,6 +65,9 @@ const scadLanguage = StreamLanguage.define(
 );
 
 const snippetIcons: Record<OpenScadSnippetIcon, LucideIcon> = {
+  'arrow-right': ArrowRight,
+  'move-horizontal': MoveHorizontal,
+  ruler: Ruler,
   box: Box,
   circle: Circle,
   cylinder: Cylinder,

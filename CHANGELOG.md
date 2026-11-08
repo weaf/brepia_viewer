@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased - OpenSCAD annotations
+
+- Add a Noteringar category to the existing editor code-template menu: extruded 3D text, arrow, double arrow and editable dimension label/lines.
+- The dimension value is a manually edited OpenSCAD parameter, not an automatic model measurement.
+- Verify generated text and annotation geometry as STL, including web-browser WebAssembly text export on mobile and desktop.
+- Increase the snippet palette from 57 to 60 commands while keeping the compact mobile toolbar.
+
 ## Unreleased - Search and AI discoverability
 
 - Add crawlable product information, improved titles and descriptions, canonical URLs and social sharing metadata.

@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { getOpenScadSnippetCaption, insertOpenScadSnippet, openScadSnippets, snippetCategories } from './openScadSnippets';
 
 describe('OpenSCAD toolbar snippets', () => {
-  it('provides 57 accessible built-ins and 9 nonempty categories', () => {
-    expect(openScadSnippets).toHaveLength(57);
-    expect(snippetCategories).toHaveLength(9);
+  it('provides 60 accessible built-ins and 10 nonempty categories', () => {
+    expect(openScadSnippets).toHaveLength(60);
+    expect(snippetCategories).toHaveLength(10);
     expect(snippetCategories.every(category => openScadSnippets.some(item => item.category === category))).toBe(true);
     expect(openScadSnippets.every(item => item.description.trim() && item.icon.trim())).toBe(true);
-    expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(57);
+    expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(60);
   });
 
   it('keeps captions readable, concise, and distinct within each category', () => {
@@ -26,6 +26,14 @@ describe('OpenSCAD toolbar snippets', () => {
   it('inserts a complete cube statement', () => {
     const cube = openScadSnippets.find(item => item.id === 'cube')!;
     expect(insertOpenScadSnippet(cube)).toBe('cube([10, 10, 10], center = true);');
+  });
+
+  it('inserts the Text shape as a complete extruded 3D solid', () => {
+    const text = openScadSnippets.find(item => item.id === 'text')!;
+    expect(text.description).toContain('3D');
+    expect(insertOpenScadSnippet(text)).toBe(
+      'linear_extrude(height = 3) {\n    text("Hello", size = 8, halign = "center");\n}',
+    );
   });
 
   it('wraps the original marked code in a transformation', () => {
