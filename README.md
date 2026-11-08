@@ -45,9 +45,16 @@ paint, which is more likely to remain after Orca's Split to Parts/Objects.
 This is not a general-purpose boolean separator or cutter. A shell that
 contains two or more colors stays one closed part and retains its painted
 triangles; cutting this shell can still erase painting in some slicer builds.
-The exporter refuses single-shell or non-watertight inputs rather than
-pretending their colors can be preserved by splitting. Use the regular
-**Orca Color .3MF** export in those cases.
+For mixed-quality assemblies, **independently closed solids** become real parts
+while loose or open surface fragments are grouped and keep their original
+paint, rather than aborting the whole export.
+
+When the entire model is one connected shell (such as a key ring), all shells
+are open, or the model exceeds the safe on-device split budget, the exporter
+instead returns the original **Orca Color .3MF** with full per-face color data,
+and the UI clearly labels it a fallback. It never claims a split was successful
+when there are no independently printable solids. Orca's Cut/Split operations
+may still remove paint for these fallback cases.
 
 The original per-triangle RGB and all source geometry remain in the file.
 Up to sixteen virtual filament entries may be declared in Orca metadata;
