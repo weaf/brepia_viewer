@@ -221,9 +221,9 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
   for (let part = 0; part < parts.length; part++) {
     const id = part + 3; // id=1 is assembly, id=2 reserved for 3MF color group
     const shell = writeShell(parts[part], parsed, originalTriangles, originalVertices);
-    const candidateSlot = shell.slot ?? 1;
-    const slot = palette && candidateSlot <= (palette.filament_colour?.length ?? 0)
-      ? candidateSlot : 1;
+    const assignedSlot = shell.slot !== null &&
+      palette && shell.slot <= (palette.filament_colour?.length ?? 0)
+      ? shell.slot : null;
     const colorName = shell.slot !== null
       ? (palette?.filament_colour?.[shell.slot - 1] ?? 'Color')
       : 'Mixed';
@@ -231,7 +231,7 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
     leafXml.push(`<object id="${id}" type="model" name="${name}">${shell.xml}</object>`);
     components.push(`<component objectid="${id}"/>`);
     partSettings.push(
-      `<part id="${id}" subtype="normal_part"><metadata key="name" value="${name}"/><metadata key="extruder" value="${slot}"/></part>`,
+      `<part id="${id}" subtype="normal_part"><metadata key="name" value="${name}"/>${assignedSlot !== null ? `<metadata key="extruder" value="${assignedSlot}"/>` : ''}</part>`,
     );
   }
 
