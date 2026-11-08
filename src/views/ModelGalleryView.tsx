@@ -558,7 +558,7 @@ export function ModelGalleryView() {
         if (format === "orca3mf") {
           toast({
             title: "Orca color 3MF exported",
-            description: "Filament colors are placeholders. In Snapmaker Orca, verify the actual spool slots and choose the correct PLA/PETG material profiles before slicing.",
+            description: "The 3MF stores all model colors. Orca paint assignments are included for palettes of up to 16 colors; larger palettes retain RGB without automatic painting. Map colors to available printer slots and select actual material profiles before slicing.",
           });
         }
       }
