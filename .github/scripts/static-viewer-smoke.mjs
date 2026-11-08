@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, stat, mkdtemp, symlink, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, stat, mkdtemp, symlink, rm } from 'node:fs/promises';
+import { unzipSync } from 'fflate';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -396,6 +397,31 @@ try {
       stlExport={error:String(e?.message||e).slice(0,250)};
       violations.push(device.name+' STL export failed');
     }
+    // Orca-specific export must also work in the static production bundle.
+    // This smoke fixture is monochrome; per-color mapping is covered in
+    // orcaThreeMfExport.test.ts and requires separate real-slicer acceptance.
+    let orcaColorExport = null;
+    try {
+      await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
+      const [orcaDownload] = await Promise.all([
+        page.waitForEvent('download',{timeout:40000}),
+        page.getByRole('menuitem',{name:/Orca Color \\.3MF/}).first().click({timeout:10000}),
+      ]);
+      const filename = orcaDownload.suggestedFilename();
+      const outputPath = path.join(evidence,device.name+'-cube.orca.3mf');
+      await orcaDownload.saveAs(outputPath);
+      const byteCount = (await stat(outputPath)).size;
+      const archive = unzipSync(new Uint8Array(await readFile(outputPath)));
+      const xml = new TextDecoder().decode(archive['3D/3dmodel.model']);
+      orcaColorExport={filename,bytes:byteCount,triangleCount:(xml.match(/<triangle /g)||[]).length};
+      if (!filename.endsWith('.orca.3mf') || byteCount < 200 || !xml.includes('unit="millimeter"')
+          || !xml.includes('<triangle ')) {
+        violations.push(device.name+' Orca 3MF export invalid');
+      }
+    } catch(e) {
+      orcaColorExport={error:String(e?.message||e).slice(0,250)};
+      violations.push(device.name+' Orca 3MF export failed');
+    }
     // The OpenSCAD-only build keeps legal information pages self-contained:
     // they must render in the browser without the retired Supabase/API service.
     for (const legalPage of [
@@ -407,7 +433,7 @@ try {
       const legalBody=await page.locator('body').innerText();
       if(!legalBody.includes(legalPage.message)) violations.push(device.name+' '+legalPage.route+' fallback notice missing');
     }
-    const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,stlExport,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),wasmStatuses,assetHttpFailures,...snapshot};
+    const result={type:'browser',device:device.name,mainStatus:response?.status(),galleryMs:tGallery,editorMs:tEditor,visibleCanvas,stlExport,orcaColorExport,errors,failedRequests:failedRequests.slice(0,10),apiRequests,wasmUrls:wasm.slice(0,8),wasmStatuses,assetHttpFailures,...snapshot};
     findings.push(result);
     if(errors.length) violations.push(device.name+' JS exceptions');
     if(snapshot.docWidth > snapshot.viewportWidth + 2) violations.push(device.name+' horizontal overflow');
