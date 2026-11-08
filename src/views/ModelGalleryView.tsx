@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { downloadFile } from "@/utils/downloadUtils";
+import { getOrcaPartsExportOutcome } from "@/utils/orcaSplitSafeThreeMf";
 import { getSafeFilename } from "@/utils/file-utils";
 import { generatePreview, generateColoredPreview } from "@/utils/meshUtils";
 import {
@@ -556,9 +557,24 @@ export function ModelGalleryView() {
           mimeType: metadata.mimeType,
         });
         if (format === "orcaparts3mf") {
+          const outcome = getOrcaPartsExportOutcome(exported);
+          const fallback = outcome?.mode === "color-only";
+          const partial = outcome?.mode === "partial";
+          const reason = outcome?.reason;
+          const description = fallback
+            ? reason === "single-shell"
+              ? "This model is one connected shell. Exported with its original colors, without inventing separate printable parts. Cutting in Orca may remove surface painting."
+              : reason === "complexity"
+                ? "This model is too detailed for safe browser part detection. Exported with all colors intact; automatic splitting is not guaranteed."
+                : reason === "part-count"
+                  ? "Too many separate components for safe browser part detection. Exported with all colors intact; splitting may remove surface painting."
+                  : "No independently closed solids were detected. Exported with all colors intact; verify geometry and filament assignments in Orca."
+            : partial
+              ? `${outcome.closedParts} closed printable parts separated; incomplete surface fragments kept together and retain original painting. Check those surfaces in Orca before printing.`
+              : `${outcome?.closedParts ?? "Multiple"} closed solids exported as separately colored parts. Check filament slots and slicing in Orca.`;
           toast({
-            title: "Orca parts 3MF exported",
-            description: "Separate solid shells are exported as editable parts. Uniform-color parts keep their filament selection when split; painted regions on mixed-color shells may still lose colors after cutting. Verify filament assignments before slicing.",
+            title: fallback ? "Orca color 3MF fallback exported" : partial ? "Orca parts 3MF partially separated" : "Orca parts 3MF exported",
+            description,
           });
         }
         if (format === "orca3mf") {
