@@ -70,15 +70,49 @@ describe('OrcaSlicer color 3MF export', () => {
     expect((files['3D/3dmodel.model'].match(/<triangle /g) ?? [])).toHaveLength(2);
   });
 
-  it('accepts exactly four filament slots and rejects a fifth', async () => {
-    const four = off([[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]]);
-    const files = await contents(exportColoredOffAsOrcaThreeMf(four, 'Four'));
-    expect(files['3D/3dmodel.model']).toContain('paint_color="1C"');
-    const five = off([
+  it('exports five OpenSCAD colors independently of the U1 four-nozzle hardware', async () => {
+    const fiveColors: Array<[number, number, number]> = [
       [255, 0, 0], [0, 255, 0], [0, 0, 255],
       [255, 255, 255], [0, 0, 0],
+    ];
+    const files = await contents(exportColoredOffAsOrcaThreeMf(off(fiveColors), 'Five'));
+    const xml = files['3D/3dmodel.model'];
+    const settings = JSON.parse(files['Metadata/project_settings.config']);
+    expect(settings.filament_colour).toEqual([
+      '#FF0000', '#00FF00', '#0000FF', '#FFFFFF', '#000000',
     ]);
-    expect(() => exportColoredOffAsOrcaThreeMf(five, 'Five')).toThrow('more than 4 filaments');
+    expect((xml.match(/<m:color /g) ?? [])).toHaveLength(5);
+    expect((xml.match(/paint_color=/g) ?? [])).toHaveLength(5);
+    expect(xml).toContain('paint_color="1C"');
+    expect(xml).toContain('paint_color="2C"');
+    expect(xml).toContain('p1="4" p2="4" p3="4"');
+  });
+
+  it('allows all sixteen virtual painted colors without changing printer nozzle count', async () => {
+    const colors: Array<[number, number, number]> = Array.from(
+      { length: 16 }, (_, index) => [index * 12, 80, 140],
+    );
+    const files = await contents(exportColoredOffAsOrcaThreeMf(off(colors), 'Sixteen'));
+    const xml = files['3D/3dmodel.model'];
+    expect((xml.match(/<m:color /g) ?? [])).toHaveLength(16);
+    expect((xml.match(/paint_color=/g) ?? [])).toHaveLength(16);
+    expect(xml).toContain('paint_color="DC"');
+    expect(JSON.parse(files['Metadata/project_settings.config']).filament_colour).toHaveLength(16);
+  });
+
+  it('preserves every RGB color above the Orca painting limit without inventing filament assignments', async () => {
+    const colors: Array<[number, number, number]> = Array.from(
+      { length: 40 }, (_, index) => [index * 5, 40, 80],
+    );
+    const files = await contents(exportColoredOffAsOrcaThreeMf(off(colors), 'Forty'));
+    const xml = files['3D/3dmodel.model'];
+    expect((xml.match(/<triangle /g) ?? [])).toHaveLength(40);
+    expect((xml.match(/<m:color /g) ?? [])).toHaveLength(40);
+    expect(xml).toContain('p1="39" p2="39" p3="39"');
+    expect(xml).not.toContain('paint_color=');
+    expect(files['Metadata/project_settings.config']).toBeUndefined();
+    expect(files['Metadata/model_settings.config']).toBeUndefined();
+    expect(xml).toContain('<m:color color="#C32850FF"/>');
   });
 
   it('fails clearly on invalid face data, empty OFF, and nonfinite coordinates', () => {
