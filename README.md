@@ -33,6 +33,32 @@ Browse parametric OpenSCAD designs, preview them in 3D, adjust exposed parameter
 
 Local models are stored in this browser, not uploaded to a Brepia account. Clearing browser data or using another browser or device will not carry those local copies over. Moving between `weaf.github.io` and `viewer.notydesign.se` also changes the storage origin; models saved under one address are not automatically transferred to the other.
 
+## Experimental Snapmaker Orca / OrcaSlicer color export
+
+The development branch exposes **Export → Orca Color .3MF**. This produces a
+3MF model containing both standards-based colors and slicer-specific per-face
+paint/filament assignments, using the same OFF color data as the OpenSCAD
+preview. It exports the source geometry in millimeters and does not bake in
+the viewer's camera rotation or centering. Standard STL and 3MF options stay
+unchanged.
+
+This is intended for the **four filament slots of Snapmaker U1**. More than
+four distinct material colors is rejected instead of silently discarding
+colors. Uncolored OpenSCAD surfaces use a neutral placeholder slot; OpenSCAD
+renderer default yellow is not treated as an additional user-selected color.
+See the error message if the color geometry is not available.
+
+**Important:** Colors are only candidate filament identifiers. The
+provisional `Generic PLA` slicer metadata does **not** identify the user's
+real spools. After opening the 3MF in Snapmaker Orca or OrcaSlicer, verify
+physical filament slot order and select the correct material profiles
+(PLA, PETG, etc.) before slicing or printing. Transparent OpenSCAD colors
+cannot become transparent when printed with opaque filament.
+
+The dedicated import/slicing compatibility check against the actual
+Snapmaker Orca version must pass before this export is treated as
+production-ready. This feature is not yet released on the public Viewer.
+
 ## Search and AI discoverability
 
 The production GitHub Pages build provides descriptive HTML metadata, a canonical URL, a crawlable About page, SoftwareApplication JSON-LD, an Open Graph image, [robots.txt](public/robots.txt), [sitemap.xml](public/sitemap.xml), and an optional [llms.txt](public/llms.txt). The sitemap is intended for search engine discovery. The llms.txt file is informational; it is not a Google ranking mechanism. Content stays accessible without an account, and locally imported models are never published as individual pages.
