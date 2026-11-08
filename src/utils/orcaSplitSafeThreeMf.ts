@@ -21,6 +21,8 @@ export type OrcaPartsExportOutcome = {
   mode: 'multipart' | 'partial' | 'color-only';
   closedParts: number;
   unsplittableComponents: number;
+  /** Isolated open meshes exposed as selectable, but NOT watertight parts. */
+  separatedOpenParts?: number;
   reason?: 'single-shell' | 'open-shells' | 'complexity' | 'part-count';
 };
 const outcomes = new WeakMap<Blob, OrcaPartsExportOutcome>();
@@ -63,7 +65,39 @@ class DisjointSet {
   }
 }
 
-type Component = { faceIndices: number[]; closed: boolean };
+type Component = {
+  faceIndices: number[];
+  closed: boolean;
+  openEdges: number;
+  spatiallyIsolated?: boolean;
+};
+
+type Bounds = { min: [number, number, number]; max: [number, number, number] };
+
+function componentBounds(component: Component, parsed: ParsedOff): Bounds {
+  const min: [number, number, number] = [Infinity, Infinity, Infinity];
+  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  for (const index of component.faceIndices) {
+    for (const vertex of parsed.faces[index].vertices) {
+      for (let axis = 0; axis < 3; axis++) {
+        const coordinate = parsed.vertices[vertex][axis];
+        min[axis] = Math.min(min[axis], coordinate);
+        max[axis] = Math.max(max[axis], coordinate);
+      }
+    }
+  }
+  return { min, max };
+}
+
+/** Only separate an open fragment if it has clear space from *every* other
+ * shell, including closed ones. Overlapping colored features stay grouped. */
+function haveClearance(a: Bounds, b: Bounds): boolean {
+  const marginMm = 0.1;
+  return [0, 1, 2].some((axis) =>
+    a.max[axis] + marginMm < b.min[axis] ||
+    b.max[axis] + marginMm < a.min[axis],
+  );
+}
 
 /** Connect faces by shared *edges*, never by merely touching vertices. */
 function connectedClosedShells(parsed: ParsedOff): Component[] {
@@ -101,12 +135,15 @@ function connectedClosedShells(parsed: ParsedOff): Component[] {
     const root = dsu.find(i);
     const existing = groups.get(root);
     if (existing) existing.faceIndices.push(i);
-    else groups.set(root, { faceIndices: [i], closed: true });
+    else groups.set(root, { faceIndices: [i], closed: true, openEdges: 0 });
   }
   for (const component of groups.values()) {
-    component.closed = component.faceIndices.every((index) =>
-      faceEdges[index].every((key) => edgeOwners.get(key)?.count === 2),
+    component.openEdges = component.faceIndices.reduce(
+      (total, index) => total + faceEdges[index].filter(
+        (key) => edgeOwners.get(key)?.count !== 2,
+      ).length, 0,
     );
+    component.closed = component.openEdges === 0;
   }
   return [...groups.values()];
 }
@@ -123,11 +160,13 @@ function writeShell(
   const triangles: string[] = [];
   const slots = new Set<number>();
   let allColored = true;
+  let allPainted = true;
   for (const i of component.faceIndices) {
     const triangle = originalTriangles[i];
     const material = triangle.match(/\bp1="(\d+)"/);
     if (material) slots.add(Number(material[1]) + 1);
     else allColored = false;
+    if (!triangle.includes(' paint_color="')) allPainted = false;
     const transformed = triangle.replace(/\bv([123])="(\d+)"/g, (_, n: string, value: string) => {
       const oldIndex = Number(value);
       let newIndex = indexMap.get(oldIndex);
@@ -140,10 +179,17 @@ function writeShell(
     });
     triangles.push(transformed);
   }
-  // Only watertight, uniform-color shells can use a persistent part extruder.
-  // Open or mixed shells keep their original per-face paint and color metadata.
-  const singleColor = component.closed && allColored && slots.size === 1
-    ? [...slots][0] : null;
+  // Watertight uniform-color shells always get a persistent extruder.
+  // An *isolated, nearly closed*, uniformly painted OPEN shell may also carry
+  // an extruder, purely for color retention after Orca Split to Objects.
+  // This does not close holes or certify the part as printable. Require enough
+  // surface topology to avoid treating stray color patches as solid parts.
+  const colorSafeOpen = component.spatiallyIsolated === true &&
+    component.faceIndices.length >= 100 &&
+    component.openEdges <= component.faceIndices.length * 0.05 &&
+    allPainted;
+  const singleColor = (component.closed || colorSafeOpen) &&
+    allColored && slots.size === 1 ? [...slots][0] : null;
   // Once the whole *solid* has one color, its permanent part extruder carries
   // the color across Orca Split and edit operations. Painted triangles would
   // override that extruder and may disappear on splitting.
@@ -187,15 +233,24 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
   const open = shells.filter((part) => !part.closed);
   if (!closed.length) return colorOnly('open-shells', 0, open.length);
 
-  // Keep open fragments TOGETHER with every original triangle and per-face
-  // color; never misrepresent them as separate printable, closed solids.
-  // Closed components remain independently addressable, even when one small
-  // face detail is incomplete. This avoids rejecting the entire assembly.
-  const parts: Component[] = [...closed];
-  if (open.length) {
+  // Separate only open mesh islands which have a clear 3D gap from every
+  // other island (including closed solids). This identifies the six physically
+  // separate Megabot limbs without splitting overlapping multi-color surfaces
+  // or claiming the result is watertight. Remaining open pieces stay together.
+  const bounds = new Map(shells.map((shell) => [shell, componentBounds(shell, parsed)]));
+  const isolated = open.filter((part) => shells.every((other) =>
+    part === other || haveClearance(bounds.get(part)!, bounds.get(other)!),
+  ));
+  const grouped = open.filter((part) => !isolated.includes(part));
+  const parts: Component[] = [
+    ...closed,
+    ...isolated.map((part) => ({ ...part, spatiallyIsolated: true })),
+  ];
+  if (grouped.length) {
     parts.push({
-      faceIndices: open.flatMap((part) => part.faceIndices).sort((a, b) => a - b),
+      faceIndices: grouped.flatMap((part) => part.faceIndices).sort((a, b) => a - b),
       closed: false,
+      openEdges: grouped.reduce((total, part) => total + part.openEdges, 0),
     });
   }
 
@@ -227,7 +282,7 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
     const colorName = shell.slot !== null
       ? (palette?.filament_colour?.[shell.slot - 1] ?? 'Color')
       : 'Mixed';
-    const name = xmlEscape(`${title} – part ${part + 1} (${colorName})`);
+    const name = xmlEscape(`${title} – part ${part + 1}${parts[part].closed ? '' : ' [OPEN MESH]'} (${colorName})`);
     leafXml.push(`<object id="${id}" type="model" name="${name}">${shell.xml}</object>`);
     components.push(`<component objectid="${id}"/>`);
     partSettings.push(
@@ -249,5 +304,6 @@ export async function exportColoredOffAsOrcaPartsThreeMf(
     mode: open.length ? 'partial' : 'multipart',
     closedParts: closed.length,
     unsplittableComponents: open.length,
+    separatedOpenParts: isolated.length,
   });
 }

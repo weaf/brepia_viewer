@@ -122,6 +122,7 @@ describe('Orca split-safe parts 3MF', () => {
     expect(xml).toContain('<component objectid="5"/>');
     expect(getOrcaPartsExportOutcome(blob)).toMatchObject({
       mode: 'partial', closedParts: 2, unsplittableComponents: 1,
+      separatedOpenParts: 1,
     });
     const metadata = files['Metadata/model_settings.config'];
     expect(metadata).toMatch(/<part id="3"[^>]*>[\s\S]*?key="extruder" value="1"/);
@@ -131,6 +132,54 @@ describe('Orca split-safe parts 3MF', () => {
   });
 
 
+
+
+  it('keeps disjoint incomplete printed islands selectable without claiming they are watertight', async () => {
+    const red: RGB = [255, 0, 0], blue: RGB = [0, 0, 255];
+    const lines = tetrahedra([[red, red, red, red], [blue, blue, blue, blue]]).split('\n');
+    const input = [
+      'OFF', '14 10 0',
+      ...lines.slice(2, 10),
+      '60 0 0', '61 0 0', '60 1 0',
+      '90 0 0', '91 0 0', '90 1 0',
+      ...lines.slice(10),
+      '3 8 9 10 0 0 255',
+      '3 11 12 13 0 0 255',
+    ].join('\n');
+    const blob = await exportColoredOffAsOrcaPartsThreeMf(input, 'Islands');
+    const files = await entries(blob);
+    const xml = files['3D/3dmodel.model'];
+    const meta = files['Metadata/model_settings.config'];
+    expect((xml.match(/<triangle /g) ?? [])).toHaveLength(10);
+    expect((xml.match(/<component objectid=/g) ?? [])).toHaveLength(4);
+    expect((xml.match(/\[OPEN MESH\]/g) ?? [])).toHaveLength(2);
+    expect(meta).toContain('OPEN MESH');
+    // Isolated single triangles do not qualify for a persistent part extruder.
+    expect(meta).not.toMatch(/<part id="5"[^>]*>[\s\S]*?key="extruder"/);
+    expect(getOrcaPartsExportOutcome(blob)).toMatchObject({
+      mode: 'partial', closedParts: 2, unsplittableComponents: 2,
+      separatedOpenParts: 2,
+    });
+  });
+
+  it('keeps a nearby open patch grouped instead of treating it as an independent printable solid', async () => {
+    const red: RGB = [255, 0, 0], blue: RGB = [0, 0, 255];
+    const lines = tetrahedra([[red, red, red, red], [blue, blue, blue, blue]]).split('\n');
+    const input = [
+      'OFF', '11 9 0',
+      ...lines.slice(2, 10),
+      '1 1 4', '2 1 4', '1 2 4',
+      ...lines.slice(10),
+      '3 8 9 10 255 255 255',
+    ].join('\n');
+    const blob = await exportColoredOffAsOrcaPartsThreeMf(input, 'Nearby');
+    expect(getOrcaPartsExportOutcome(blob)).toMatchObject({
+      mode: 'partial', closedParts: 2, separatedOpenParts: 0,
+    });
+    const files = await entries(blob);
+    expect((files['3D/3dmodel.model'].match(/<component objectid=/g) ?? [])).toHaveLength(3);
+    expect((files['3D/3dmodel.model'].match(/<triangle /g) ?? [])).toHaveLength(9);
+  });
 
   it('does not fail on large high-resolution OFF and clearly reports the safe color-only fallback', async () => {
     // 250,001 triangles is deliberately too expensive for browser edge maps;

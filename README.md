@@ -45,9 +45,18 @@ paint, which is more likely to remain after Orca's Split to Parts/Objects.
 This is not a general-purpose boolean separator or cutter. A shell that
 contains two or more colors stays one closed part and retains its painted
 triangles; cutting this shell can still erase painting in some slicer builds.
-For mixed-quality assemblies, **independently closed solids** become real parts
-while loose or open surface fragments are grouped and keep their original
-paint, rather than aborting the whole export.
+For mixed-quality assemblies, **independently closed solids** become real parts.
+Spatially isolated **open meshes** may also become individually selectable
+parts with an explicit **[OPEN MESH]** name; a large, uniformly painted open
+mesh can carry its filament assignment so that its original color remains
+associated with that part when splitting to objects. Overlapping open surfaces
+remain grouped to avoid splitting a single multicolor feature.
+
+An OPEN MESH is not watertight and is **not declared printable** by Brepia.
+This export does not manufacture missing caps or repair OpenSCAD geometry;
+inspect and repair such parts in Orca before slicing. In Orca, an already
+multipart model normally exposes **Split to Objects**, while **Split to Parts**
+is intended for subdividing a single mesh that contains multiple shells.
 
 When the entire model is one connected shell (such as a key ring), all shells
 are open, or the model exceeds the safe on-device split budget, the exporter

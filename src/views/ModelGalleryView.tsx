@@ -570,7 +570,7 @@ export function ModelGalleryView() {
                   ? "Too many separate components for safe browser part detection. Exported with all colors intact; splitting may remove surface painting."
                   : "No independently closed solids were detected. Exported with all colors intact; verify geometry and filament assignments in Orca."
             : partial
-              ? `${outcome.closedParts} closed printable parts separated; incomplete surface fragments kept together and retain original painting. Check those surfaces in Orca before printing.`
+              ? `${outcome.closedParts} closed parts and ${outcome.separatedOpenParts ?? 0} isolated OPEN mesh parts exported. Single-color islands keep their filament assignment, but open meshes require repair before slicing; overlapping open surfaces remain grouped.`
               : `${outcome?.closedParts ?? "Multiple"} closed solids exported as separately colored parts. Check filament slots and slicing in Orca.`;
           toast({
             title: fallback ? "Orca color 3MF fallback exported" : partial ? "Orca parts 3MF partially separated" : "Orca parts 3MF exported",

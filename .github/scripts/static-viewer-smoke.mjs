@@ -573,6 +573,16 @@ try {
           result.paintFaces = (model.match(/paint_color=/g)||[]).length;
           result.metadataParts = (metadata.match(/<part id=/g)||[]).length;
           result.metadataExtruders = (metadata.match(/key="extruder" value="/g)||[]).length;
+          // Real Megabot acceptance: three closed body shells, six spatially
+          // isolated monochrome open limbs, and one multicolor open face.
+          // Open meshes are explicitly labeled and never certified printable.
+          if (fixture.name === 'megabot-print-layout') {
+            if (result.components !== 10 || result.metadataParts !== 10 ||
+                result.metadataExtruders !== 10 ||
+                (model.match(/\[OPEN MESH\]/g)||[]).length !== 14) {
+              violations.push('Megabot print_layout did not preserve ten selectable parts with nine blue part assignments and explicit OPEN MESH labels');
+            }
+          }
           result.palette = settings.filament_colour || [];
           result.topology = analyzeOrcaMeshTopology(model, result.palette, 22);
           result.objectNames = [...model.matchAll(/<object id="[^"]+" type="model" name="([^"]*)"/g)]
