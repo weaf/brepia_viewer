@@ -298,33 +298,33 @@ try {
         if (!captions.includes(caption)) violations.push(device.name+' missing '+caption+' label in '+category);
       }
     }
-    await snippetPanel.getByRole('button',{name:'Noteringar',exact:true}).click();
+    await snippetPanel.getByRole('button',{name:'Annotations',exact:true}).click();
     const noteCaptions=await snippetPanel.locator('.scad-editor__snippet-caption').allTextContents();
     for (const label of ['Text','Arrow','2-way','Dimension']) {
-      if (!noteCaptions.includes(label)) violations.push(device.name+' Noteringar category missing '+label);
+      if (!noteCaptions.includes(label)) violations.push(device.name+' Annotations category missing '+label);
     }
     await page.screenshot({path:path.join(evidence,device.name+'-annotations-menu.png'),fullPage:true});
     await snippetPanel.getByRole('button',{name:'Text',exact:true}).click();
     if(!(await readSource()).includes('linear_extrude(height = 3)')) {
-      violations.push(device.name+' Noteringar Text did not insert extruded text');
+      violations.push(device.name+' Annotations Text did not insert extruded text');
     }
     await moreTools.click();
     await undoAction.click();
     if((await readSource()).includes('linear_extrude(height = 3)')) {
-      violations.push(device.name+' Undo failed for inserted Noteringar snippet');
+      violations.push(device.name+' Undo failed for inserted Annotations snippet');
     }
     await moreTools.click();
     await redoAction.click();
     if(!(await readSource()).includes('linear_extrude(height = 3)')) {
-      violations.push(device.name+' Redo failed for inserted Noteringar snippet');
+      violations.push(device.name+' Redo failed for inserted Annotations snippet');
     }
     await moreTools.click();
     await discardSource.click();
     await insertCode.click();
-    await snippetPanel.getByRole('button',{name:'Noteringar',exact:true}).click();
+    await snippetPanel.getByRole('button',{name:'Annotations',exact:true}).click();
     await snippetPanel.getByRole('button',{name:'Dimension',exact:true}).click();
     if(!(await readSource()).includes('text(str(dimension_length, " mm")')) {
-      violations.push(device.name+' Noteringar Dimension did not insert dimension lines and label');
+      violations.push(device.name+' Annotations Dimension did not insert dimension lines and label');
     }
     await moreTools.click();
     await discardSource.click();
