@@ -429,6 +429,74 @@ try {
       orcaColorExport={error:String(e?.message||e).slice(0,250)};
       violations.push(device.name+' Orca 3MF export failed');
     }
+    // Preview-only acceptance: compile the real public models using the same
+    // OpenSCAD 2025 WASM as the user, then inspect the exported Orca ZIPs.
+    // This is not exercised on production-root builds.
+    if (device.name === 'desktop' && basePath === '/orca-parts-preview/') {
+      const realFixtures = [
+        {name:'megabot-print-layout', remote:'Big%20Hero%20Megabot/Bighero_megabot.scad', mode:'print_layout'},
+        {name:'megabot-assembled', remote:'Big%20Hero%20Megabot/Bighero_megabot.scad', mode:'assembled'},
+        {name:'chain-ring', remote:'Chain_ring/key_ring.scad'},
+      ];
+      for (const fixture of realFixtures) {
+        const result = {type:'real-orca-parts', fixture:fixture.name};
+        try {
+          const sourceUrl = 'https://raw.githubusercontent.com/Noty-design/Parametric-designs/main/' + fixture.remote;
+          const response = await fetch(sourceUrl);
+          if (!response.ok) throw new Error('Source HTTP ' + response.status);
+          let scad = await response.text();
+          if (fixture.mode) {
+            const original = 'view_mode = "print_layout";';
+            if (!scad.includes(original)) throw new Error('Megabot view_mode setting missing');
+            scad = scad.replace(original, 'view_mode = "' + fixture.mode + '";');
+          }
+          await page.goto(origin + basePath, {waitUntil:'domcontentloaded',timeout:45000});
+          await page.getByText('Model gallery',{exact:true}).first().waitFor({timeout:30000});
+          await page.locator('input[type=file]').first().setInputFiles({
+            name:fixture.name+'.scad', mimeType:'text/plain', buffer:Buffer.from(scad),
+          });
+          await page.getByText('Source and parameters',{exact:true}).first().waitFor({timeout:45000});
+          await page.locator('section[aria-label="3D model preview"] canvas').first().waitFor({state:'visible',timeout:300000});
+          await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
+          const [download] = await Promise.all([
+            page.waitForEvent('download',{timeout:120000}),
+            page.getByRole('menuitem',{name:/Orca Parts [.]3MF/}).first().click({timeout:15000}),
+          ]);
+          const filePath = path.join(evidence,fixture.name+'.orca-parts.3mf');
+          await download.saveAs(filePath);
+          const archive = unzipSync(new Uint8Array(await readFile(filePath)));
+          const model = new TextDecoder().decode(archive['3D/3dmodel.model']);
+          const metadata = archive['Metadata/model_settings.config']
+            ? new TextDecoder().decode(archive['Metadata/model_settings.config']) : '';
+          const settings = archive['Metadata/project_settings.config']
+            ? JSON.parse(new TextDecoder().decode(archive['Metadata/project_settings.config'])) : {};
+          result.fileBytes = (await stat(filePath)).size;
+          result.triangles = (model.match(/<triangle /g)||[]).length;
+          result.buildItems = (model.match(/<item objectid=/g)||[]).length;
+          result.components = (model.match(/<component objectid=/g)||[]).length;
+          result.meshObjects = (model.match(/<object id="[^"]+" type="model"[^>]*><mesh>/g)||[]).length;
+          result.paintFaces = (model.match(/paint_color=/g)||[]).length;
+          result.metadataParts = (metadata.match(/<part id=/g)||[]).length;
+          result.metadataExtruders = (metadata.match(/key="extruder" value="/g)||[]).length;
+          result.palette = settings.filament_colour || [];
+          result.objectNames = [...model.matchAll(/<object id="[^"]+" type="model" name="([^"]*)"/g)]
+            .map(match=>match[1]).slice(0,35);
+          result.toast = (await page.locator('[data-sonner-toast],[role="status"]').allTextContents())
+            .join(' ').slice(0,500);
+          result.filePath = filePath;
+          if (!result.triangles || !result.fileBytes || !model.includes('unit="millimeter"')) {
+            throw new Error('3MF has missing triangles, unit, or ZIP content');
+          }
+          console.log('REAL_ORCA_3MF ' + JSON.stringify(result));
+        } catch (error) {
+          result.error = String(error?.message || error).slice(0,600);
+          violations.push(fixture.name + ' real Orca parts export failed: ' + result.error);
+          console.log('REAL_ORCA_3MF_FAILED ' + JSON.stringify(result));
+        }
+        findings.push(result);
+      }
+    }
+
     // The OpenSCAD-only build keeps legal information pages self-contained:
     // they must render in the browser without the retired Supabase/API service.
     for (const legalPage of [
