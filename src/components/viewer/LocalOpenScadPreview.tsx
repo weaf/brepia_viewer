@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BufferGeometry, Group } from "three";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { exportStlAsThreeMf } from "@/utils/threeMfExport";
+import { exportColoredOffAsOrcaThreeMf } from "@/utils/orcaThreeMfExport";
 import {
   buildColoredGroupFromOff,
   disposeColoredGroup,
@@ -163,6 +164,13 @@ export function LocalOpenScadPreview({
         const modelName = getOpenScadEntrypoint(project).path.replace(/\.scad$/i, "") || "model";
         return exportStlAsThreeMf(await output.arrayBuffer(), modelName);
       }
+      if (format === "orca3mf") {
+        if (!output) throw new Error("Compile the model before exporting Orca color 3MF.");
+        const modelName = getOpenScadEntrypoint(project).path.replace(/\.scad$/i, "") || "model";
+        // Reuse the exact per-face color output used in the live preview.
+        const colors = offOutput ?? await exportProject(project, "off");
+        return exportColoredOffAsOrcaThreeMf(await colors.text(), modelName);
+      }
       if (format === "dxf") return exportDxf();
       if (format === "svg") {
         const entrypoint = getOpenScadEntrypoint(project);
@@ -175,7 +183,7 @@ export function LocalOpenScadPreview({
       }
       return exportProject(project, format);
     },
-    [exportDxf, exportProject, output, project],
+    [exportDxf, exportProject, offOutput, output, project],
   );
 
   useEffect(() => {
