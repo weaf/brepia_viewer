@@ -33,6 +33,28 @@ Browse parametric OpenSCAD designs, preview them in 3D, adjust exposed parameter
 
 Local models are stored in this browser, not uploaded to a Brepia account. Clearing browser data or using another browser or device will not carry those local copies over. Moving between `weaf.github.io` and `viewer.notydesign.se` also changes the storage origin; models saved under one address are not automatically transferred to the other.
 
+## Preserving colors when splitting in OrcaSlicer
+
+**Export → Orca Parts .3MF** is an experimental alternative for assemblies
+made of **two or more separate, closed solids**. It identifies connected
+watertight triangle shells, preserves their original millimeter coordinates,
+and writes a true 3MF multipart assembly. When a part contains one color,
+the color is assigned at **part/filament level**, not as fragile per-triangle
+paint, which is more likely to remain after Orca's Split to Parts/Objects.
+
+This is not a general-purpose boolean separator or cutter. A shell that
+contains two or more colors stays one closed part and retains its painted
+triangles; cutting this shell can still erase painting in some slicer builds.
+The exporter refuses single-shell or non-watertight inputs rather than
+pretending their colors can be preserved by splitting. Use the regular
+**Orca Color .3MF** export in those cases.
+
+The original per-triangle RGB and all source geometry remain in the file.
+Up to sixteen virtual filament entries may be declared in Orca metadata;
+this does **not** mean sixteen physical filaments can be printed on Snapmaker
+U1 at once. Always verify/assign the printer's actual loaded filament
+slots, profiles and resulting slice before sending it to the printer.
+
 ## Experimental Snapmaker Orca / OrcaSlicer color export
 
 The development branch exposes **Export → Orca Color .3MF**. This produces a
