@@ -42,11 +42,23 @@ preview. It exports the source geometry in millimeters and does not bake in
 the viewer's camera rotation or centering. Standard STL and 3MF options stay
 unchanged.
 
-This is intended for the **four filament slots of Snapmaker U1**. More than
-four distinct material colors is rejected instead of silently discarding
-colors. Uncolored OpenSCAD surfaces use a neutral placeholder slot; OpenSCAD
-renderer default yellow is not treated as an additional user-selected color.
-See the error message if the color geometry is not available.
+Brepia stores **all OpenSCAD RGB model colors**, independently of the
+physical nozzle or spool count of the selected printer. For palettes with up
+to sixteen distinct entries, the file also contains Orca-compatible painted
+virtual filament assignments, including models with more than four colors.
+This does not give a four-nozzle printer more than four simultaneously
+available actual filaments. Assign/remap colors to the physical slots in
+OrcaSlicer or adjust the design to fit your printing workflow.
+
+For models with **more than sixteen colors**, the export still succeeds and
+keeps every per-triangle RGB color in the standard 3MF color group, but omits
+Orca-specific paint and filament settings rather than silently assigning the
+wrong physical extruders. OrcaSlicer may display those models as a single
+filament because it does not reliably read standard per-triangle color groups
+for automatic painting; those models require manual painting/mapping before
+printing. Uncolored OpenSCAD surfaces use a neutral placeholder when paint
+metadata is emitted; OpenSCAD's renderer-default yellow is not treated as
+an additional user-selected color.
 
 **Important:** Colors are only candidate filament identifiers. The
 provisional `Generic PLA` slicer metadata does **not** identify the user's
