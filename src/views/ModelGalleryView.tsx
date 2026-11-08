@@ -12,6 +12,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { downloadFile } from "@/utils/downloadUtils";
@@ -77,7 +79,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const supportedSourceFile = /\.scad(?:\.txt)?$/i;
@@ -878,19 +880,47 @@ export function ModelGalleryView() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-[min(80vh,36rem)] w-64 overflow-y-auto">
-                {OPENSCAD_EXPORT_FORMATS.filter((format) => format.enabled).map((format) => (
-                  <DropdownMenuItem
-                    key={format.id}
-                    disabled={
-                      !exportFormatAvailable(format.id) || exportingFormat !== null
-                    }
-                    onSelect={() => void exportModel(format.id)}
-                  >
-                    <span>{format.label}</span>
-                    <span className="ml-auto truncate pl-3 text-xs text-adam-neutral-400">
-                      {format.description}
-                    </span>
-                  </DropdownMenuItem>
+                {OPENSCAD_EXPORT_FORMATS.filter(
+                  (format) => format.enabled && format.id !== "orca3mf" && format.id !== "orcaparts3mf",
+                ).map((format) => (
+                  <Fragment key={format.id}>
+                    <DropdownMenuItem
+                      disabled={!exportFormatAvailable(format.id) || exportingFormat !== null}
+                      onSelect={() => void exportModel(format.id)}
+                    >
+                      <span>{format.label}</span>
+                      <span className="ml-auto truncate pl-3 text-xs text-adam-neutral-400">
+                        {format.description}
+                      </span>
+                    </DropdownMenuItem>
+                    {format.id === "3mf" && (
+                      <>
+                        <DropdownMenuSeparator className="mx-2" />
+                        <DropdownMenuLabel className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-adam-neutral-300">
+                          Orca Color
+                        </DropdownMenuLabel>
+                        {(["orca3mf", "orcaparts3mf"] as const).map((orcaFormat) => (
+                          <DropdownMenuItem
+                            key={orcaFormat}
+                            aria-label={orcaFormat === "orca3mf" ? "Orca Color: Single Object" : "Orca Color: Parts"}
+                            disabled={!exportFormatAvailable(orcaFormat) || exportingFormat !== null}
+                            onSelect={() => void exportModel(orcaFormat)}
+                            className="flex min-h-11 flex-col items-start gap-0.5 pl-4"
+                          >
+                            <span className="font-medium">
+                              {orcaFormat === "orca3mf" ? "Single Object" : "Parts"}
+                            </span>
+                            <span className="text-xs text-adam-neutral-400">
+                              {orcaFormat === "orca3mf"
+                                ? "All colors, one object (.3MF)"
+                                : "Separate parts when possible (.3MF)"}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator className="mx-2" />
+                      </>
+                    )}
+                  </Fragment>
                 ))}
                 <DropdownMenuItem
                   disabled

@@ -485,6 +485,15 @@ try {
       await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
       const stepMenuCount=await page.getByRole('menuitem',{name:/\.STEP/}).count();
       if(stepMenuCount) violations.push(device.name+' static export menu still exposes STEP');
+      const orcaHeader=page.getByText('Orca Color',{exact:true});
+      const singleObject=page.getByRole('menuitem',{name:'Orca Color: Single Object'});
+      const parts=page.getByRole('menuitem',{name:'Orca Color: Parts'});
+      if(await orcaHeader.count()!==1 || !await orcaHeader.isVisible() ||
+         await singleObject.count()!==1 || await parts.count()!==1 ||
+         !await singleObject.isVisible() || !await parts.isVisible()) {
+        violations.push(device.name+' Orca Color group or its two export options missing');
+      }
+      await page.screenshot({path:path.join(evidence,device.name+'-orca-export-menu.png')});
       const [download]=await Promise.all([
         page.waitForEvent('download',{timeout:40000}),
         page.getByRole('menuitem',{name:/\.STL/}).first().click({timeout:10000}),
@@ -507,7 +516,7 @@ try {
       await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
       const [orcaDownload] = await Promise.all([
         page.waitForEvent('download',{timeout:40000}),
-        page.getByRole('menuitem',{name:/Orca Color [.]3MF/}).first().click({timeout:10000}),
+        page.getByRole('menuitem',{name:'Orca Color: Single Object'}).click({timeout:10000}),
       ]);
       const filename = orcaDownload.suggestedFilename();
       const outputPath = path.join(evidence,device.name+'-cube.orca.3mf');
@@ -555,7 +564,7 @@ try {
           await page.getByRole('button',{name:'Export model'}).click({timeout:30000});
           const [download] = await Promise.all([
             page.waitForEvent('download',{timeout:120000}),
-            page.getByRole('menuitem',{name:/Orca Parts [.]3MF/}).first().click({timeout:15000}),
+            page.getByRole('menuitem',{name:'Orca Color: Parts'}).click({timeout:15000}),
           ]);
           const filePath = path.join(evidence,fixture.name+'.orca-parts.3mf');
           await download.saveAs(filePath);
