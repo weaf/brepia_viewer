@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { downloadFile } from "@/utils/downloadUtils";
+import { createLocalProjectBackup, readLocalProjectBackup } from "@/lib/localProjectBackup";
 import { getOrcaPartsExportOutcome } from "@/utils/orcaSplitSafeThreeMf";
 import { getSafeFilename } from "@/utils/file-utils";
 import { generatePreview, generateColoredPreview } from "@/utils/meshUtils";
@@ -44,7 +45,9 @@ import {
   createUploadedModel,
   getBuiltInCatalog,
   getLocalModels,
+  getAllSavedModels,
   getStoredModel,
+  saveLocalModelCopies,
   setLastOpenedLocalModel,
   loadBuiltInProject,
   removeUploadedModel,
@@ -103,6 +106,7 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
 export function ModelGalleryView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const backupInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const uploadConfirmationRef = useRef<{ dismiss: () => void } | null>(null);
   const showUploadConfirmation = (name: string) => {
@@ -138,6 +142,7 @@ export function ModelGalleryView() {
     useState<PendingScadFolderImport | null>(null);
   const [folderEntrypoint, setFolderEntrypoint] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
   const [thumbnails, setThumbnails] = useState<
     Record<string, { revision: string; url: string }>
@@ -656,6 +661,62 @@ export function ModelGalleryView() {
     }
   };
 
+  const downloadProjectBackup = async () => {
+    setIsBackupBusy(true);
+    try {
+      const records = await getAllSavedModels();
+      if (!records.length) {
+        toast({
+          title: "No saved projects",
+          description: "Upload or save a project before creating a backup.",
+        });
+        return;
+      }
+      const zip = await createLocalProjectBackup(records);
+      downloadFile({
+        content: zip,
+        filename: "brepia-viewer-backup-" + new Date().toISOString().slice(0, 10) + ".zip",
+        mimeType: "application/zip",
+      });
+      toast({
+        title: "Project backup downloaded",
+        description: records.length + " saved project(s), including their files and assets.",
+      });
+    } catch (error) {
+      toast({
+        title: "Backup failed",
+        description: error instanceof Error ? error.message : "Could not create backup ZIP.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackupBusy(false);
+    }
+  };
+
+  const restoreProjectBackup = async (file: File) => {
+    setIsBackupBusy(true);
+    try {
+      const copies = await readLocalProjectBackup(file);
+      if (!window.confirm(
+        "Restore " + copies.length + " project(s) as new local copies? Existing projects will not be overwritten.",
+      )) return;
+      await saveLocalModelCopies(copies);
+      await refreshLocalModels();
+      toast({
+        title: "Project backup restored",
+        description: copies.length + " new local project(s) added. Existing models were kept.",
+      });
+    } catch (error) {
+      toast({
+        title: "Restore failed",
+        description: error instanceof Error ? error.message : "Invalid project backup ZIP.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackupBusy(false);
+    }
+  };
+
   const saveProjectFile = async (path: string, content: string) => {
     if (!activeRecord) throw new Error("No model is selected.");
     const project = replaceOpenScadProjectFileContent(
@@ -1087,6 +1148,27 @@ export function ModelGalleryView() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryLink />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isBackupBusy || isUploading || isLoadingGallery}
+                  className="gap-2 border-adam-neutral-700"
+                >
+                  <Download className="h-4 w-4" />
+                  {isBackupBusy ? "Working..." : "Project backup"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void downloadProjectBackup()}>
+                  Download backup (.zip)
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => backupInputRef.current?.click()}>
+                  Restore backup (.zip)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               type="button"
               variant="outline"
@@ -1096,6 +1178,18 @@ export function ModelGalleryView() {
             >
               <Trash2 className="h-4 w-4" /> Clear local data
             </Button>
+            <input
+              ref={backupInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              disabled={isBackupBusy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (file) void restoreProjectBackup(file);
+              }}
+            />
             <input
               ref={fileInputRef}
               type="file"

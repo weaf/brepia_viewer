@@ -152,6 +152,16 @@ export async function getLocalModels(): Promise<LocalModelRecord[]> {
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
+/** Includes saved working copies of built-in models as well as uploads. */
+export async function getAllSavedModels(): Promise<LocalModelRecord[]> {
+  const records = await withStore(MODEL_STORE, "readonly", (store) =>
+    store.getAll(),
+  );
+  return (records as LocalModelRecord[]).sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  );
+}
+
 export async function getStoredModel(
   id: string,
 ): Promise<LocalModelRecord | undefined> {
@@ -249,6 +259,47 @@ export async function clearLocalModelData(): Promise<void> {
 
 export async function saveLocalModel(record: LocalModelRecord): Promise<void> {
   await withStore(MODEL_STORE, "readwrite", (store) => store.put(record));
+}
+
+/** Add all restored projects atomically, never replace an existing ID. */
+export async function saveLocalModelCopies(
+  records: readonly LocalModelRecord[],
+): Promise<void> {
+  if (!records.length) return;
+  if (records.some((record) =>
+    record.origin !== "upload" || !record.id.startsWith("upload:"))) {
+    throw new Error("Restored projects must use new upload identities.");
+  }
+  const database = await openDatabase();
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const fail = (error: DOMException | Error | null) => {
+      if (settled) return;
+      settled = true;
+      database.close();
+      reject(error ?? new Error("Project backup restore transaction failed."));
+    };
+    let transaction: IDBTransaction;
+    try {
+      transaction = database.transaction(MODEL_STORE, "readwrite");
+      const store = transaction.objectStore(MODEL_STORE);
+      for (const record of records) {
+        store.add(record); // add, never put: duplicate key aborts entire batch.
+      }
+    } catch (error) {
+      database.close();
+      reject(error);
+      return;
+    }
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      database.close();
+      resolve();
+    };
+    transaction.onabort = () => fail(transaction.error);
+    transaction.onerror = () => fail(transaction.error);
+  });
 }
 
 export async function removeUploadedModel(id: string): Promise<void> {

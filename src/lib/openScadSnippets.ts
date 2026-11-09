@@ -1,4 +1,4 @@
-export type OpenScadSnippetCategory = "Noteringar"
+export type OpenScadSnippetCategory = "Annotations"
   | "Shapes"
   | "Transform"
   | "Booleans"
@@ -100,7 +100,7 @@ export const openScadSnippets: readonly OpenScadSnippet[] = [
   {
     "id": "text",
     "label": "Text",
-    "category": "Noteringar",
+    "category": "Annotations",
     "icon": "type",
     "description": "Extruded 3D text (edit height for thickness)",
     "insert": "linear_extrude(height = 3) {\n    text(\"Hello\", size = 8, halign = \"center\");\n}"
@@ -108,7 +108,7 @@ export const openScadSnippets: readonly OpenScadSnippet[] = [
   {
     "id": "arrow",
     "label": "Arrow",
-    "category": "Noteringar",
+    "category": "Annotations",
     "icon": "arrow-right",
     "description": "Editable 3D arrow with length and thickness",
     "insert": "arrow_length = 30;\narrow_width = 4;\narrow_head = 8;\narrow_height = 2;\nlinear_extrude(height = arrow_height)\n    polygon(points = [\n        [0, -arrow_width/2],\n        [arrow_length-arrow_head, -arrow_width/2],\n        [arrow_length-arrow_head, -arrow_width],\n        [arrow_length, 0],\n        [arrow_length-arrow_head, arrow_width],\n        [arrow_length-arrow_head, arrow_width/2],\n        [0, arrow_width/2]\n    ]);"
@@ -116,7 +116,7 @@ export const openScadSnippets: readonly OpenScadSnippet[] = [
   {
     "id": "double-arrow",
     "label": "Double arrow",
-    "category": "Noteringar",
+    "category": "Annotations",
     "icon": "move-horizontal",
     "description": "Editable double-headed 3D arrow",
     "insert": "double_arrow_length = 40;\ndouble_arrow_width = 2;\ndouble_arrow_head = 7;\ndouble_arrow_height = 2;\nlinear_extrude(height = double_arrow_height)\n    polygon(points = [\n        [0, 0],\n        [double_arrow_head, -4],\n        [double_arrow_head, -double_arrow_width/2],\n        [double_arrow_length-double_arrow_head, -double_arrow_width/2],\n        [double_arrow_length-double_arrow_head, -4],\n        [double_arrow_length, 0],\n        [double_arrow_length-double_arrow_head, 4],\n        [double_arrow_length-double_arrow_head, double_arrow_width/2],\n        [double_arrow_head, double_arrow_width/2],\n        [double_arrow_head, 4]\n    ]);"
@@ -124,7 +124,7 @@ export const openScadSnippets: readonly OpenScadSnippet[] = [
   {
     "id": "dimension",
     "label": "Dimension",
-    "category": "Noteringar",
+    "category": "Annotations",
     "icon": "ruler",
     "description": "Editable 3D dimension lines, arrows and label; not automatic measurement",
     "insert": "dimension_length = 30; // mm, set to the real dimension\ndimension_offset = 12;\ndimension_line = 0.8;\ndimension_arrow = 4;\ndimension_height = 1.5;\nlinear_extrude(height = dimension_height) {\n    translate([0, dimension_offset-dimension_line/2])\n        square([dimension_length, dimension_line]);\n    translate([-dimension_line/2, -2])\n        square([dimension_line, dimension_offset+4]);\n    translate([dimension_length-dimension_line/2, -2])\n        square([dimension_line, dimension_offset+4]);\n    polygon(points = [[0, dimension_offset],\n        [dimension_arrow, dimension_offset-1.6],\n        [dimension_arrow, dimension_offset+1.6]]);\n    polygon(points = [[dimension_length, dimension_offset],\n        [dimension_length-dimension_arrow, dimension_offset-1.6],\n        [dimension_length-dimension_arrow, dimension_offset+1.6]]);\n    translate([dimension_length/2, dimension_offset+3])\n        text(str(dimension_length, \" mm\"), size=3, halign=\"center\");\n}"
@@ -551,7 +551,7 @@ export const openScadSnippets: readonly OpenScadSnippet[] = [
   }
 ];
 
-export const snippetCategories: readonly OpenScadSnippetCategory[] = ["Noteringar","Shapes","Transform","Booleans","2D & extrude","Modifiers","Programming","Parameters","Files","Templates"];
+export const snippetCategories: readonly OpenScadSnippetCategory[] = ["Annotations","Shapes","Transform","Booleans","2D & extrude","Modifiers","Programming","Parameters","Files","Templates"];
 
 // On narrow screens these labels accompany the glyph. Never replace the
 // complete OpenSCAD name in the accessible button or its description.

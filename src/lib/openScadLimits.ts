@@ -1,5 +1,6 @@
 export const OPENSCAD_MAX_SOURCE_BYTES = 256_000;
 export const OPENSCAD_COMPILE_TIMEOUT_MS = 20_000;
+export const OPENSCAD_EXPORT_TIMEOUT_MS = 60_000;
 export const OPENSCAD_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 type ByteSized = {

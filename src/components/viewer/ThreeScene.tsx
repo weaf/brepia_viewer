@@ -1,4 +1,4 @@
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import {
   ArcballControls,
   Stage,
@@ -6,15 +6,22 @@ import {
   OrthographicCamera,
   PerspectiveCamera,
   OrbitControls,
+  Line,
+  Html,
 } from "@react-three/drei";
 import * as THREE from "three";
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { Box, Lock, Moon, Sun, Unlock } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Box, Lock, Moon, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
 import { OrthographicPerspectiveToggle } from "@/components/viewer/OrthographicPerspectiveToggle";
 import { ViewGizmo } from "@/components/viewer/ViewGizmo";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { distanceBetweenModelPoints, type ModelPoint } from "@/lib/measureDistance";
+import { angleBetweenModelPoints, angleArcPoints, formatDistanceFromModelUnits, type DistanceUnit } from "@/lib/measurementGeometry";
+import { pickFeatureSnap } from "@/lib/featureSnap";
+import type { FeatureEdge } from "@/lib/featureEdgeTopology";
+import { resolveViewerBackgroundLightness } from "@/lib/viewerBackground";
 
 const DEFAULT_VIEWER_BACKGROUND_COLOR = "#3B3B3B";
 const VIEWER_BACKGROUND_STORAGE_KEY = "brepia.viewer.backgroundLightness";
@@ -25,6 +32,7 @@ interface ThreeSceneProps {
   isMobile?: boolean;
   backgroundColor?: string;
   coloredGroup?: THREE.Group | null;
+  featureEdges?: readonly FeatureEdge[];
 }
 
 function ViewerControls({ uprightLocked }: { uprightLocked: boolean }) {
@@ -57,9 +65,18 @@ export function ThreeScene({
   isMobile = false,
   backgroundColor = DEFAULT_VIEWER_BACKGROUND_COLOR,
   coloredGroup,
+  featureEdges = [],
 }: ThreeSceneProps) {
   const [isOrthographic, setIsOrthographic] = useState(true);
   const [uprightLocked, setUprightLocked] = useState(true);
+  const [measuring, setMeasuring] = useState(false);
+  const [measurementMode, setMeasurementMode] = useState<"distance" | "angle">("distance");
+  const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("mm");
+  const [snapping, setSnapping] = useState(true);
+  const [snapNotice, setSnapNotice] = useState<string | null>(null);
+  const sceneHostRef = useRef<HTMLDivElement>(null);
+  const renderedModelRef = useRef<THREE.Group>(null);
+  const [measurementPoints, setMeasurementPoints] = useState<ModelPoint[]>([]);
   // Keep the initial layout stable across responsive resizes. Desktop retains
   // the existing visible cube by default, while mobile gains an explicit cube
   // toggle without permanently consuming the smaller viewport.
@@ -71,12 +88,10 @@ export function ThreeScene({
   );
   const [backgroundLightness, setBackgroundLightness] = useState(() => {
     if (typeof window === "undefined") return defaultBackgroundLightness;
-    const stored = Number(
+    return resolveViewerBackgroundLightness(
       window.localStorage.getItem(VIEWER_BACKGROUND_STORAGE_KEY),
+      defaultBackgroundLightness,
     );
-    return Number.isFinite(stored)
-      ? Math.min(100, Math.max(0, stored))
-      : defaultBackgroundLightness;
   });
   const viewerBackgroundColor = useMemo(
     () => lightnessToGrayHex(backgroundLightness),
@@ -102,6 +117,12 @@ export function ThreeScene({
     return box.getCenter(new THREE.Vector3()).negate();
   }, [coloredGroup]);
 
+  // This overlay never changes source code or the STL/OFF output buffers.
+  useEffect(() => {
+    setMeasurementPoints([]);
+    setSnapNotice(null);
+  }, [geometry, coloredGroup]);
+
   const geometryCenterOffset = useMemo(() => {
     if (!geometry) return null;
     geometry.computeBoundingBox();
@@ -110,8 +131,128 @@ export function ThreeScene({
     return box.getCenter(new THREE.Vector3()).negate();
   }, [geometry]);
 
+
+  const chooseMeasurementPoint = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (!measuring || event.delta > 4) return;
+      // React Three Fiber can emit a click at the end of a camera drag.
+      // Only deliberate stationary taps/clicks may select measurement points.
+      event.stopPropagation();
+      let point: ModelPoint = [event.point.x,event.point.y,event.point.z];
+      let snapKind: string | null = null;
+      if (snapping && featureEdges.length) {
+        const target=renderedModelRef.current;
+        const bounds=sceneHostRef.current?.getBoundingClientRect();
+        const modelCenter=coloredGroup ? groupCenterOffset : geometryCenterOffset;
+        if (target && bounds && modelCenter) {
+          target.updateWorldMatrix(true,false);
+          // Stage and nested model groups can move or resize the scene.
+          // Project candidates through the live world matrix, never through
+          // an assumed X rotation or a hardcoded preview scale.
+          const toWorld=(raw: ModelPoint): ModelPoint => {
+            const local=new THREE.Vector3(raw[0],raw[1],raw[2]).add(modelCenter);
+            target.localToWorld(local);
+            return [local.x,local.y,local.z];
+          };
+          const worldFeatureEdges=featureEdges.map((edge) => ({
+            ...edge,start:toWorld(edge.start),end:toWorld(edge.end),
+          }));
+          const modelSize = new THREE.Box3()
+            .setFromObject(target)
+            .getSize(new THREE.Vector3()).length() || 1;
+          const isVisible=(candidate: THREE.Vector3) => {
+            const camera=event.camera;
+            // A camera ray can graze a triangulated corner and miss a front
+            // face exactly on its boundary. Compare against the actual surface
+            // hit as an additional occlusion gate, including ortho cameras.
+            const viewDirection=new THREE.Vector3();
+            camera.getWorldDirection(viewDirection);
+            const surfaceDepth=event.point.clone().sub(camera.position).dot(viewDirection);
+            const candidateDepth=candidate.clone().sub(camera.position).dot(viewDirection);
+            if (candidateDepth > surfaceDepth + Math.max(0.1,modelSize*0.08)) {
+              return false;
+            }
+            if (candidate.distanceTo(event.point) > Math.max(0.15,modelSize*0.16)) {
+              return false;
+            }
+            const isPerspective=camera instanceof THREE.PerspectiveCamera;
+            const direction=new THREE.Vector3();
+            const origin=new THREE.Vector3();
+            if (isPerspective) {
+              origin.copy(camera.position);
+              direction.copy(candidate).sub(origin);
+            } else {
+              camera.getWorldDirection(direction);
+              origin.copy(candidate).addScaledVector(direction,-2000);
+              direction.copy(candidate).sub(origin);
+            }
+            const distance=direction.length();
+            const first=new THREE.Raycaster(
+              origin,direction.normalize(),0,distance+0.1,
+            ).intersectObject(target,true)[0];
+            return !first || first.distance >= distance - 0.1;
+          };
+          const selected=pickFeatureSnap({
+            edges:worldFeatureEdges,
+            pointerNdc:event.pointer,
+            camera:event.camera,
+            ray:event.ray,
+            viewport:{width:bounds.width,height:bounds.height},
+            maxPixels:isMobile ? 24 : 16,
+            isVisible,
+          });
+          if (selected) {
+            point=selected.point;
+            snapKind=selected.kind;
+          }
+        }
+      }
+      setSnapNotice(snapKind);
+      setMeasurementPoints((previous) =>
+        previous.length >= (measurementMode === "angle" ? 3 : 2)
+          ? [point]
+          : [...previous, point],
+      );
+    },
+    [measuring, measurementMode, snapping, featureEdges, coloredGroup, groupCenterOffset, geometryCenterOffset, isMobile],
+  );
+
+  const measuredDistance =
+    measurementMode === "distance" && measurementPoints.length === 2
+      ? distanceBetweenModelPoints(measurementPoints[0], measurementPoints[1])
+      : null;
+  const measuredAngle =
+    measurementMode === "angle" && measurementPoints.length === 3
+      ? angleBetweenModelPoints(
+          measurementPoints[0],
+          measurementPoints[1],
+          measurementPoints[2],
+        )
+      : null;
+  const angleArc = useMemo(
+    () => measurementMode === "angle" && measurementPoints.length === 3
+      ? angleArcPoints(
+          measurementPoints[0],
+          measurementPoints[1],
+          measurementPoints[2],
+        )
+      : [],
+    [measurementMode, measurementPoints],
+  );
+  const distanceLabel =
+    measuredDistance === null
+      ? null
+      : formatDistanceFromModelUnits(measuredDistance, distanceUnit);
+  const angleLabel =
+    measuredAngle === null ? null : measuredAngle.toFixed(1) + "°";
+
+
+
+
+
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative flex h-full w-full flex-col overflow-hidden">
+      <div ref={sceneHostRef} className="relative min-h-0 flex-1">
       {/* Local Suspense boundary — `<Canvas>` re-throws suspension upward
           when any drei loader (e.g. <Environment> fetching city.hdr) is in
           flight. Without this boundary the suspension propagates all the
@@ -154,17 +295,18 @@ export function ThreeScene({
             <directionalLight position={[0, 5, 0]} intensity={0.2} />
             <directionalLight position={[-5, -5, -5]} intensity={0.6} />
             {coloredGroup && groupCenterOffset ? (
-              <group rotation={[-Math.PI / 2, 0, 0]}>
+              <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]} onClick={chooseMeasurementPoint}>
                 <primitive
                   object={coloredGroup}
                   position={groupCenterOffset.toArray()}
                 />
               </group>
             ) : geometry && geometryCenterOffset ? (
-              <group rotation={[-Math.PI / 2, 0, 0]}>
+              <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]}>
                 <mesh
                   geometry={geometry}
                   position={geometryCenterOffset.toArray()}
+                  onClick={chooseMeasurementPoint}
                 >
                   <meshStandardMaterial
                     color={color}
@@ -176,6 +318,72 @@ export function ThreeScene({
               </group>
             ) : null}
           </Stage>
+          {measuring && measurementPoints.map((point, index) => (
+            <mesh key={index} position={point} raycast={() => {}}>
+              <sphereGeometry args={[0.45, 12, 12]} />
+              <meshBasicMaterial color="#fbbf24" depthTest={false} />
+            </mesh>
+          ))}
+          {measuring && measurementMode === "distance" && measurementPoints.length === 2 && distanceLabel && (
+            <>
+              <Line
+                points={[measurementPoints[0], measurementPoints[1]]}
+                color="#fbbf24"
+                lineWidth={2}
+              />
+              <Html
+                position={[
+                  (measurementPoints[0][0] + measurementPoints[1][0]) / 2,
+                  (measurementPoints[0][1] + measurementPoints[1][1]) / 2,
+                  (measurementPoints[0][2] + measurementPoints[1][2]) / 2,
+                ]}
+                center
+                style={{ pointerEvents: "none" }}
+              >
+                <span className="whitespace-nowrap rounded-md border border-amber-300/50 bg-black/85 px-2 py-1 text-xs font-semibold text-amber-200 shadow-lg">
+                  {distanceLabel}
+                </span>
+              </Html>
+            </>
+          )}
+          {measuring && measurementMode === "angle" && measurementPoints.length >= 2 && (
+            <Line
+              points={[measurementPoints[1], measurementPoints[0]]}
+              color="#22d3ee"
+              lineWidth={2}
+            />
+          )}
+          {measuring && measurementMode === "angle" && measurementPoints.length === 3 && (
+            <>
+              <Line
+                points={[measurementPoints[1], measurementPoints[2]]}
+                color="#22d3ee"
+                lineWidth={2}
+              />
+              {angleArc.length > 1 && (
+                <Line
+                  points={angleArc.map((point) => [...point] as [number, number, number])}
+                  color="#fbbf24"
+                  lineWidth={2}
+                />
+              )}
+              {angleLabel && (
+                <Html
+                  position={
+                    angleArc.length
+                      ? angleArc[Math.floor(angleArc.length / 2)]
+                      : measurementPoints[1]
+                  }
+                  center
+                  style={{ pointerEvents: "none" }}
+                >
+                  <span className="whitespace-nowrap rounded-md border border-cyan-300/50 bg-black/85 px-2 py-1 text-xs font-semibold text-cyan-100 shadow-lg">
+                    {angleLabel}
+                  </span>
+                </Html>
+              )}
+            </>
+          )}
           {/* <Grid
           position={[0, 0, 0]}
           cellSize={30}
@@ -271,6 +479,148 @@ export function ThreeScene({
           />
         </div>
       </div>
+      </div>
+      <div className={isMobile && measuring
+          ? "relative z-10 flex h-36 w-full shrink-0 flex-col gap-1 border-t border-white/10 bg-adam-background-1/95 px-2 py-1.5"
+          : "absolute bottom-14 left-2 z-10 flex max-w-[min(92vw,340px)] flex-col gap-1.5"}>
+        <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
+          <Button
+            type="button"
+            size="sm"
+            variant={measuring ? "secondary" : "ghost"}
+            className="h-11 gap-1.5 rounded-full border border-white/20 bg-adam-background-1/90 px-3 text-adam-text-primary"
+            aria-label="Measure distance"
+            aria-pressed={measuring}
+            onClick={() => {
+              setMeasuring((active) => !active);
+              setMeasurementPoints([]);
+              setSnapNotice(null);
+            }}
+          >
+            <Ruler className="h-4 w-4" />
+            Measure
+          </Button>
+          {measuring && (
+            <>
+              <select
+                aria-label="Measurement mode"
+                title="Choose a distance or three-point angle measurement"
+                value={measurementMode}
+                onChange={(event) => {
+                  const next = event.currentTarget.value;
+                  if (next !== "distance" && next !== "angle") return;
+                  setMeasurementMode(next);
+                  setMeasurementPoints([]);
+                  setSnapNotice(null);
+                }}
+                className="h-11 min-w-0 rounded-full border border-white/20 bg-adam-background-1/95 px-2.5 text-xs text-adam-text-primary"
+              >
+                <option value="distance">Distance</option>
+                <option value="angle">Angle</option>
+              </select>
+              {measurementMode === "distance" && (
+                <select
+                  aria-label="Distance unit"
+                  title="Assumes one OpenSCAD model unit is one millimetre"
+                  value={distanceUnit}
+                  onChange={(event) => {
+                    const next = event.currentTarget.value;
+                    if (next === "mm" || next === "cm" || next === "m") {
+                      setDistanceUnit(next);
+                    }
+                  }}
+                  className="h-11 min-w-0 rounded-full border border-white/20 bg-adam-background-1/95 px-2.5 text-xs text-adam-text-primary"
+                >
+                  <option value="mm">mm</option>
+                  <option value="cm">cm</option>
+                  <option value="m">m</option>
+                </select>
+              )}
+              {measurementMode === "distance" && (
+                <span className="shrink-0 text-[10px] text-white/70" title="Assumes one OpenSCAD unit is one millimetre">
+                  1u = 1mm
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        {measuring && (
+          <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
+            <Button
+              type="button"
+              size="sm"
+              variant={snapping ? "secondary" : "ghost"}
+              className="h-11 rounded-full border border-white/20 bg-adam-background-1/90 px-3"
+              aria-label="Snap to corners and edges"
+              aria-pressed={snapping}
+              onClick={() => setSnapping((enabled) => !enabled)}
+              title="Use real sharp feature corners and edges, not face-triangulation lines"
+            >
+              Snap {snapping ? "on" : "off"}
+            </Button>
+            {measurementPoints.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-11 gap-1 rounded-full border border-white/20 bg-adam-background-1/90 px-3"
+                aria-label="Undo last measurement point"
+                onClick={() => {
+                  setMeasurementPoints((points) => points.slice(0, -1));
+                  setSnapNotice(null);
+                }}
+              >
+                <Undo2 className="h-4 w-4" />
+                Undo
+              </Button>
+            )}
+            {measurementPoints.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-11 gap-1 rounded-full border border-white/20 bg-adam-background-1/90 px-3"
+                aria-label="Clear measurement"
+                onClick={() => {
+                  setMeasurementPoints([]);
+                  setSnapNotice(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+                Clear
+              </Button>
+            )}
+          </div>
+        )}
+        {measuring && (
+          <div className="flex h-7 min-w-0 items-center gap-1.5 overflow-hidden">
+            <p role="status" className="min-w-0 flex-1 truncate rounded-md bg-black/80 px-2 py-1 text-xs text-white">
+              {measurementMode === "distance"
+                ? measurementPoints.length === 0
+                  ? "Tap the first point on the model"
+                  : measurementPoints.length === 1
+                    ? "Tap the second point on the model"
+                    : distanceLabel + " - tap again to start a new measurement"
+                : measurementPoints.length === 0
+                  ? "Tap the first angle arm point"
+                  : measurementPoints.length === 1
+                    ? "Tap the angle vertex (second point)"
+                    : measurementPoints.length === 2
+                      ? "Tap the other angle arm point"
+                      : angleLabel
+                        ? angleLabel + " - tap again to start a new angle"
+                        : "Angle undefined - tap to start again"}
+            </p>
+            {snapNotice && (
+              <span className="shrink-0 rounded-md bg-black/75 px-2 py-1 text-[10px] text-amber-200">
+                Snapped to {snapNotice}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+
     </div>
   );
 }

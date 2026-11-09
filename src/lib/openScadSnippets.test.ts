@@ -5,6 +5,9 @@ describe('OpenSCAD toolbar snippets', () => {
   it('provides 60 accessible built-ins and 10 nonempty categories', () => {
     expect(openScadSnippets).toHaveLength(60);
     expect(snippetCategories).toHaveLength(10);
+    expect(snippetCategories[0]).toBe('Annotations');
+    expect(openScadSnippets.filter(item => item.category === 'Annotations').map(item => item.id))
+      .toEqual(['text', 'arrow', 'double-arrow', 'dimension']);
     expect(snippetCategories.every(category => openScadSnippets.some(item => item.category === category))).toBe(true);
     expect(openScadSnippets.every(item => item.description.trim() && item.icon.trim())).toBe(true);
     expect(new Set(openScadSnippets.map(item => item.id)).size).toBe(60);

@@ -1,5 +1,6 @@
 import { ActivityIndicator } from "@/components/brand";
 import { ThreeScene } from "@/components/viewer/ThreeScene";
+import { describeOpenScadFailure } from "@/lib/openScadFeedback";
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import {
@@ -13,6 +14,8 @@ import { type EnabledOpenScadExportFormat } from "@/lib/openScadExportFormats";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BufferGeometry, Group } from "three";
+import { parseColoredOff } from "@/utils/offParser";
+import { extractFeatureEdgeTopology, type FeatureEdge } from "@/lib/featureEdgeTopology";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { exportStlAsThreeMf } from "@/utils/threeMfExport";
 import { exportColoredOffAsOrcaThreeMf } from "@/utils/orcaThreeMfExport";
@@ -52,8 +55,10 @@ export function LocalOpenScadPreview({
     isError,
   } = useOpenSCAD();
   const isMobile = useIsMobile();
+  const failure = isError ? describeOpenScadFailure(error) : null;
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
+  const [featureEdges, setFeatureEdges] = useState<FeatureEdge[]>([]);
   const mountedGroupRef = useRef<Group | null>(null);
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
   const compileSequence = useRef(0);
@@ -119,6 +124,7 @@ export function LocalOpenScadPreview({
       if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
       mountedGroupRef.current = null;
       setColoredGroup(null);
+      setFeatureEdges([]);
       return;
     }
     let cancelled = false;
@@ -126,13 +132,20 @@ export function LocalOpenScadPreview({
       .text()
       .then((text) => {
         if (cancelled) return;
-        const group = buildColoredGroupFromOff(text, 0x00a6ff);
+        const parsed = parseColoredOff(text);
+        const group = buildColoredGroupFromOff(text, 0x00a6ff, parsed);
+        // Stay responsive for unusually large meshes until workerized topology.
+        const snapEdges = parsed.faces.length <= 40_000
+          ? extractFeatureEdgeTopology(parsed).edges
+          : [];
         if (mountedGroupRef.current)
           disposeColoredGroup(mountedGroupRef.current);
         mountedGroupRef.current = group;
         setColoredGroup(group);
+        setFeatureEdges(snapEdges.length <= 15_000 ? snapEdges : []);
       })
       .catch((cause: unknown) => {
+        setFeatureEdges([]);
         console.error("[Gallery preview] Could not parse color data:", cause);
       });
     return () => {
@@ -211,6 +224,7 @@ export function LocalOpenScadPreview({
           <ThreeScene
             geometry={geometry}
             coloredGroup={coloredGroup}
+            featureEdges={featureEdges}
             color="#00A6FF"
             isMobile={isMobile}
           />
@@ -228,11 +242,33 @@ export function LocalOpenScadPreview({
           ) : (
             <RefreshCw className="h-6 w-6 animate-spin text-adam-neutral-400" />
           )}
-          <p className="max-w-lg text-sm text-adam-neutral-300">
-            {isError
-              ? (error?.message ?? "OpenSCAD could not compile this model.")
-              : "Preparing model preview…"}
-          </p>
+          {failure ? (
+            <div role="alert" className="max-w-lg space-y-2 text-sm text-adam-neutral-300">
+              <p className="font-semibold text-adam-text-primary">{failure.title}</p>
+              <p>{failure.message}</p>
+              {failure.diagnostics && (
+                <details className="text-left">
+                  <summary className="cursor-pointer">Compiler details</summary>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs">
+                    {failure.diagnostics}
+                  </pre>
+                </details>
+              )}
+              {failure.canRetry && (
+                <button
+                  type="button"
+                  className="rounded-md border border-white/25 px-3 py-2 font-medium"
+                  onClick={() => void compileProject(project)}
+                >
+                  Retry preview
+                </button>
+              )}
+            </div>
+          ) : (
+            <p role="status" className="max-w-lg text-sm text-adam-neutral-300">
+              Preparing model preview…
+            </p>
+          )}
         </div>
       )}
     </section>

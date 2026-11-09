@@ -5,7 +5,7 @@ import {
   Mesh,
   MeshStandardMaterial,
 } from 'three';
-import { parseColoredOff } from './offParser';
+import { parseColoredOff, type ParsedOff } from './offParser';
 
 // OpenSCAD paints any face without an explicit color() call with its built-in
 // model yellow (#F9D72C ≈ 249,215,44). Manifold also emits a secondary
@@ -34,8 +34,9 @@ function stripOpenscadDefaults(
 export function buildColoredGroupFromOff(
   offText: string,
   fallbackColor: number,
+  preParsed?: ParsedOff,
 ): Group | null {
-  const parsed = parseColoredOff(offText);
+  const parsed = preParsed ?? parseColoredOff(offText);
 
   for (const face of parsed.faces) {
     face.color = stripOpenscadDefaults(face.color);

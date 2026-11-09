@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import OpenSCADError from '@/lib/OpenSCADError';
-import { assertOpenScadOutputWithinLimit } from '@/lib/openScadLimits';
+import { assertOpenScadOutputWithinLimit, OPENSCAD_EXPORT_TIMEOUT_MS } from '@/lib/openScadLimits';
 import { normalizeOpenSCADDxf } from '@/utils/dxfUtils';
 import { getOpenScadExportFormat, isOpenScadExportFormat } from '@/lib/openScadExportFormats';
 import { OpenScadWorkerClient } from '@/worker/openScadWorkerClient';
@@ -214,7 +214,11 @@ export function useOpenSCAD() {
         data: { project: normalizedProject, params: [], fileType },
       };
       const response =
-        await getClient().request<OpenSCADWorkerResponseData>(message);
+        await getClient().request<OpenSCADWorkerResponseData>(
+          message,
+          [],
+          OPENSCAD_EXPORT_TIMEOUT_MS,
+        );
       assertOpenScadOutputWithinLimit(response);
 
       if (!response.output) {

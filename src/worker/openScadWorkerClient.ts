@@ -1,4 +1,5 @@
 import { OPENSCAD_COMPILE_TIMEOUT_MS } from '@/lib/openScadLimits';
+import { OpenScadTimeoutError } from '@/lib/openScadTimeoutError';
 import type { OpenSCADWorkerResponseData, WorkerMessage } from '@/worker/types';
 import { errorFromWorker } from '@/worker/workerError';
 
@@ -66,9 +67,7 @@ export class OpenScadWorkerClient {
 
     return new Promise<T>((resolve, reject) => {
       const timeoutId = globalThis.setTimeout(() => {
-        this.reset(
-          new Error(`OpenSCAD worker timed out after ${timeoutMs} ms.`),
-        );
+        this.reset(new OpenScadTimeoutError(timeoutMs));
       }, timeoutMs);
 
       this.pending.set(message.id, {
