@@ -313,6 +313,42 @@
 .scad-editor__snippet-hint strong { color: #e5effb; font-weight: 600; }
 
 .scad-editor__selection-compact { display: none !important; }
+.scad-editor__signature {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-bottom: 1px solid #354054;
+  background: #17293a;
+  color: #d1e5f8;
+  font-size: 12px;
+}
+.scad-editor__signature-context {
+  flex: 0 0 auto;
+  max-width: 26%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #93b6d4;
+  font-size: 11px;
+}
+.scad-editor__signature-code {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.scad-editor__signature-active {
+  border-radius: 3px;
+  padding: 2px 3px;
+  background: #2f648d;
+  color: #fff;
+  font-weight: 700;
+}
 .scad-editor__viewport { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .scad-editor__viewport .cm-editor { flex: 1 1 auto; width: 100%; min-height: 0; font-size: 13px; }
 .scad-editor__viewport .cm-scroller {
@@ -321,10 +357,10 @@
 }
 .scad-editor__status {
   display: flex;
-  flex: 0 0 18px;
+  flex: 0 0 24px;
   align-items: center;
   justify-content: space-between;
-  min-height: 18px;
+  min-height: 24px;
   gap: 8px;
   overflow: hidden;
   padding: 0 5px;
@@ -334,6 +370,7 @@
 }
 .scad-editor__status span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scad-editor__status-dirty { color: #fac783; }
+.scad-editor__status-feedback { flex: 1 1 auto; min-width: 0; color: #c8deef; text-align: center; }
 @media (max-width: 375px) {
   .scad-editor__selection-menu { display: none; }
   .scad-editor__selection-compact { display: flex !important; }

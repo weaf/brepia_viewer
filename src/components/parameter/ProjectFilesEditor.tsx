@@ -1,10 +1,49 @@
 import { FileCode2, Maximize2, Minimize2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { OpenScadSourceEditor } from '@/components/parameter/OpenScadSourceEditor';
 import type { OpenScadProject } from '@shared/openScadProject';
+
+// Opt-in field diagnostics for Chrome's real on-screen keyboard. Never shown
+// in the normal preview; enabled only by ?viewportDebug=1.
+function ViewportDebug() {
+  const [metrics, setMetrics] = useState<string[]>([]);
+  useEffect(() => {
+    const update = () => {
+      const vv = window.visualViewport;
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      const rect = dialog?.getBoundingClientRect();
+      const footer = document.querySelector<HTMLElement>('.scad-editor__status')?.getBoundingClientRect();
+      const rounded = (value: number | undefined) => value === undefined ? '?' : String(Math.round(value));
+      const keyboard = (navigator as Navigator & {
+        virtualKeyboard?: { boundingRect: DOMRectReadOnly };
+      }).virtualKeyboard?.boundingRect;
+      setMetrics([
+        'innerH ' + rounded(window.innerHeight) + ' clientH ' + rounded(document.documentElement.clientHeight) +
+          ' outerH ' + rounded(window.outerHeight),
+        'visualH ' + rounded(vv?.height) + ' offsetTop ' + rounded(vv?.offsetTop) +
+          ' scale ' + (vv?.scale ?? 1).toFixed(2),
+        'visibleBottom ' + rounded(vv ? vv.offsetTop + vv.height : undefined) +
+          ' dialogBottom ' + rounded(rect?.bottom) + ' gap ' +
+          rounded(vv && rect ? vv.offsetTop + vv.height - rect.bottom : undefined),
+        'footerBottom ' + rounded(footer?.bottom) + ' bodyH ' +
+          rounded(document.body.clientHeight) + ' scrollY ' + rounded(window.scrollY),
+        'virtualKeyboardTop ' + rounded(keyboard?.top) + ' keyboardH ' + rounded(keyboard?.height),
+      ]);
+    };
+    update();
+    const timer = window.setInterval(update, 250);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <div data-testid="viewer-viewport-debug" aria-label="Viewport diagnostics"
+      className="pointer-events-none absolute left-2 right-2 top-11 z-50 rounded border border-cyan-400/60 bg-slate-950/95 px-2 py-1 font-mono text-[10px] leading-4 text-cyan-100 shadow-lg">
+      {metrics.map((line, index) => <div key={index}>{line}</div>)}
+    </div>
+  );
+}
 
 interface ProjectFilesEditorProps {
   project?: OpenScadProject;
@@ -19,8 +58,12 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  // On Android, the soft keyboard shrinks visualViewport, not necessarily 100dvh.
+  // Keep the entire dialog, including CodeMirror's status footer, above it.
+  const [mobileViewport, setMobileViewport] = useState<{ top: number; bottom: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [definitionTarget, setDefinitionTarget] = useState<{ path: string; offset: number } | null>(null);
 
   const selectedFile = useMemo(
     () => files.find(file => file.path === selectedPath) ?? null,
@@ -43,11 +86,46 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
     [project, drafts],
   );
 
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const update = () => {
+      if (!window.matchMedia('(max-width: 639px)').matches && !(viewport.height < window.innerHeight - 48)) {
+        setMobileViewport(null);
+        return;
+      }
+      // Pin both edges to the *visible* viewport. Supplying a pixel height
+      // alongside DialogContent's intrinsic sizing left an Android keyboard gap.
+      // Fixed top+bottom with auto height also handles URL-bar/viewport motion.
+      const margin = isExpanded ? 1 : 2;
+      const next = {
+        top: Math.max(0, Math.round(viewport.offsetTop + margin)),
+        bottom: Math.max(0, Math.round(window.innerHeight - viewport.offsetTop - viewport.height + margin)),
+      };
+      setMobileViewport(current => current?.top === next.top && current.bottom === next.bottom
+        ? current : next);
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+    };
+  }, [dialogOpen, isExpanded]);
+
   if (!project) return null;
 
   const openFile = (path: string) => {
     if (!files.some(file => file.path === path)) return;
     setDrafts({});
+    setDefinitionTarget(null);
     setSelectedPath(path);
     setIsExpanded(false);
     setSaveError(null);
@@ -56,10 +134,11 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
     setDialogOpen(true);
   };
 
-  const changeFile = (path: string) => {
+  const changeFile = (path: string, offset?: number) => {
     if (isSaving || !files.some(file => file.path === path)) return;
     // Every file keeps its own unsaved draft while the dialog is open.
     setSelectedPath(path);
+    setDefinitionTarget(offset === undefined ? null : { path, offset });
     setSaveError(null);
   };
 
@@ -83,6 +162,7 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
     if (isAnyDirty && !window.confirm('Discard unsaved changes in the project editor?')) return;
     setDialogOpen(false);
     setSelectedPath(null);
+    setDefinitionTarget(null);
     setDrafts({});
     setSaveError(null);
     setIsExpanded(false);
@@ -159,6 +239,13 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
 
       <Dialog open={dialogOpen} onOpenChange={open => { if (open) setDialogOpen(true); else closeEditor(); }}>
         <DialogContent
+          style={mobileViewport ? {
+            top: mobileViewport.top,
+            bottom: mobileViewport.bottom,
+            height: 'auto',
+            maxHeight: 'none',
+            transform: 'translateX(-50%)',
+          } : undefined}
           className={cn(
             'flex min-w-0 flex-col gap-2 overflow-hidden rounded-lg bg-adam-bg-secondary-dark p-2 sm:gap-3 sm:p-4',
             isExpanded
@@ -185,8 +272,10 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
             </DialogDescription>
           </DialogHeader>
 
+          {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('viewportDebug') === '1' && <ViewportDebug />}
           <OpenScadSourceEditor
             key={selectedPath ?? 'none'}
+            viewportKey={mobileViewport ? mobileViewport.top + ':' + mobileViewport.bottom : 'normal'}
             ariaLabel={selectedFile ? 'OpenSCAD source for ' + selectedFile.path : 'OpenSCAD source'}
             value={draftContent}
             onChange={changeDraft}
@@ -194,6 +283,7 @@ export function ProjectFilesEditor({ project, onSaveFile, disabled = false, onEd
             project={completionProject}
             currentPath={selectedFile?.path}
             onSelectFile={changeFile}
+            definitionTarget={definitionTarget}
             onSave={() => { void saveDraft(); }}
             onDiscard={discardDraft}
             isDirty={isDirty}
