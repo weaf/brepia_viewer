@@ -97,7 +97,7 @@ try {
     await page.screenshot({path:path.join(evidence,device.name+'-gallery.png'),fullPage:true});
     if(!body.includes('Upload model')) violations.push(device.name+' missing upload button');
 
-    await page.locator('input[type=file]').first().setInputFiles({
+    await page.locator('input[type=file][accept=".scad,.scad.txt"]').setInputFiles({
       name:'cube-static-smoke.scad',
       mimeType:'text/plain',
       buffer:Buffer.from("/* [Dimensions] */\nwidth = 10; // [5:1:30]\nheight = 10; // [5:1:30]\nextra_01 = 1; // [0:1:100]\nextra_02 = 2; // [0:1:100]\nextra_03 = 3; // [0:1:100]\nextra_04 = 4; // [0:1:100]\nextra_05 = 5; // [0:1:100]\nextra_06 = 6; // [0:1:100]\nextra_07 = 7; // [0:1:100]\nextra_08 = 8; // [0:1:100]\nextra_09 = 9; // [0:1:100]\nextra_10 = 10; // [0:1:100]\nextra_11 = 11; // [0:1:100]\nextra_12 = 12; // [0:1:100]\nextra_13 = 13; // [0:1:100]\nextra_14 = 14; // [0:1:100]\nextra_15 = 15; // [0:1:100]\nextra_16 = 16; // [0:1:100]\nextra_17 = 17; // [0:1:100]\nextra_18 = 18; // [0:1:100]\ncube([width,width,height], center=true);\n"),
