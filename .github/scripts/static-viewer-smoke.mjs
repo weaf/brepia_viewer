@@ -97,7 +97,7 @@ try {
     await page.screenshot({path:path.join(evidence,device.name+'-gallery.png'),fullPage:true});
     if(!body.includes('Upload model')) violations.push(device.name+' missing upload button');
 
-    await page.locator('input[type=file]').first().setInputFiles({
+    await page.locator('input[type=file][accept=".scad,.scad.txt"]').setInputFiles({
       name:'cube-static-smoke.scad',
       mimeType:'text/plain',
       buffer:Buffer.from("/* [Dimensions] */\nwidth = 10; // [5:1:30]\nheight = 10; // [5:1:30]\nextra_01 = 1; // [0:1:100]\nextra_02 = 2; // [0:1:100]\nextra_03 = 3; // [0:1:100]\nextra_04 = 4; // [0:1:100]\nextra_05 = 5; // [0:1:100]\nextra_06 = 6; // [0:1:100]\nextra_07 = 7; // [0:1:100]\nextra_08 = 8; // [0:1:100]\nextra_09 = 9; // [0:1:100]\nextra_10 = 10; // [0:1:100]\nextra_11 = 11; // [0:1:100]\nextra_12 = 12; // [0:1:100]\nextra_13 = 13; // [0:1:100]\nextra_14 = 14; // [0:1:100]\nextra_15 = 15; // [0:1:100]\nextra_16 = 16; // [0:1:100]\nextra_17 = 17; // [0:1:100]\nextra_18 = 18; // [0:1:100]\ncube([width,width,height], center=true);\n"),
@@ -304,33 +304,33 @@ try {
         if (!captions.includes(caption)) violations.push(device.name+' missing '+caption+' label in '+category);
       }
     }
-    await snippetPanel.getByRole('button',{name:'Noteringar',exact:true}).click();
+    await snippetPanel.getByRole('button',{name:'Annotations',exact:true}).click();
     const noteCaptions=await snippetPanel.locator('.scad-editor__snippet-caption').allTextContents();
     for (const label of ['Text','Arrow','2-way','Dimension']) {
-      if (!noteCaptions.includes(label)) violations.push(device.name+' Noteringar category missing '+label);
+      if (!noteCaptions.includes(label)) violations.push(device.name+' Annotations category missing '+label);
     }
     await page.screenshot({path:path.join(evidence,device.name+'-annotations-menu.png'),fullPage:true});
     await snippetPanel.getByRole('button',{name:'Text',exact:true}).click();
     if(!(await readSource()).includes('linear_extrude(height = 3)')) {
-      violations.push(device.name+' Noteringar Text did not insert extruded text');
+      violations.push(device.name+' Annotations Text did not insert extruded text');
     }
     await moreTools.click();
     await undoAction.click();
     if((await readSource()).includes('linear_extrude(height = 3)')) {
-      violations.push(device.name+' Undo failed for inserted Noteringar snippet');
+      violations.push(device.name+' Undo failed for inserted Annotations snippet');
     }
     await moreTools.click();
     await redoAction.click();
     if(!(await readSource()).includes('linear_extrude(height = 3)')) {
-      violations.push(device.name+' Redo failed for inserted Noteringar snippet');
+      violations.push(device.name+' Redo failed for inserted Annotations snippet');
     }
     await moreTools.click();
     await discardSource.click();
     await insertCode.click();
-    await snippetPanel.getByRole('button',{name:'Noteringar',exact:true}).click();
+    await snippetPanel.getByRole('button',{name:'Annotations',exact:true}).click();
     await snippetPanel.getByRole('button',{name:'Dimension',exact:true}).click();
     if(!(await readSource()).includes('text(str(dimension_length, " mm")')) {
-      violations.push(device.name+' Noteringar Dimension did not insert dimension lines and label');
+      violations.push(device.name+' Annotations Dimension did not insert dimension lines and label');
     }
     await moreTools.click();
     await discardSource.click();
