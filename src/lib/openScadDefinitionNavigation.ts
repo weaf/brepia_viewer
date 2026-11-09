@@ -242,5 +242,3 @@ export function findOpenScadProjectDefinition(
   }
   return null;
 }
-
-\n

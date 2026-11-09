@@ -116,5 +116,3 @@ describe('scoped variables, parameters, let/for and large model navigation', () 
     expect(locate(p,'main.scad',source,source.indexOf('private_size')+1)).toBeNull();
   });
 });
-
-\n
