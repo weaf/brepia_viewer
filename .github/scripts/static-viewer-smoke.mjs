@@ -202,9 +202,10 @@ try {
     const expandedToMobileEdges = device.name === 'mobile' &&
       initialDialogBounds && expandedDialogBounds &&
       initialDialogBounds.height >= viewport.height * 0.94 &&
-      expandedDialogBounds.height >= viewport.height - 4 &&
-      expandedDialogBounds.width >= viewport.width - 2 &&
-      expandedDialogBounds.height >= initialDialogBounds.height - 1;
+      expandedDialogBounds.height >= viewport.height - 6 &&
+      expandedDialogBounds.width >= viewport.width - 6 &&
+      expandedDialogBounds.height >= initialDialogBounds.height - 1 &&
+      expandedDialogBounds.width >= initialDialogBounds.width + 3;
     if(!expandedDialogBounds || !initialDialogBounds ||
        (!expandedToMobileEdges && expandedDialogBounds.height < initialDialogBounds.height + minGrowth) ||
        expandedDialogBounds.width < initialDialogBounds.width - 2) {
