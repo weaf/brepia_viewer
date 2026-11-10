@@ -119,7 +119,7 @@ function parseGithubUrl(input: string): {
   if (parts.some((part) => part === "." || part === ".." || part.includes("\\") || /[\x00-\x1f]/.test(part))) {
     throw new Error("The GitHub URL contains an unsafe path.");
   }
-  return { owner, repository, kind: mode ?? "repo", rest: tail };
+  return { owner, repository, kind: mode === "tree" || mode === "blob" ? mode : "repo", rest: tail };
 }
 
 function apiUrl(owner: string, repository: string, suffix: string): string {
