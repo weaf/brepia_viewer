@@ -6,6 +6,8 @@ export type FeatureSnap = {
   point: ModelPoint;
   kind: 'corner' | 'edge';
   pixelDistance: number;
+  /** Geometric OFF shell only, never inferred source module identity. */
+  shellIndex?: number;
 };
 
 export type FeatureSnapArgs = {
@@ -30,7 +32,7 @@ export function pickFeatureSnap({
   if (viewport.width <= 0 || viewport.height <= 0 ||
       !Number.isFinite(maxPixels) || maxPixels <= 0) return null;
   const candidates: FeatureSnap[] = [];
-  const corners = new Set<string>();
+  const corners = new Map<string, FeatureSnap>();
   const pixel = (projected: THREE.Vector3) => ({
     x: (projected.x - pointerNdc.x) * viewport.width / 2,
     y: (projected.y - pointerNdc.y) * viewport.height / 2,
@@ -44,12 +46,18 @@ export function pickFeatureSnap({
     for (const [p,projected] of [[a,pa],[b,pb]] as const) {
       if (projected.z < -1 || projected.z > 1) continue;
       const key = p.toArray().join('/');
-      if (corners.has(key)) continue;
-      corners.add(key);
+      const existingCorner = corners.get(key);
+      if (existingCorner) {
+        if (existingCorner.shellIndex !== edge.shellIndex) delete existingCorner.shellIndex;
+        continue;
+      }
       const delta = pixel(projected);
       const distance = Math.hypot(delta.x,delta.y);
       if (distance <= maxPixels) {
-        candidates.push({ point: [p.x,p.y,p.z], kind:'corner', pixelDistance:distance });
+        const candidate: FeatureSnap = { point: [p.x,p.y,p.z], kind:'corner', pixelDistance:distance };
+        if (edge.shellIndex !== undefined) candidate.shellIndex = edge.shellIndex;
+        corners.set(key, candidate);
+        candidates.push(candidate);
       }
     }
     if (pa.z < -1 || pa.z > 1 || pb.z < -1 || pb.z > 1) continue;
@@ -66,6 +74,7 @@ export function pickFeatureSnap({
       point: [pointOnSegment.x,pointOnSegment.y,pointOnSegment.z],
       kind: 'edge',
       pixelDistance:projectedGap,
+      ...(edge.shellIndex !== undefined ? { shellIndex: edge.shellIndex } : {}),
     });
   }
   // Prefer nearby corners for precise measurement, but do not pull a touch

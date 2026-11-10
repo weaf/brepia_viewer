@@ -34,6 +34,18 @@ describe('OFF feature-edge topology', () => {
     }
   });
 
+  it('labels separate edge-connected cubes without inventing source modules', () => {
+    const first = cube();
+    const second = cube();
+    const vertices = [...first.vertices, ...second.vertices.map(([x,y,z]) => [x + 30,y,z] as [number,number,number])];
+    const faces = [...first.faces, ...second.faces.map(face => ({
+      ...face, vertices: face.vertices.map(index => index + 8) as [number,number,number],
+    }))];
+    const result = extractFeatureEdgeTopology({ vertices, faces });
+    expect(result.edges).toHaveLength(24);
+    expect(new Set(result.edges.map(edge => edge.shellIndex))).toEqual(new Set([1, 2]));
+  });
+
   it('ignores artificial color-bucket boundaries across coplanar faces', () => {
     const model = cube();
     model.faces = model.faces.map((face, index) => ({

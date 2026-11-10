@@ -1,5 +1,6 @@
 import type { ModelPoint } from './measureDistance';
 import type { ParsedOff } from '@/utils/offParser';
+import { connectedClosedShells } from '@/utils/orcaSplitSafeThreeMf';
 
 export type FeatureEdgeKind = 'sharp' | 'open-boundary' | 'non-manifold';
 
@@ -8,6 +9,8 @@ export type FeatureEdge = {
   end: ModelPoint;
   kind: FeatureEdgeKind;
   adjacentFaces: number;
+  /** Edge-connected OFF shell number, not an OpenSCAD module identity. */
+  shellIndex?: number;
 };
 
 type EdgeRecord = {
@@ -15,6 +18,7 @@ type EdgeRecord = {
   end: ModelPoint;
   normals: ModelPoint[];
   adjacentFaces: number;
+  shellIndices: Set<number>;
 };
 
 const MAX_FACES = 200_000;
@@ -72,8 +76,16 @@ export function extractFeatureEdgeTopology(
   const lookup = new Map<string, EdgeRecord>();
   let ignoredDegenerateFaces = 0;
   let analyzedFaces = 0;
+  // Reuse the same edge-connected shell order as Parts & colors. Large meshes
+  // retain geometry snapping, but no potentially expensive shell attribution.
+  const faceShellIndex = new Map<number, number>();
+  if (parsed.faces.length <= 12_000) {
+    connectedClosedShells(parsed).forEach((shell, index) => {
+      for (const faceIndex of shell.faceIndices) faceShellIndex.set(faceIndex, index + 1);
+    });
+  }
 
-  for (const face of parsed.faces) {
+  for (const [faceIndex, face] of parsed.faces.entries()) {
     const points = face.vertices.map((index) => parsed.vertices[index]);
     if (points.length !== 3 || points.some((point) =>
       !point || point.some((coordinate) => !Number.isFinite(coordinate)))) {
@@ -97,12 +109,15 @@ export function extractFeatureEdgeTopology(
       if (existing) {
         existing.adjacentFaces += 1;
         existing.normals.push(normal);
+        const shellIndex = faceShellIndex.get(faceIndex);
+        if (shellIndex !== undefined) existing.shellIndices.add(shellIndex);
       } else {
         lookup.set(key, {
           start: a,
           end: b,
           normals: [normal],
           adjacentFaces: 1,
+          shellIndices: new Set(faceShellIndex.has(faceIndex) ? [faceShellIndex.get(faceIndex)!] : []),
         });
       }
     }
@@ -128,6 +143,7 @@ export function extractFeatureEdgeTopology(
         end: entry.end,
         kind,
         adjacentFaces: entry.adjacentFaces,
+        ...(entry.shellIndices.size === 1 ? { shellIndex: [...entry.shellIndices][0] } : {}),
       });
     }
   }
