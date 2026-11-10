@@ -65,6 +65,15 @@ try {
       await page.getByRole('button', { name: 'Import selected project' }).click();
       await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 45000 });
       await page.getByRole('region', { name: '3D model preview' }).waitFor({ timeout: 30000 });
+      // Do not treat a successful download as rendered geometry: OpenSCAD must
+      // finish compiling the imported fixture before the test can pass.
+      await page.getByText(/\\b12 triangles\\b/).first().waitFor({ timeout: 120000 });
+      const canvas = page.locator('canvas').first();
+      await canvas.waitFor({ state: 'visible', timeout: 30000 });
+      const dimensions = await canvas.boundingBox();
+      if (!dimensions || dimensions.width < 80 || dimensions.height < 80) {
+        throw new Error(`${device.name} ${scenario}: no usable 3D preview canvas`);
+      }
       await page.screenshot({ path: path.join(evidence, `github-import-${scenario}-${device.name}.png`), fullPage: true });
       if (errors.length) throw new Error(`${device.name} ${scenario} JS errors: ${errors.join('; ')}`);
       await context.close();
