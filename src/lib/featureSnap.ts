@@ -68,9 +68,14 @@ export function pickFeatureSnap({
       pixelDistance:projectedGap,
     });
   }
+  // Prefer nearby corners for precise measurement, but do not pull a touch
+  // across most of the snap radius when a sharp edge is under the pointer.
+  // A six-pixel corner advantage works for both touch and mouse coordinates.
+  const cornerAdvantagePixels = 6;
   candidates.sort((a,b) =>
-    (a.kind === b.kind ? 0 : a.kind === 'corner' ? -1 : 1)
-      || a.pixelDistance - b.pixelDistance);
+    (a.pixelDistance - (a.kind === 'corner' ? cornerAdvantagePixels : 0))
+    - (b.pixelDistance - (b.kind === 'corner' ? cornerAdvantagePixels : 0))
+    || (a.kind === b.kind ? 0 : a.kind === 'corner' ? -1 : 1));
   const checked = Math.min(candidates.length,120);
   for (let i=0;i<checked;i++) {
     const candidate=candidates[i];
