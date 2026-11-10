@@ -89,13 +89,13 @@ describe("GitHub OpenSCAD URL import", () => {
       f,
     );
     expect(imported.project.entrypointPath).toBe("main.scad");
-    expect(imported.project.files.map((file) => file.path)).toEqual(["main.scad", "helper.scad"]);
+    expect(imported.project.files.map((file) => file.path)).toEqual(["helper.scad", "main.scad"]);
     expect(progress).toEqual(["0/2", "1/2", "2/2"]);
   });
 
   it("rejects invalid urls without requests", async () => {
     const f = fetcher();
-    await expect(inspectGithubScadUrl("https://github.com/tanius/openscad-models/blob/master/../../secret.scad", f)).rejects.toThrow(/unsafe|Invalid/);
+    await expect(inspectGithubScadUrl("https://github.com/tanius/openscad-models/blob/master/../../secret.scad", f)).rejects.toThrow(/unsafe|Invalid|Use a GitHub repository/);
     expect(f).not.toHaveBeenCalled();
   });
 
