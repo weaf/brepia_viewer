@@ -1429,7 +1429,7 @@ export function ModelGalleryView() {
                   Other files are not downloaded. Choose a smaller folder if the project exceeds the import limits.
                 </p>
               </section>
-            )
+            )}
           </form>
         )}
 
