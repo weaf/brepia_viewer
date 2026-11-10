@@ -1302,6 +1302,7 @@ export function ModelGalleryView() {
                 onChange={(event) => setUrlToImport(event.target.value)}
                 placeholder="https://example.org/model.scad"
                 aria-label="OpenSCAD file URL"
+                className="!border-[#818b92] hover:!border-[#a8b1b8] focus:!border-[#38bdf8] focus:!ring-2 focus:!ring-[#38bdf8]"
                 disabled={isUploading}
                 required
               />
@@ -1310,7 +1311,7 @@ export function ModelGalleryView() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-adam-neutral-400">
-              Direct .scad files only; the server must allow CORS. Upload a folder for models with external dependencies.
+              For OpenSCAD projects with multiple files, use Upload folder.
             </p>
           </form>
         )}

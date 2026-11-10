@@ -6,6 +6,37 @@ const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 const printableArea = ['0.5x1','270.5x1','270.5x271','0.5x271'];
 
+// Verified against the installed Snapmaker Orca 2.4.1 process presets.
+// A 0.20mm profile designed for a 0.4mm nozzle must not be applied to a
+// 0.2mm nozzle. The explicit widths also avoid stale Orca process defaults
+// when opening a 3MF originally produced without process settings.
+const u1StandardProcesses = {
+  '0.2': {
+    print_settings_id: '0.12mm Standard @Snapmaker U1 (0.2 nozzle)',
+    layer_height: '0.12',
+    initial_layer_print_height: '0.14',
+    line_width: '0.22',
+    initial_layer_line_width: '0.25',
+    outer_wall_line_width: '0.22',
+    inner_wall_line_width: '0.22',
+    sparse_infill_line_width: '0.22',
+    top_surface_line_width: '0.22',
+    support_line_width: '0.22',
+  },
+  '0.4': {
+    print_settings_id: '0.20mm Standard @Snapmaker U1 (0.4 nozzle)',
+    layer_height: '0.2',
+    initial_layer_print_height: '0.25',
+    line_width: '0.42',
+    initial_layer_line_width: '0.5',
+    outer_wall_line_width: '0.42',
+    inner_wall_line_width: '0.45',
+    sparse_infill_line_width: '0.45',
+    top_surface_line_width: '0.42',
+    support_line_width: '0.42',
+  },
+} as const;
+
 /** Add Snapmaker Orca 2.4.1 U1 project metadata and 3MF build-item
  * placement. Geometry, colors and component structure are untouched.
  * The number of virtual RGB entries is independent of four print heads.
@@ -54,6 +85,7 @@ export async function adaptOrca3mfToSnapmakerU1(
   const virtualColors = Array.isArray(oldSettings.filament_colour) ? oldSettings.filament_colour : [];
   const settings = {
     ...oldSettings,
+    ...u1StandardProcesses[nozzle],
     printer_model: 'Snapmaker U1',
     printer_settings_id: profile,
     printer_variant: nozzle,
