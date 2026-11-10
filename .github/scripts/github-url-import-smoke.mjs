@@ -68,12 +68,16 @@ try {
       // Do not treat a successful download as rendered geometry: OpenSCAD must
       // finish compiling the imported fixture before the test can pass.
       await page.getByText(/\b12 triangles\b/).first().waitFor({ timeout: 120000 });
-      const canvas = page.locator('canvas').first();
-      await canvas.waitFor({ state: 'visible', timeout: 30000 });
-      const dimensions = await canvas.boundingBox();
-      if (!dimensions || dimensions.width < 80 || dimensions.height < 80) {
-        throw new Error(`${device.name} ${scenario}: no usable 3D preview canvas`);
-      }
+      // Thumbnail creation can add its own canvas before the actual 3D viewer.
+      // Wait for the scene canvas in its preview region to acquire usable size.
+      const canvas = page.locator('section[aria-label="3D model preview"] canvas').first();
+      await canvas.waitFor({ state: 'visible', timeout: 90000 });
+      await page.waitForFunction(() => {
+        const target = document.querySelector('section[aria-label="3D model preview"] canvas');
+        if (!target) return false;
+        const bounds = target.getBoundingClientRect();
+        return bounds.width >= 80 && bounds.height >= 80;
+      }, null, { timeout: 90000 });
       await page.screenshot({ path: path.join(evidence, `github-import-${scenario}-${device.name}.png`), fullPage: true });
       if (errors.length) throw new Error(`${device.name} ${scenario} JS errors: ${errors.join('; ')}`);
       await context.close();
