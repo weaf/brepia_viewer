@@ -67,7 +67,7 @@ try {
       await page.getByRole('region', { name: '3D model preview' }).waitFor({ timeout: 30000 });
       // Do not treat a successful download as rendered geometry: OpenSCAD must
       // finish compiling the imported fixture before the test can pass.
-      await page.getByText(/\\b12 triangles\\b/).first().waitFor({ timeout: 120000 });
+      await page.getByText(/\b12 triangles\b/).first().waitFor({ timeout: 120000 });
       const canvas = page.locator('canvas').first();
       await canvas.waitFor({ state: 'visible', timeout: 30000 });
       const dimensions = await canvas.boundingBox();
