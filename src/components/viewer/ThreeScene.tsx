@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { distanceBetweenModelPoints, type ModelPoint } from "@/lib/measureDistance";
-import { angleBetweenModelPoints, angleArcPoints, formatDistanceFromModelUnits, type DistanceUnit } from "@/lib/measurementGeometry";
+import { inclinationFromHorizontal, inclinationGuides, formatDistanceFromModelUnits, type DistanceUnit } from "@/lib/measurementGeometry";
 import { pickFeatureSnap } from "@/lib/featureSnap";
 import type { FeatureEdge } from "@/lib/featureEdgeTopology";
 import { resolveViewerBackgroundLightness } from "@/lib/viewerBackground";
@@ -69,7 +69,7 @@ type ModelSurfacePointer = {
 // Mobile handles live in screen space (44 px) but remain anchored to 3D
 // surface points. Native pointer capture keeps a dragged handle responsive
 // even when a finger leaves the small model or handle target.
-function MobileDistanceHandles({
+function MobileMeasurementHandles({
   points,
   modelRef,
   autoPlace,
@@ -352,7 +352,7 @@ export function ThreeScene({
       const { point, snapKind } = resolveMeasurementPoint(event);
       setSnapNotice(snapKind);
       setMeasurementPoints((previous) =>
-        previous.length >= (measurementMode === "angle" ? 3 : 2)
+        previous.length >= 2
           ? [point]
           : [...previous, point],
       );
@@ -360,7 +360,7 @@ export function ThreeScene({
     [measuring, measurementMode, resolveMeasurementPoint, draggingMeasurement],
   );
 
-  const dragDistanceEndpoint = useCallback(
+  const dragMeasurementEndpoint = useCallback(
     (index: number, sample: ModelSurfacePointer) => {
       const { point, snapKind } = resolveMeasurementPoint(sample);
       setMeasurementPoints((previous) =>
@@ -378,21 +378,13 @@ export function ThreeScene({
       ? distanceBetweenModelPoints(measurementPoints[0], measurementPoints[1])
       : null;
   const measuredAngle =
-    measurementMode === "angle" && measurementPoints.length === 3
-      ? angleBetweenModelPoints(
-          measurementPoints[0],
-          measurementPoints[1],
-          measurementPoints[2],
-        )
+    measurementMode === "angle" && measurementPoints.length === 2
+      ? inclinationFromHorizontal(measurementPoints[0], measurementPoints[1])
       : null;
-  const angleArc = useMemo(
-    () => measurementMode === "angle" && measurementPoints.length === 3
-      ? angleArcPoints(
-          measurementPoints[0],
-          measurementPoints[1],
-          measurementPoints[2],
-        )
-      : [],
+  const angleGuides = useMemo(
+    () => measurementMode === "angle" && measurementPoints.length === 2
+      ? inclinationGuides(measurementPoints[0], measurementPoints[1])
+      : null,
     [measurementMode, measurementPoints],
   );
   const distanceLabel =
@@ -475,8 +467,8 @@ export function ThreeScene({
               </group>
             ) : null}
           </Stage>
-          {measuring && isMobile && measurementMode === "distance" && (
-            <MobileDistanceHandles
+          {measuring && isMobile && (
+            <MobileMeasurementHandles
               points={measurementPoints}
               modelRef={renderedModelRef}
               autoPlace={autoPlaceMobileLine}
@@ -484,7 +476,7 @@ export function ThreeScene({
                 setMeasurementPoints((previous) => previous.length ? previous : points);
                 setAutoPlaceMobileLine(false);
               }}
-              onDrag={dragDistanceEndpoint}
+              onDrag={dragMeasurementEndpoint}
               onDraggingChange={setDraggingMeasurement}
             />
           )}
@@ -516,39 +508,27 @@ export function ThreeScene({
               </Html>}
             </>
           )}
-          {measuring && measurementMode === "angle" && measurementPoints.length >= 2 && (
-            <Line
-              points={[measurementPoints[1], measurementPoints[0]]}
-              color="#22d3ee"
-              lineWidth={2}
-            />
-          )}
-          {measuring && measurementMode === "angle" && measurementPoints.length === 3 && (
+          {measuring && measurementMode === "angle" && measurementPoints.length === 2 && (
             <>
-              <Line
-                points={[measurementPoints[1], measurementPoints[2]]}
-                color="#22d3ee"
-                lineWidth={2}
-              />
-              {angleArc.length > 1 && (
-                <Line
-                  points={angleArc.map((point) => [...point] as [number, number, number])}
-                  color="#fbbf24"
-                  lineWidth={2}
-                />
+              <Line points={[measurementPoints[0], measurementPoints[1]]}
+                color="#22d3ee" lineWidth={2} />
+              {angleGuides && (
+                <Line points={[measurementPoints[0], angleGuides.horizontalEnd]}
+                  color="#94a3b8" lineWidth={1} dashed dashSize={0.7} gapSize={0.45} />
               )}
-              {angleLabel && (
+              {angleGuides && angleGuides.arc.length > 1 && (
+                <Line points={angleGuides.arc.map((point) => [...point] as [number,number,number])}
+                  color="#fbbf24" lineWidth={2} />
+              )}
+              {!isMobile && angleLabel && (
                 <Html
-                  position={
-                    angleArc.length
-                      ? angleArc[Math.floor(angleArc.length / 2)]
-                      : measurementPoints[1]
-                  }
-                  center
-                  style={{ pointerEvents: "none" }}
+                  position={angleGuides?.arc.length
+                    ? angleGuides.arc[Math.floor(angleGuides.arc.length / 2)]
+                    : measurementPoints[0]}
+                  center style={{ pointerEvents: "none" }}
                 >
                   <span className="whitespace-nowrap rounded-md border border-cyan-300/50 bg-black/85 px-2 py-1 text-xs font-semibold text-cyan-100 shadow-lg">
-                    {angleLabel}
+                    {angleLabel} to horizontal
                   </span>
                 </Html>
               )}
@@ -665,7 +645,7 @@ export function ThreeScene({
              <Ruler className="h-4 w-4 shrink-0 text-amber-300" />
              <span className="shrink-0 font-semibold">Measure on</span>
              <span className="min-w-0 flex-1 truncate text-amber-200">
-               {measurementMode === "distance" ? distanceLabel ?? "Place a dimension" : angleLabel ?? "Place an angle"}
+               {measurementMode === "distance" ? distanceLabel ?? "Place a dimension" : angleLabel ? angleLabel + " to horizontal" : "Place an angle"}
              </span>
              <ChevronUp className="h-4 w-4 shrink-0" />
            </button>
@@ -680,7 +660,7 @@ export function ThreeScene({
             aria-label="Measure distance"
             aria-pressed={measuring}
             onClick={() => {
-              setAutoPlaceMobileLine(!measuring && isMobile && measurementMode === "distance");
+              setAutoPlaceMobileLine(!measuring && isMobile);
               setDraggingMeasurement(false);
               setMobileMeasurePanelExpanded(true);
               setMeasuring(!measuring);
@@ -695,13 +675,13 @@ export function ThreeScene({
             <>
               <select
                 aria-label="Measurement mode"
-                title="Choose a distance or three-point angle measurement"
+                title="Choose distance or two-point inclination to the horizontal plane"
                 value={measurementMode}
                 onChange={(event) => {
                   const next = event.currentTarget.value;
                   if (next !== "distance" && next !== "angle") return;
                   setMeasurementMode(next);
-                  setAutoPlaceMobileLine(measuring && isMobile && next === "distance");
+                  setAutoPlaceMobileLine(measuring && isMobile);
                   setDraggingMeasurement(false);
                   setMeasurementPoints([]);
                   setSnapNotice(null);
@@ -813,14 +793,14 @@ export function ThreeScene({
                         ? " - drag the endpoints to adjust"
                         : " - tap again to start a new measurement")
                 : measurementPoints.length === 0
-                  ? "Tap the first angle arm point"
+                  ? "Tap the first angle reference point"
                   : measurementPoints.length === 1
-                    ? "Tap the angle vertex (second point)"
-                    : measurementPoints.length === 2
-                      ? "Tap the other angle arm point"
-                      : angleLabel
-                        ? angleLabel + " - tap again to start a new angle"
-                        : "Angle undefined - tap to start again"}
+                    ? "Tap the second angle point"
+                    : angleLabel
+                      ? angleLabel + " to horizontal" + (isMobile
+                          ? " - drag the endpoints to adjust"
+                          : " - tap again to start a new angle")
+                      : "Angle undefined - tap to start again"}
             </p>
              {snapNotice && (
                <span className="shrink-0 rounded-md bg-black/75 px-2 py-1 text-[10px] text-amber-200">
