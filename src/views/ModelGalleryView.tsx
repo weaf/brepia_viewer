@@ -19,6 +19,7 @@ import {
 import { downloadFile } from "@/utils/downloadUtils";
 import { createLocalProjectBackup, readLocalProjectBackup } from "@/lib/localProjectBackup";
 import { getOrcaPartsExportOutcome } from "@/utils/orcaSplitSafeThreeMf";
+import { adaptOrca3mfToSnapmakerU1, type SnapmakerU1Nozzle } from "@/utils/snapmakerU1ThreeMf";
 import { getSafeFilename } from "@/utils/file-utils";
 import { generatePreview, generateColoredPreview } from "@/utils/meshUtils";
 import {
@@ -27,6 +28,7 @@ import {
 } from "@/services/localModelLibrary";
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
 import { useToast } from "@/hooks/use-toast";
+import { fetchScadSourceFromUrl } from "@/lib/scadUrlImport";
 import {
   finalizeScadFolderImport,
   readScadImportFile,
@@ -75,6 +77,7 @@ import {
   Download,
   FileUp,
   FolderOpen,
+  Link2,
   Lock,
   Unlock,
   RefreshCw,
@@ -142,6 +145,8 @@ export function ModelGalleryView() {
     useState<PendingScadFolderImport | null>(null);
   const [folderEntrypoint, setFolderEntrypoint] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [showUrlImport, setShowUrlImport] = useState(false);
+  const [urlToImport, setUrlToImport] = useState("");
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
   const [thumbnails, setThumbnails] = useState<
@@ -524,7 +529,7 @@ export function ModelGalleryView() {
     );
   };
 
-  const exportModel = async (format: ModelExportFormat) => {
+  const exportModel = async (format: ModelExportFormat, u1Nozzle?: SnapmakerU1Nozzle) => {
     if (
       !activeRecord ||
       !previewExportState ||
@@ -557,14 +562,17 @@ export function ModelGalleryView() {
           (candidate) => candidate.id === format && candidate.enabled,
         );
         if (!metadata) throw new Error(`Unsupported export format: ${format}`);
-        const exported = await previewExportState.exportFormat(format);
+        const baseExport = await previewExportState.exportFormat(format);
+        const exported = u1Nozzle
+          ? await adaptOrca3mfToSnapmakerU1(baseExport,u1Nozzle)
+          : baseExport;
         downloadFile({
           content: exported,
-          filename: format === "orca3mf" ? `${filename}.orca.3mf` : format === "orcaparts3mf" ? `${filename}.orca-parts.3mf` : `${filename}.${format}`,
+              filename: u1Nozzle ? filename + ".u1-" + u1Nozzle.replace(".","") + (format === "orcaparts3mf" ? "-parts.3mf" : "-single.3mf") : format === "orca3mf" ? `${filename}.orca.3mf` : format === "orcaparts3mf" ? `${filename}.orca-parts.3mf` : `${filename}.${format}`,
           mimeType: metadata.mimeType,
         });
         if (format === "orcaparts3mf") {
-          const outcome = getOrcaPartsExportOutcome(exported);
+          const outcome = getOrcaPartsExportOutcome(baseExport);
           const fallback = outcome?.mode === "color-only";
           const partial = outcome?.mode === "partial";
           const reason = outcome?.reason;
@@ -764,6 +772,28 @@ export function ModelGalleryView() {
     });
   };
 
+  const importSourceUrl = async () => {
+    if (isUploading) return;
+    setIsUploading(true);
+    setErrorMessage(null);
+    try {
+      const { filename, bytes } = await fetchScadSourceFromUrl(urlToImport);
+      const file = new File([new Uint8Array(bytes)], filename, { type: "text/plain" });
+      const record = await uploadSourceFile(file);
+      await refreshLocalModels();
+      openUploadedModel(record);
+      showUploadConfirmation(record.name);
+      setShowUrlImport(false);
+      setUrlToImport("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not import this URL.";
+      setErrorMessage(message);
+      toast({ title: "URL import failed", description: message, variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const uploadFolder = async (files: File[]) => {
     const result = await readScadImportFolder(files);
     if (result.kind === "entrypoint-required") {
@@ -942,7 +972,7 @@ export function ModelGalleryView() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-[min(80vh,36rem)] w-64 overflow-y-auto">
                 {OPENSCAD_EXPORT_FORMATS.filter(
-                  (format) => format.enabled && format.id !== "orca3mf" && format.id !== "orcaparts3mf",
+                  (format) => format.enabled && (format.id === "stl" || format.id === "3mf"),
                 ).map((format) => (
                   <Fragment key={format.id}>
                     <DropdownMenuItem
@@ -979,24 +1009,30 @@ export function ModelGalleryView() {
                           </DropdownMenuItem>
                         ))}
                         <DropdownMenuSeparator className="mx-2" />
+                        <DropdownMenuLabel className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-adam-neutral-300">
+                          Snapmaker U1 3MF
+                        </DropdownMenuLabel>
+                        {(["0.2","0.4"] as const).map((nozzle) => (
+                          <Fragment key={nozzle}>
+                            {(["orca3mf","orcaparts3mf"] as const).map((variant) => (
+                              <DropdownMenuItem
+                                key={variant}
+                                aria-label={"Snapmaker U1: " + nozzle + " mm: " + (variant === "orca3mf" ? "Single Object" : "Parts")}
+                                disabled={!exportFormatAvailable(variant) || exportingFormat !== null}
+                                onSelect={() => void exportModel(variant,nozzle)}
+                                className="flex min-h-11 flex-col items-start gap-0.5 pl-4"
+                              >
+                                <span className="font-medium">{"U1 " + nozzle + " mm · " + (variant === "orca3mf" ? "Single Object" : "Parts")}</span>
+                                <span className="text-xs text-adam-neutral-400">Bed-centered 3MF with U1 profile</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </Fragment>
+                        ))}
+                        <DropdownMenuSeparator className="mx-2" />
                       </>
                     )}
                   </Fragment>
                 ))}
-                <DropdownMenuItem
-                  disabled
-                  title="The vendored OpenSCAD WASM build does not include the PDF exporter."
-                >
-                  <span>.PDF</span>
-                  <span className="ml-auto text-xs text-adam-neutral-500">Unavailable</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled
-                  title="The vendored OpenSCAD WASM build does not include the PNG exporter."
-                >
-                  <span>.PNG</span>
-                  <span className="ml-auto text-xs text-adam-neutral-500">Unavailable</span>
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!exportFormatAvailable("scad") || exportingFormat !== null}
                   onSelect={() => void exportModel("scad")}
@@ -1237,8 +1273,47 @@ export function ModelGalleryView() {
             >
               <FolderOpen className="h-4 w-4" /> Upload folder
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowUrlImport((value) => !value)}
+              disabled={isUploading}
+              className="gap-2 border-adam-neutral-700"
+              aria-expanded={showUrlImport}
+            >
+              <Link2 className="h-4 w-4" /> Import from URL
+            </Button>
           </div>
         </header>
+
+        {showUrlImport && (
+          <form
+            onSubmit={(event) => { event.preventDefault(); void importSourceUrl(); }}
+            className="mt-4 rounded-lg border border-adam-neutral-700 p-3"
+          >
+            <label htmlFor="url-scad-import" className="mb-2 block text-sm font-medium">
+              Direct OpenSCAD .scad URL (HTTPS)
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="url-scad-import"
+                type="url"
+                value={urlToImport}
+                onChange={(event) => setUrlToImport(event.target.value)}
+                placeholder="https://example.org/model.scad"
+                aria-label="OpenSCAD file URL"
+                disabled={isUploading}
+                required
+              />
+              <Button type="submit" disabled={isUploading || !urlToImport.trim()}>
+                {isUploading ? "Importing…" : "Import"}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-adam-neutral-400">
+              Direct .scad files only; the server must allow CORS. Upload a folder for models with external dependencies.
+            </p>
+          </form>
+        )}
 
         {errorMessage && !pendingFolder && (
           <div

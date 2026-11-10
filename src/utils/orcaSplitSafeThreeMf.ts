@@ -100,7 +100,7 @@ function haveClearance(a: Bounds, b: Bounds): boolean {
 }
 
 /** Connect faces by shared *edges*, never by merely touching vertices. */
-function connectedClosedShells(parsed: ParsedOff): Component[] {
+export function connectedClosedShells(parsed: ParsedOff): Component[] {
   const faces = parsed.faces;
   if (faces.length > MAX_SPLIT_TRIANGLES) {
     throw new Error(
