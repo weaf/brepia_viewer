@@ -73,3 +73,45 @@ export function angleArcPoints(
     ];
   });
 }
+
+
+/** Two snapped points define a line; its slope is relative to the fixed
+ * world-horizontal XZ plane (Three.js Y-up = OpenSCAD Z-up). */
+export function inclinationFromHorizontal(first: ModelPoint, second: ModelPoint): number | null {
+  const dx = second[0] - first[0];
+  const dy = second[1] - first[1];
+  const dz = second[2] - first[2];
+  const horizontal = Math.hypot(dx, dz);
+  const length = Math.hypot(dx, dy, dz);
+  if (!Number.isFinite(length) || length <= 1e-9) return null;
+  return Math.atan2(Math.abs(dy), horizontal) * 180 / Math.PI;
+}
+
+/** Horizontal baseline and 3D arc starting at the first reference point. */
+export function inclinationGuides(
+  first: ModelPoint, second: ModelPoint, segments = 24,
+): { horizontalEnd: ModelPoint; arc: ModelPoint[] } | null {
+  const degrees = inclinationFromHorizontal(first, second);
+  if (degrees === null) return null;
+  const dx = second[0] - first[0];
+  const dy = second[1] - first[1];
+  const dz = second[2] - first[2];
+  const horizontal = Math.hypot(dx, dz);
+  const length = Math.hypot(dx, dy, dz);
+  const ux = horizontal > 1e-9 ? dx / horizontal : 1;
+  const uz = horizontal > 1e-9 ? dz / horizontal : 0;
+  const sign = dy >= 0 ? 1 : -1;
+  const radius = length * 0.22;
+  const count = Math.max(4, Math.min(64, Math.floor(segments)));
+  const arc = degrees < 1e-6 ? [] : Array.from({ length: count + 1 }, (_, index): ModelPoint => {
+    const a = degrees * Math.PI / 180 * index / count;
+    return [first[0] + radius * ux * Math.cos(a),
+      first[1] + radius * sign * Math.sin(a),
+      first[2] + radius * uz * Math.cos(a)];
+  });
+  return {
+    horizontalEnd: [first[0] + length * 0.38 * ux, first[1],
+      first[2] + length * 0.38 * uz],
+    arc,
+  };
+}

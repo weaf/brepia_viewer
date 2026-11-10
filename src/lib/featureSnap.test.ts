@@ -26,6 +26,24 @@ describe('feature snapping in world units',()=>{
     expect(result?.kind).toBe('edge');
     expect(result?.point[0]).toBeCloseTo(5,5);
   });
+  it('prefers the edge when a corner is twelve pixels away',()=>{
+    const result=pickFeatureSnap({
+      ...base,
+      pointerNdc:{x:0.06,y:0},
+      ray:new THREE.Ray(new THREE.Vector3(0.6,0,20),new THREE.Vector3(0,0,-1)),
+    });
+    expect(result?.kind).toBe('edge');
+    expect(result?.point[0]).toBeCloseTo(0.6,5);
+  });
+  it('keeps corner assistance when a finger lands five pixels away',()=>{
+    const result=pickFeatureSnap({
+      ...base,
+      pointerNdc:{x:0.025,y:0},
+      ray:new THREE.Ray(new THREE.Vector3(0.25,0,20),new THREE.Vector3(0,0,-1)),
+    });
+    expect(result?.kind).toBe('corner');
+    expect(result?.point).toEqual([0,0,0]);
+  });
   it('rejects hidden candidates to avoid snapping through a solid',()=>{
     const result=pickFeatureSnap({...base,pointerNdc:{x:0,y:0},isVisible:()=>false});
     expect(result).toBeNull();
