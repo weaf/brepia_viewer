@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { angleArcPoints, angleBetweenModelPoints, formatDistanceFromModelUnits } from './measurementGeometry';
+import { angleArcPoints, angleBetweenModelPoints, inclinationFromHorizontal, inclinationGuides, formatDistanceFromModelUnits } from './measurementGeometry';
 import { distanceBetweenModelPoints } from './measureDistance';
 
 describe('distance display units', () => {
@@ -37,5 +37,37 @@ describe('three-point angle in degrees', () => {
     expect(result[0]).toEqual([2.8000000000000003, 0, 0]);
     expect(result.at(-1)?.[0]).toBeCloseTo(0, 9);
     expect(result.at(-1)?.[1]).toBeCloseTo(2.8, 9);
+  });
+});
+
+
+describe('two-point inclination against a fixed horizontal reference', () => {
+  it('handles flat, ascending, descending and vertical model lines', () => {
+    expect(inclinationFromHorizontal([0,0,0], [10,0,0])).toBeCloseTo(0,9);
+    expect(inclinationFromHorizontal([0,0,0], [10,10,0])).toBeCloseTo(45,9);
+    expect(inclinationFromHorizontal([0,0,0], [10,-10,0])).toBeCloseTo(45,9);
+    expect(inclinationFromHorizontal([0,0,0], [0,10,0])).toBeCloseTo(90,9);
+  });
+  it('does not depend on reversing the point order', () => {
+    expect(inclinationFromHorizontal([1,3,4],[11,13,4]))
+      .toBeCloseTo(inclinationFromHorizontal([11,13,4],[1,3,4])!,9);
+  });
+  it('guards against degenerate points', () => {
+    expect(inclinationFromHorizontal([2,4,6],[2,4,6])).toBeNull();
+    expect(inclinationFromHorizontal([0,0,0],[Infinity,0,0])).toBeNull();
+    expect(inclinationGuides([1,2,3],[1,2,3])).toBeNull();
+  });
+  it('generates horizontal reference and 3D angle arc from first point', () => {
+    const g=inclinationGuides([2,3,4],[12,13,4])!;
+    expect(g.horizontalEnd[1]).toBe(3);
+    expect(g.arc).toHaveLength(25);
+    expect(g.arc[0][1]).toBeCloseTo(3,9);
+    expect(g.arc.at(-1)![1]).toBeGreaterThan(3);
+  });
+  it('draws a downwards arc and suppresses zero-angle arc', () => {
+    const g=inclinationGuides([0,0,0],[0,-10,0])!;
+    expect(g.arc.at(-1)![1]).toBeLessThan(0);
+    expect(g.horizontalEnd).toEqual([3.8,0,0]);
+    expect(inclinationGuides([0,0,0],[0,0,10])!.arc).toEqual([]);
   });
 });
