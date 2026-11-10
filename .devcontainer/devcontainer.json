@@ -1,0 +1,14 @@
+{
+  "name": "Brepia Viewer - GitHub URL import preview",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm ci --no-audit --no-fund",
+  "postStartCommand": "bash -lc 'nohup env BREPIA_ENABLE_HMR=1 ./start.sh > /tmp/brepia-url-import-preview.log 2>&1 < /dev/null & echo $! > /tmp/brepia-url-import-preview.pid'",
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": {
+      "label": "Brepia Viewer - Import from URL test",
+      "onAutoForward": "openBrowserOnce",
+      "protocol": "http"
+    }
+  }
+}
