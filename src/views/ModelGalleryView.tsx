@@ -30,6 +30,13 @@ import { useOpenSCAD } from "@/hooks/useOpenSCAD";
 import { useToast } from "@/hooks/use-toast";
 import { fetchScadSourceFromUrl } from "@/lib/scadUrlImport";
 import {
+  inspectGithubScadUrl,
+  downloadGithubScadProject,
+  getGithubScadSelection,
+  isGithubRepositoryUrl,
+  type GithubScadInspection,
+} from "@/lib/githubScadImport";
+import {
   finalizeScadFolderImport,
   readScadImportFile,
   readScadImportFolder,
@@ -147,6 +154,10 @@ export function ModelGalleryView() {
   const [isUploading, setIsUploading] = useState(false);
   const [showUrlImport, setShowUrlImport] = useState(false);
   const [urlToImport, setUrlToImport] = useState("");
+  const [githubInspection, setGithubInspection] = useState<GithubScadInspection | null>(null);
+  const [githubScope, setGithubScope] = useState("");
+  const [githubEntrypoint, setGithubEntrypoint] = useState("");
+  const [urlImportProgress, setUrlImportProgress] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
   const [thumbnails, setThumbnails] = useState<
@@ -772,23 +783,74 @@ export function ModelGalleryView() {
     });
   };
 
+  const resetGithubSelection = () => {
+    setGithubInspection(null);
+    setGithubScope("");
+    setGithubEntrypoint("");
+    setUrlImportProgress(null);
+    setErrorMessage(null);
+  };
+
   const importSourceUrl = async () => {
     if (isUploading) return;
     setIsUploading(true);
     setErrorMessage(null);
     try {
+      if (isGithubRepositoryUrl(urlToImport)) {
+        if (!githubInspection) {
+          setUrlImportProgress("Reading GitHub repository...");
+          const inspection = await inspectGithubScadUrl(urlToImport);
+          const scope = inspection.suggestedScope;
+          const selection = getGithubScadSelection(inspection, scope);
+          setGithubInspection(inspection);
+          setGithubScope(scope);
+          setGithubEntrypoint(
+            inspection.suggestedEntrypoint || selection.entrypoints[0] || "",
+          );
+          setUrlImportProgress(null);
+          return;
+        }
+
+        const selected = getGithubScadSelection(githubInspection, githubScope);
+        if (!selected.entrypoints.includes(githubEntrypoint)) {
+          throw new Error("Select an OpenSCAD entrypoint to import.");
+        }
+        const result = await downloadGithubScadProject(
+          githubInspection,
+          githubScope,
+          githubEntrypoint,
+          (completed, total) => setUrlImportProgress(`Downloading ${completed} / ${total} files...`),
+        );
+        setUrlImportProgress("Saving project in this browser...");
+        const record = await createUploadedModel({
+          name: result.title,
+          project: result.project,
+          assets: result.assets,
+        });
+        await refreshLocalModels();
+        openUploadedModel(record);
+        showUploadConfirmation(record.name);
+        resetGithubSelection();
+        setShowUrlImport(false);
+        setUrlToImport("");
+        return;
+      }
+
+      setUrlImportProgress("Downloading OpenSCAD file...");
       const { filename, bytes } = await fetchScadSourceFromUrl(urlToImport);
       const file = new File([new Uint8Array(bytes)], filename, { type: "text/plain" });
       const record = await uploadSourceFile(file);
       await refreshLocalModels();
       openUploadedModel(record);
       showUploadConfirmation(record.name);
+      resetGithubSelection();
       setShowUrlImport(false);
       setUrlToImport("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not import this URL.";
+      // A single inline alert is more useful than overlapping destructive toasts.
       setErrorMessage(message);
-      toast({ title: "URL import failed", description: message, variant: "destructive" });
+      setUrlImportProgress(null);
     } finally {
       setIsUploading(false);
     }
@@ -1276,7 +1338,10 @@ export function ModelGalleryView() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setShowUrlImport((value) => !value)}
+              onClick={() => {
+                resetGithubSelection();
+                setShowUrlImport((value) => !value);
+              }}
               disabled={isUploading}
               className="gap-2 border-adam-neutral-700"
               aria-expanded={showUrlImport}
@@ -1292,27 +1357,79 @@ export function ModelGalleryView() {
             className="mt-4 rounded-lg border border-adam-neutral-700 p-3"
           >
             <label htmlFor="url-scad-import" className="mb-2 block text-sm font-medium">
-              Direct OpenSCAD .scad URL (HTTPS)
+              OpenSCAD file, folder or GitHub repository URL
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="url-scad-import"
                 type="url"
                 value={urlToImport}
-                onChange={(event) => setUrlToImport(event.target.value)}
-                placeholder="https://example.org/model.scad"
-                aria-label="OpenSCAD file URL"
+                onChange={(event) => {
+                  setUrlToImport(event.target.value);
+                  resetGithubSelection();
+                }}
+                placeholder="https://github.com/owner/repository/tree/main"
+                aria-label="OpenSCAD file or GitHub project URL"
                 className="!border-[#818b92] hover:!border-[#a8b1b8] focus:!border-[#38bdf8] focus:!ring-2 focus:!ring-[#38bdf8]"
                 disabled={isUploading}
                 required
               />
               <Button type="submit" disabled={isUploading || !urlToImport.trim()}>
-                {isUploading ? "Importing…" : "Import"}
+                {isUploading ? "Importing…" : githubInspection ? "Import selected project" : "Continue"}
               </Button>
             </div>
             <p className="mt-2 text-xs text-adam-neutral-400">
-              For OpenSCAD projects with multiple files, use Upload folder.
+              Import a direct HTTPS .scad file, a GitHub file, a folder or a public repository.
             </p>
+            {urlImportProgress && (
+              <p role="status" className="mt-2 text-xs text-adam-neutral-200">
+                {urlImportProgress}
+              </p>
+            )}
+            {githubInspection && (
+              <section className="mt-4 flex flex-col gap-3 rounded-md border border-adam-neutral-700 p-3" aria-label="Choose GitHub project">
+                <p className="text-xs text-adam-neutral-300">
+                  {githubInspection.owner}/{githubInspection.repository} · {githubInspection.branch}
+                </p>
+                <label className="flex flex-col gap-1 text-xs">
+                  Project folder
+                  <select
+                    value={githubScope}
+                    disabled={isUploading}
+                    onChange={(event) => {
+                      const nextScope = event.target.value;
+                      setGithubScope(nextScope);
+                      const options = getGithubScadSelection(githubInspection, nextScope);
+                      setGithubEntrypoint(options.entrypoints[0] || "");
+                      setErrorMessage(null);
+                    }}
+                    className="min-h-11 w-full rounded-md border border-adam-neutral-600 bg-adam-bg-dark px-3 py-2 text-adam-text-primary"
+                  >
+                    {githubInspection.scopes.map((scope) => (
+                      <option key={scope} value={scope}>{scope || "/ (entire repository)"}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  OpenSCAD entrypoint
+                  <select
+                    value={githubEntrypoint}
+                    disabled={isUploading}
+                    onChange={(event) => setGithubEntrypoint(event.target.value)}
+                    className="min-h-11 w-full rounded-md border border-adam-neutral-600 bg-adam-bg-dark px-3 py-2 text-adam-text-primary"
+                  >
+                    {getGithubScadSelection(githubInspection, githubScope).entrypoints.map((path) => (
+                      <option key={path} value={path}>{path}</option>
+                    ))}
+                  </select>
+                </label>
+                <p className="text-xs text-adam-neutral-400">
+                  {getGithubScadSelection(githubInspection, githubScope).sources.length} SCAD file(s),{" "}
+                  {getGithubScadSelection(githubInspection, githubScope).assets.length} supported asset(s).
+                  Other files are not downloaded. Choose a smaller folder if the project exceeds the import limits.
+                </p>
+              </section>
+            )
           </form>
         )}
 
