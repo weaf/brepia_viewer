@@ -44,6 +44,20 @@ describe('feature snapping in world units',()=>{
     expect(result?.kind).toBe('corner');
     expect(result?.point).toEqual([0,0,0]);
   });
+  it('reports the geometric shell for a snapped edge or corner',()=>{
+    const tagged = {...edge, shellIndex: 3};
+    const corner=pickFeatureSnap({...base,edges:[tagged],pointerNdc:{x:0,y:0}});
+    const middle=pickFeatureSnap({...base,edges:[tagged],pointerNdc:{x:0.25,y:0}});
+    expect(corner?.shellIndex).toBe(3);
+    expect(middle?.shellIndex).toBe(3);
+  });
+  it('does not attribute a shared corner to one of two shells',()=>{
+    const first={...edge,shellIndex:1};
+    const second={...edge,end:[0,10,0] as [number,number,number],shellIndex:2};
+    const selected=pickFeatureSnap({...base,edges:[first,second],pointerNdc:{x:0,y:0}});
+    expect(selected?.kind).toBe('corner');
+    expect(selected?.shellIndex).toBeUndefined();
+  });
   it('rejects hidden candidates to avoid snapping through a solid',()=>{
     const result=pickFeatureSnap({...base,pointerNdc:{x:0,y:0},isVisible:()=>false});
     expect(result).toBeNull();

@@ -336,7 +336,7 @@ export function ThreeScene({
           });
           if (selected) {
             point=selected.point;
-            snapKind=selected.kind;
+            snapKind=selected.kind + (selected.shellIndex !== undefined ? ' on mesh shell ' + selected.shellIndex : '');
           }
         }
       }
