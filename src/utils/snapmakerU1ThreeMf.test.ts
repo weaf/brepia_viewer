@@ -24,6 +24,12 @@ describe('U1 3MF export',()=>{
   const targeted=await unpack(await adaptOrca3mfToSnapmakerU1(exportColoredOffAsOrcaThreeMf(source,'Test'),nozzle));
   expect(targeted.cfg.printer_model).toBe('Snapmaker U1');
   expect(targeted.cfg.printer_settings_id).toBe('Snapmaker U1 ('+nozzle+' nozzle)');
+  expect(targeted.cfg.print_settings_id).toBe(nozzle === '0.4'
+    ? '0.20mm Standard @Snapmaker U1 (0.4 nozzle)'
+    : '0.12mm Standard @Snapmaker U1 (0.2 nozzle)');
+  expect(targeted.cfg.layer_height).toBe(nozzle === '0.4' ? '0.2' : '0.12');
+  expect(targeted.cfg.line_width).toBe(nozzle === '0.4' ? '0.42' : '0.22');
+  expect(Number(targeted.cfg.line_width)).toBeGreaterThan(Number(nozzle));
   expect(targeted.cfg.filament_colour).toEqual(original.cfg.filament_colour);
   expect(targeted.cfg.nozzle_diameter).toEqual([nozzle,nozzle,nozzle,nozzle]);
   expect(targeted.xml).toContain('transform="1 0 0 0 1 0 0 0 1 134.500000 135.000000 3.000000"');
