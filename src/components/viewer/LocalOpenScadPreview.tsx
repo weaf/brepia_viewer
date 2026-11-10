@@ -15,6 +15,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BufferGeometry, Group } from "three";
 import { parseColoredOff } from "@/utils/offParser";
+import { inspectParsedColoredOff, type OffColorInspection } from "@/utils/offColorInspector";
 import { extractFeatureEdgeTopology, type FeatureEdge } from "@/lib/featureEdgeTopology";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { exportStlAsThreeMf } from "@/utils/threeMfExport";
@@ -59,6 +60,7 @@ export function LocalOpenScadPreview({
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
   const [featureEdges, setFeatureEdges] = useState<FeatureEdge[]>([]);
+  const [offInspection, setOffInspection] = useState<OffColorInspection | null>(null);
   const mountedGroupRef = useRef<Group | null>(null);
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
   const compileSequence = useRef(0);
@@ -125,6 +127,7 @@ export function LocalOpenScadPreview({
       mountedGroupRef.current = null;
       setColoredGroup(null);
       setFeatureEdges([]);
+      setOffInspection(null);
       return;
     }
     let cancelled = false;
@@ -133,6 +136,7 @@ export function LocalOpenScadPreview({
       .then((text) => {
         if (cancelled) return;
         const parsed = parseColoredOff(text);
+        const inspection = inspectParsedColoredOff(parsed);
         const group = buildColoredGroupFromOff(text, 0x00a6ff, parsed);
         // Stay responsive for unusually large meshes until workerized topology.
         const snapEdges = parsed.faces.length <= 40_000
@@ -142,10 +146,12 @@ export function LocalOpenScadPreview({
           disposeColoredGroup(mountedGroupRef.current);
         mountedGroupRef.current = group;
         setColoredGroup(group);
+        setOffInspection(inspection);
         setFeatureEdges(snapEdges.length <= 15_000 ? snapEdges : []);
       })
       .catch((cause: unknown) => {
         setFeatureEdges([]);
+        setOffInspection(null);
         console.error("[Gallery preview] Could not parse color data:", cause);
       });
     return () => {
@@ -229,6 +235,43 @@ export function LocalOpenScadPreview({
             isMobile={isMobile}
           />
         </div>
+      )}
+      {offInspection && (
+        <details className="z-10 shrink-0 border-t border-white/15 bg-adam-neutral-800 text-adam-text-primary" data-testid="off-component-inspector">
+          <summary className="flex min-h-10 cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-xs font-medium">
+            Parts & colors
+            <span className="text-adam-neutral-300">
+              {offInspection.triangleCount.toLocaleString()} triangles / {offInspection.palette.length} RGB colors /
+              {offInspection.topology === "inspected" ? offInspection.components.length + " connected shells" : "topology skipped"}
+            </span>
+          </summary>
+          <div className="max-h-52 space-y-2 overflow-y-auto px-3 pb-3 text-xs">
+            <p className="text-adam-neutral-300">Shells reflect connected triangles, not OpenSCAD objects. Closed edges do not prove printability.</p>
+            {offInspection.topology === "skipped-for-complexity" ? (
+              <p role="status">Complex mesh: only raw RGB palette is inspected.</p>
+            ) : (
+              <ul className="grid gap-1 sm:grid-cols-2" aria-label="Mesh shells">
+                {offInspection.components.slice(0, 40).map((part) => (
+                  <li key={part.index} className="rounded border border-white/10 p-1.5">
+                    <strong>Shell {part.index}</strong>: {part.edgeClosed ? "edge-closed" : "open / non-manifold"}
+                    {" / "}{part.triangleCount} triangles / {part.palette.length} RGB
+                  </li>
+                ))}
+                {offInspection.components.length > 40 && <li>{offInspection.components.length - 40} further shells not shown</li>}
+              </ul>
+            )}
+            <div className="flex flex-wrap gap-1.5" aria-label="RGB palette">
+              {offInspection.palette.slice(0, 96).map((color) => (
+                <span key={color.hex} className="inline-flex items-center gap-1 rounded border border-white/15 px-1.5 py-1">
+                  <span className="h-3 w-3 shrink-0 rounded-sm border border-white/25" style={{ backgroundColor: color.hex }} aria-hidden="true" />
+                  {color.hex} ({color.triangleCount})
+                </span>
+              ))}
+              {offInspection.palette.length > 96 && <span>{offInspection.palette.length - 96} further RGB colors not shown</span>}
+              {offInspection.uncoloredTriangles > 0 && <span className="rounded border border-white/15 px-1.5 py-1">Uncolored ({offInspection.uncoloredTriangles})</span>}
+            </div>
+          </div>
+        </details>
       )}
       {isCompiling && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 backdrop-blur-sm">

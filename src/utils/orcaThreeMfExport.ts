@@ -37,7 +37,7 @@ function toHexByte(value: number): string {
   return Math.round(value * 255).toString(16).padStart(2, '0').toUpperCase();
 }
 
-function explicitFaceColor(
+export function explicitFaceColor(
   color: [number, number, number, number] | null,
 ): string | null {
   if (!color) return null;
