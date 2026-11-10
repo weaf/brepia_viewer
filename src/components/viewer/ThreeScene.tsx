@@ -11,7 +11,7 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Lock, Moon, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
+import { Box, ChevronDown, ChevronUp, Lock, Moon, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
 import { OrthographicPerspectiveToggle } from "@/components/viewer/OrthographicPerspectiveToggle";
 import { ViewGizmo } from "@/components/viewer/ViewGizmo";
 import { Button } from "@/components/ui/button";
@@ -210,6 +210,7 @@ export function ThreeScene({
   const [snapNotice, setSnapNotice] = useState<string | null>(null);
   const [autoPlaceMobileLine, setAutoPlaceMobileLine] = useState(false);
   const [draggingMeasurement, setDraggingMeasurement] = useState(false);
+  const [mobileMeasurePanelExpanded, setMobileMeasurePanelExpanded] = useState(true);
   const sceneHostRef = useRef<HTMLDivElement>(null);
   const renderedModelRef = useRef<THREE.Group>(null);
   const [measurementPoints, setMeasurementPoints] = useState<ModelPoint[]>([]);
@@ -441,7 +442,8 @@ export function ThreeScene({
               zoom={0.4}
             />
           )}
-          <Stage environment={null} intensity={0.6} position={[0, 0, 0]}>
+          {/* Do not refit a user-zoomed camera when dimension endpoints change. */}
+          <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={!measuring}>
             <Environment files={`${import.meta.env.BASE_URL}city.hdr`} />
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={1.2} castShadow />
@@ -499,7 +501,7 @@ export function ThreeScene({
                 color="#fbbf24"
                 lineWidth={2}
               />
-              <Html
+              {!isMobile && <Html
                 position={[
                   (measurementPoints[0][0] + measurementPoints[1][0]) / 2,
                   (measurementPoints[0][1] + measurementPoints[1][1]) / 2,
@@ -511,7 +513,7 @@ export function ThreeScene({
                 <span className={cn("whitespace-nowrap rounded-md border border-amber-300/50 bg-black/85 px-2 py-1 text-xs font-semibold text-amber-200 shadow-lg", isMobile && "-translate-y-8")}>
                   {distanceLabel}
                 </span>
-              </Html>
+              </Html>}
             </>
           )}
           {measuring && measurementMode === "angle" && measurementPoints.length >= 2 && (
@@ -648,10 +650,28 @@ export function ThreeScene({
         </div>
       </div>
       </div>
-      <div className={isMobile && measuring
-          ? "relative z-10 flex h-36 w-full shrink-0 flex-col gap-1 border-t border-white/10 bg-adam-background-1/95 px-2 py-1.5"
-          : "absolute bottom-14 left-2 z-10 flex max-w-[min(92vw,340px)] flex-col gap-1.5"}>
-        <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
+       <div className={isMobile && measuring
+           ? cn("relative z-10 flex w-full shrink-0 flex-col gap-1 border-t border-white/10 bg-adam-background-1/95 px-2 py-1.5",
+               mobileMeasurePanelExpanded ? "h-36" : "h-14")
+           : "absolute bottom-14 left-2 z-10 flex max-w-[min(92vw,340px)] flex-col gap-1.5"}>
+         {isMobile && measuring && !mobileMeasurePanelExpanded ? (
+           <button
+             type="button"
+             aria-label="Show measurement controls"
+             aria-expanded={false}
+             onClick={() => setMobileMeasurePanelExpanded(true)}
+             className="flex h-11 w-full min-w-0 items-center gap-2 rounded-xl border border-amber-300/30 bg-black/65 px-3 text-left text-sm text-white"
+           >
+             <Ruler className="h-4 w-4 shrink-0 text-amber-300" />
+             <span className="shrink-0 font-semibold">Measure on</span>
+             <span className="min-w-0 flex-1 truncate text-amber-200">
+               {measurementMode === "distance" ? distanceLabel ?? "Place a dimension" : angleLabel ?? "Place an angle"}
+             </span>
+             <ChevronUp className="h-4 w-4 shrink-0" />
+           </button>
+         ) : (
+         <>
+         <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
           <Button
             type="button"
             size="sm"
@@ -662,6 +682,7 @@ export function ThreeScene({
             onClick={() => {
               setAutoPlaceMobileLine(!measuring && isMobile && measurementMode === "distance");
               setDraggingMeasurement(false);
+              setMobileMeasurePanelExpanded(true);
               setMeasuring(!measuring);
               setMeasurementPoints([]);
               setSnapNotice(null);
@@ -717,11 +738,25 @@ export function ThreeScene({
           )}
         </div>
         {measuring && (
-          <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
-            <Button
-              type="button"
-              size="sm"
-              variant={snapping ? "secondary" : "ghost"}
+           <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
+             {isMobile && (
+               <Button
+                 type="button"
+                 size="sm"
+                 variant="ghost"
+                 className="h-11 shrink-0 gap-1 rounded-full border border-amber-300/30 bg-adam-background-1/90 px-2.5"
+                 aria-label="Hide measurement controls"
+                 aria-expanded={true}
+                 onClick={() => setMobileMeasurePanelExpanded(false)}
+               >
+                 <ChevronDown className="h-4 w-4" />
+                 Hide
+               </Button>
+             )}
+             <Button
+               type="button"
+               size="sm"
+               variant={snapping ? "secondary" : "ghost"}
               className="h-11 rounded-full border border-white/20 bg-adam-background-1/90 px-3"
               aria-label="Snap to corners and edges"
               aria-pressed={snapping}
@@ -787,14 +822,16 @@ export function ThreeScene({
                         ? angleLabel + " - tap again to start a new angle"
                         : "Angle undefined - tap to start again"}
             </p>
-            {snapNotice && (
-              <span className="shrink-0 rounded-md bg-black/75 px-2 py-1 text-[10px] text-amber-200">
-                Snapped to {snapNotice}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+             {snapNotice && (
+               <span className="shrink-0 rounded-md bg-black/75 px-2 py-1 text-[10px] text-amber-200">
+                 Snapped to {snapNotice}
+               </span>
+             )}
+           </div>
+         )}
+         </>
+         )}
+       </div>
 
 
     </div>
