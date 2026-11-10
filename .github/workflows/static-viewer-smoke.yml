@@ -44,6 +44,9 @@ jobs:
       - name: Verify two-file OpenSCAD editing and parameter sliders
         run: node .github/scripts/multifile-editor-smoke.mjs
 
+      - name: Test GitHub OpenSCAD URL imports in desktop and mobile Chrome
+        run: node .github/scripts/github-url-import-smoke.mjs
+
       - name: Retain test results and screenshots
         if: always()
         uses: actions/upload-artifact@v7
