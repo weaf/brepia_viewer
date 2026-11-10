@@ -428,12 +428,18 @@ export async function downloadGithubScadProject(
   for (const file of selectedFiles) {
     const path = relativePath(file.path, scope);
     const rawUrl = `https://raw.githubusercontent.com/${encodeURIComponent(inspection.owner)}/${encodeURIComponent(inspection.repository)}/${inspection.commitSha}/${file.path.split("/").map(encodeURIComponent).join("/")}`;
-    const bytes = await rawBytes(
-      rawUrl,
-      file,
-      selection.sources.includes(file) ? OPENSCAD_PROJECT_MAX_FILE_BYTES : OPENSCAD_PROJECT_MAX_ASSET_BYTES,
-      fetcher,
-    );
+    let bytes: Uint8Array;
+    try {
+      bytes = await rawBytes(
+        rawUrl,
+        file,
+        selection.sources.includes(file) ? OPENSCAD_PROJECT_MAX_FILE_BYTES : OPENSCAD_PROJECT_MAX_ASSET_BYTES,
+        fetcher,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Unknown network error.";
+      throw new Error(`Download stopped after ${entries.length} of ${selectedFiles.length} files. Nothing was saved. ${reason}`);
+    }
     entries.push({ name: path.split("/").at(-1) ?? path, relativePath: `${rootName}/${path}`, bytes });
     onProgress(entries.length, selectedFiles.length);
   }
