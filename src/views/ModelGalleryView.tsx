@@ -829,7 +829,11 @@ export function ModelGalleryView() {
         });
         await refreshLocalModels();
         openUploadedModel(record);
-        showUploadConfirmation(record.name);
+        dismissUploadConfirmation();
+        uploadConfirmationRef.current = toast({
+          title: "GitHub project imported",
+          description: `${result.title}: ${result.importedFiles} supported file(s) saved locally. ${result.skippedFiles} other repository entries were skipped.`,
+        });
         resetGithubSelection();
         setShowUrlImport(false);
         setUrlToImport("");
