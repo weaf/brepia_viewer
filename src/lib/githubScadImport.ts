@@ -116,7 +116,7 @@ function parseGithubUrl(input: string): {
   if (mode && !tail.length) {
     throw new Error("The GitHub link is missing its branch name.");
   }
-  if (parts.some((part) => part === "." || part === ".." || part.includes("\\") || /[\x00-\x1f]/.test(part))) {
+  if (parts.some((part) => part === "." || part === ".." || part.includes("\\") || Array.from(part).some((character) => character.charCodeAt(0) < 32))) {
     throw new Error("The GitHub URL contains an unsafe path.");
   }
   return { owner, repository, kind: mode === "tree" || mode === "blob" ? mode : "repo", rest: tail };
