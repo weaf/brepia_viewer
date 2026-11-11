@@ -23,6 +23,7 @@ type CachedWorkerFile = {
 export function useOpenSCAD() {
   const [isCompiling, setIsCompiling] = useState(false);
   const [isPreviewCancelled, setIsPreviewCancelled] = useState(false);
+  const [previewCompileDurationMs, setPreviewCompileDurationMs] = useState<number | null>(null);
   const [error, setError] = useState<OpenSCADError | Error | undefined>();
   const [isError, setIsError] = useState(false);
   const [output, setOutput] = useState<Blob | undefined>();
@@ -111,6 +112,7 @@ export function useOpenSCAD() {
     async (project: OpenScadProject): Promise<void> => {
       setIsCompiling(true);
       setIsPreviewCancelled(false);
+      setPreviewCompileDurationMs(null);
       setError(undefined);
       setIsError(false);
 
@@ -133,6 +135,11 @@ export function useOpenSCAD() {
           throw new Error('OpenSCAD did not return a preview output');
         }
 
+        setPreviewCompileDurationMs(
+          Number.isFinite(response.duration) && response.duration >= 0
+            ? response.duration
+            : null,
+        );
         setOutput(
           new Blob([new Uint8Array(response.output)], { type: 'model/stl' }),
         );
@@ -150,6 +157,7 @@ export function useOpenSCAD() {
             : new Error('OpenSCAD compilation failed');
         setError(nextError);
         setIsError(true);
+        setPreviewCompileDurationMs(null);
         setOutput(undefined);
         setOffOutput(undefined);
       } finally {
@@ -171,6 +179,7 @@ export function useOpenSCAD() {
     clientRef.current?.reset(new Error('OpenSCAD preview cancelled'));
     setIsCompiling(false);
     setIsPreviewCancelled(true);
+    setPreviewCompileDurationMs(null);
     setIsError(false);
     setError(undefined);
     setOutput(undefined);
@@ -259,6 +268,7 @@ export function useOpenSCAD() {
     compileProject,
     cancelPreview,
     isPreviewCancelled,
+    previewCompileDurationMs,
     exportProject,
     previewProjectColored,
     writeFile,
