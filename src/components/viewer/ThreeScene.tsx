@@ -8,6 +8,7 @@ import {
   OrbitControls,
   Line,
   Html,
+  TransformControls,
 } from "@react-three/drei";
 import * as THREE from "three";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +34,8 @@ interface ThreeSceneProps {
   backgroundColor?: string;
   coloredGroup?: THREE.Group | null;
   featureEdges?: readonly FeatureEdge[];
+  /** Experimental source-proven, preview-only transform; never exported. */
+  visualEditAllowed?: boolean;
 }
 
 function ViewerControls({ uprightLocked, enabled }: { uprightLocked: boolean; enabled: boolean }) {
@@ -200,10 +203,15 @@ export function ThreeScene({
   backgroundColor = DEFAULT_VIEWER_BACKGROUND_COLOR,
   coloredGroup,
   featureEdges = [],
+  visualEditAllowed = false,
 }: ThreeSceneProps) {
   const [isOrthographic, setIsOrthographic] = useState(true);
   const [uprightLocked, setUprightLocked] = useState(true);
   const [measuring, setMeasuring] = useState(false);
+  const [visualMoving, setVisualMoving] = useState(false);
+  const [visualMoveKey, setVisualMoveKey] = useState(0);
+  const [visualMoveAxis, setVisualMoveAxis] = useState<0 | 1 | 2>(0);
+  const [visualMoveDelta, setVisualMoveDelta] = useState<[number, number, number]>([0, 0, 0]);
   const [measurementMode, setMeasurementMode] = useState<"distance" | "angle">("distance");
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("mm");
   const [snapping, setSnapping] = useState(true);
@@ -230,6 +238,20 @@ export function ThreeScene({
       defaultBackgroundLightness,
     );
   });
+  useEffect(() => {
+    if (!visualEditAllowed) {
+      setVisualMoving(false);
+      setVisualMoveDelta([0, 0, 0]);
+    }
+  }, [visualEditAllowed]);
+
+  useEffect(() => {
+    // A new render invalidates any preview-only transform.
+    setVisualMoving(false);
+    setVisualMoveDelta([0, 0, 0]);
+    setVisualMoveKey((key) => key + 1);
+  }, [geometry, coloredGroup]);
+
   const viewerBackgroundColor = useMemo(
     () => lightnessToGrayHex(backgroundLightness),
     [backgroundLightness],
@@ -398,6 +420,20 @@ export function ThreeScene({
 
 
 
+  // Controls wrap the displayed mesh only in the explicit preview mode.
+  // The OpenSCAD source and the export buffers remain untouched.
+  const modelElement = coloredGroup && groupCenterOffset ? (
+    <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]} onClick={chooseMeasurementPoint}>
+      <primitive object={coloredGroup} position={groupCenterOffset.toArray()} />
+    </group>
+  ) : geometry && geometryCenterOffset ? (
+    <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh geometry={geometry} position={geometryCenterOffset.toArray()} onClick={chooseMeasurementPoint}>
+        <meshStandardMaterial color={color} metalness={0.6} roughness={0.3} envMapIntensity={0.3} />
+      </mesh>
+    </group>
+  ) : null;
+
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
       <div ref={sceneHostRef} className="relative min-h-0 flex-1">
@@ -435,7 +471,7 @@ export function ThreeScene({
             />
           )}
           {/* Do not refit a user-zoomed camera when dimension endpoints change. */}
-          <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={!measuring}>
+          <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={!measuring && !visualMoving}>
             <Environment files={`${import.meta.env.BASE_URL}city.hdr`} />
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={1.2} castShadow />
@@ -443,29 +479,22 @@ export function ThreeScene({
             <directionalLight position={[-5, 5, -5]} intensity={0.2} />
             <directionalLight position={[0, 5, 0]} intensity={0.2} />
             <directionalLight position={[-5, -5, -5]} intensity={0.6} />
-            {coloredGroup && groupCenterOffset ? (
-              <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]} onClick={chooseMeasurementPoint}>
-                <primitive
-                  object={coloredGroup}
-                  position={groupCenterOffset.toArray()}
-                />
-              </group>
-            ) : geometry && geometryCenterOffset ? (
-              <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]}>
-                <mesh
-                  geometry={geometry}
-                  position={geometryCenterOffset.toArray()}
-                  onClick={chooseMeasurementPoint}
-                >
-                  <meshStandardMaterial
-                    color={color}
-                    metalness={0.6}
-                    roughness={0.3}
-                    envMapIntensity={0.3}
-                  />
-                </mesh>
-              </group>
-            ) : null}
+            {visualMoving && visualEditAllowed && modelElement ? (
+              isMobile ? <group position={visualMoveDelta}>{modelElement}</group> : <TransformControls
+                key={visualMoveKey}
+                mode="translate"
+                showX showY showZ
+                size={1}
+                onObjectChange={(event) => {
+                  const object = (event?.target as unknown as { object?: THREE.Object3D })?.object;
+                  if (object) {
+                    setVisualMoveDelta([object.position.x, object.position.y, object.position.z]);
+                  }
+                }}
+              >
+                {modelElement}
+              </TransformControls>
+            ) : modelElement}
           </Stage>
           {measuring && isMobile && (
             <MobileMeasurementHandles
@@ -556,6 +585,40 @@ export function ThreeScene({
         </Canvas>
       </Suspense>
 
+      {visualEditAllowed && (
+        <div className="absolute left-2 top-14 z-20 flex max-w-[min(90vw,330px)] flex-col gap-1.5 rounded-lg border border-white/15 bg-black/75 p-1.5 text-white shadow-lg"
+          data-testid="visual-move-preview">
+          <Button
+            type="button" size="sm"
+            variant={visualMoving ? "secondary" : "ghost"}
+            className="h-11 justify-start gap-2 px-3 text-xs"
+            aria-label="Preview visual movement"
+            aria-pressed={visualMoving}
+            onClick={() => {
+              setVisualMoving(current => !current);
+              setMeasuring(false);
+              setVisualMoveDelta([0, 0, 0]);
+              setVisualMoveKey(value => value + 1);
+            }}
+          >
+            Visual move {visualMoving ? "on" : "preview"}
+          </Button>
+          {visualMoving && !isMobile && (
+            <div className="space-y-1 px-2 pb-1 text-xs">
+              <p>Drag the axis handles to move the preview.</p>
+              <p className="font-mono" data-testid="visual-move-offsets">
+                Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
+              </p>
+              <p className="text-amber-200">Preview only. Source code and exports are unchanged.</p>
+              <button type="button" className="min-h-10 rounded border border-white/20 px-3"
+                onClick={() => {
+                  setVisualMoveDelta([0, 0, 0]);
+                  setVisualMoveKey(value => value + 1);
+                }}>Reset position</button>
+            </div>
+          )}
+        </div>
+      )}
       <div
         className={cn(
           "absolute bottom-2 left-2 z-10 flex w-20 items-center gap-0.5 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 px-1 py-1 backdrop-blur-sm sm:w-44 sm:gap-2 sm:px-2",
@@ -630,6 +693,37 @@ export function ThreeScene({
         </div>
       </div>
       </div>
+       {visualEditAllowed && visualMoving && isMobile && (
+         <div className="relative z-10 flex w-full shrink-0 flex-col gap-1 border-t border-white/15 bg-adam-background-1/95 px-3 py-2 text-xs text-adam-text-primary"
+           data-testid="visual-move-mobile-controls">
+           <div className="flex min-h-11 items-center gap-2">
+             <label htmlFor="visual-move-axis" className="shrink-0">Move axis</label>
+             <select id="visual-move-axis" aria-label="Visual move axis"
+               value={visualMoveAxis}
+               onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}
+               className="h-11 rounded-lg border border-white/20 bg-adam-background-1 px-3">
+               <option value={0}>X</option><option value={1}>Y</option><option value={2}>Z</option>
+             </select>
+             <span className="min-w-0 flex-1 truncate font-mono" data-testid="visual-move-offsets">
+               Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
+             </span>
+             <button type="button" className="min-h-11 shrink-0 rounded-lg border border-white/20 px-3"
+               onClick={() => setVisualMoveDelta([0, 0, 0])}>Reset position</button>
+           </div>
+           <input
+             type="range" min={-50} max={50} step={1}
+             aria-label={"Move model along " + ["X", "Y", "Z"][visualMoveAxis] + " axis"}
+             value={visualMoveDelta[visualMoveAxis]}
+             onChange={(event) => {
+               const number = Number(event.currentTarget.value);
+               setVisualMoveDelta(current => current.map((value, index) =>
+                 index === visualMoveAxis ? number : value) as [number, number, number]);
+             }}
+             className="h-11 w-full touch-pan-x accent-cyan-400"
+           />
+           <p className="text-[11px] text-amber-200">Preview only. Source code and exports are unchanged.</p>
+         </div>
+       )}
        <div className={isMobile && measuring
            ? cn("relative z-10 flex w-full shrink-0 flex-col gap-1 border-t border-white/10 bg-adam-background-1/95 px-2 py-1.5",
                mobileMeasurePanelExpanded ? "h-36" : "h-14")
@@ -660,7 +754,9 @@ export function ThreeScene({
             aria-label="Measure distance"
             aria-pressed={measuring}
             onClick={() => {
-              setAutoPlaceMobileLine(!measuring && isMobile);
+              setVisualMoving(false);
+               setVisualMoveDelta([0, 0, 0]);
+               setAutoPlaceMobileLine(!measuring && isMobile);
               setDraggingMeasurement(false);
               setMobileMeasurePanelExpanded(true);
               setMeasuring(!measuring);
