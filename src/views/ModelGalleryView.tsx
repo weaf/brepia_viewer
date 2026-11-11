@@ -1,5 +1,7 @@
 import { ActivityIndicator } from "@/components/brand";
 import { RepositoryLink } from "@/components/RepositoryLink";
+import { BuiltInFolderCard } from "@/components/gallery/BuiltInFolderCard";
+import { buildBuiltInGalleryCards } from "@/lib/builtInGalleryGroups";
 import { ExperimentalMenu } from "@/components/ExperimentalMenu";
 import { EXPERIMENTAL_MODE_STORAGE_KEY, readExperimentalMode } from "@/lib/experimentalMode";
 import { Button } from "@/components/ui/button";
@@ -253,6 +255,7 @@ export function ModelGalleryView() {
         .includes(needle),
     );
   }, [builtIns, search]);
+  const builtInGalleryCards = useMemo(() => buildBuiltInGalleryCards(builtIns, search), [builtIns, search]);
   const filteredUploads = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     if (!needle) return localModels;
@@ -454,7 +457,7 @@ export function ModelGalleryView() {
       .querySelectorAll<HTMLElement>("[data-gallery-model-id]")
       .forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [builtIns, ensureModelThumbnail, getModelRevision, localModels]);
+  }, [builtIns, builtInGalleryCards, ensureModelThumbnail, getModelRevision, localModels]);
 
   useEffect(
     () => () => {
@@ -1670,10 +1673,24 @@ export function ModelGalleryView() {
               </div>
               {filteredBuiltIns.length ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredBuiltIns.map((entry) => {
+                  {builtInGalleryCards.map((item) => {
+                    if (item.kind === "folder") {
+                      const previewId = builtInModelRecordId(item.representative.path, item.repositoryId);
+                      return (
+                        <BuiltInFolderCard
+                          key={item.key}
+                          card={item}
+                          repositoryLabel={getModelRepositories().find((source) => source.id === item.repositoryId)?.label ?? "Built-in models"}
+                          thumbnailUrl={thumbnails[previewId]?.revision === item.representative.sha ? thumbnails[previewId]?.url : undefined}
+                          disabled={isOpeningModel}
+                          onOpen={openBuiltIn}
+                        />
+                      );
+                    }
+                    const entry = item.entry;
                     return (
                       <button
-                        key={entry.path}
+                        key={item.key}
                         type="button"
                         onClick={() => void openBuiltIn(entry)}
                         disabled={isOpeningModel}
