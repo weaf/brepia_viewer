@@ -49,6 +49,8 @@ export function LocalOpenScadPreview({
 }) {
   const {
     compileProject,
+    cancelPreview,
+    isPreviewCancelled,
     exportProject,
     writeFile,
     isCompiling,
@@ -280,8 +282,16 @@ export function LocalOpenScadPreview({
         </details>
       )}
       {isCompiling && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 backdrop-blur-sm">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black/45 p-4 backdrop-blur-sm">
           <ActivityIndicator label="Compiling model" size="lg" />
+          <button
+            type="button"
+            aria-label="Cancel preview"
+            className="min-h-11 rounded-md border border-white/30 bg-adam-neutral-900 px-5 py-2 text-sm font-medium text-white hover:bg-adam-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue"
+            onClick={cancelPreview}
+          >
+            Cancel preview
+          </button>
         </div>
       )}
       {!isCompiling && !geometry && !coloredGroup && (
@@ -291,7 +301,19 @@ export function LocalOpenScadPreview({
           ) : (
             <RefreshCw className="h-6 w-6 animate-spin text-adam-neutral-400" />
           )}
-          {failure ? (
+          {isPreviewCancelled ? (
+            <div role="status" className="max-w-lg space-y-3 text-sm text-adam-neutral-300">
+              <p className="font-semibold text-adam-text-primary">Preview cancelled</p>
+              <p>The OpenSCAD worker was stopped. You can retry without reopening the model.</p>
+              <button
+                type="button"
+                className="min-h-11 rounded-md border border-white/25 px-4 py-2 font-medium"
+                onClick={() => void compileProject(project)}
+              >
+                Retry preview
+              </button>
+            </div>
+          ) : failure ? (
             <div role="alert" className="max-w-lg space-y-2 text-sm text-adam-neutral-300">
               <p className="font-semibold text-adam-text-primary">{failure.title}</p>
               <p>{failure.message}</p>
