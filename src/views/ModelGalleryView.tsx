@@ -1,5 +1,7 @@
 import { ActivityIndicator } from "@/components/brand";
 import { RepositoryLink } from "@/components/RepositoryLink";
+import { ExperimentalMenu } from "@/components/ExperimentalMenu";
+import { EXPERIMENTAL_MODE_STORAGE_KEY, readExperimentalMode } from "@/lib/experimentalMode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProjectFilesEditor } from "@/components/parameter/ProjectFilesEditor";
@@ -160,6 +162,26 @@ export function ModelGalleryView() {
   const [urlImportProgress, setUrlImportProgress] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
+  // Per-browser opt-in; stays off on first visit and avoids SSR hydration drift.
+  const [experimentalEnabled, setExperimentalEnabled] = useState(false);
+  useEffect(() => {
+    try {
+      setExperimentalEnabled(
+        readExperimentalMode(window.localStorage.getItem(EXPERIMENTAL_MODE_STORAGE_KEY)),
+      );
+    } catch {
+      // Browsers with blocked storage still allow the current-session toggle.
+    }
+  }, []);
+  const updateExperimentalMode = useCallback((enabled: boolean) => {
+    setExperimentalEnabled(enabled);
+    try {
+      window.localStorage.setItem(EXPERIMENTAL_MODE_STORAGE_KEY, String(enabled));
+    } catch {
+      // Session-only when storage is blocked.
+    }
+  }, []);
+
   const [thumbnails, setThumbnails] = useState<
     Record<string, { revision: string; url: string }>
   >({});
@@ -1007,6 +1029,7 @@ export function ModelGalleryView() {
           </div>
           <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
             <RepositoryLink compact />
+            <ExperimentalMenu enabled={experimentalEnabled} onEnabledChange={updateExperimentalMode} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1155,6 +1178,7 @@ export function ModelGalleryView() {
             key={activeRecord.id}
             project={activeRecord.project}
             assets={activeRecord.assetBlobs}
+            experimentalEnabled={experimentalEnabled}
             onExportStateChange={handlePreviewExportStateChange}
           />
           <aside className={cn(
@@ -1250,6 +1274,7 @@ export function ModelGalleryView() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryLink />
+            <ExperimentalMenu enabled={experimentalEnabled} onEnabledChange={updateExperimentalMode} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

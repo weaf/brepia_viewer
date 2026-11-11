@@ -39,11 +39,13 @@ export function LocalOpenScadPreview({
   assets,
   onExportStateChange,
   constrained = false,
+  experimentalEnabled = false,
 }: {
   project: OpenScadProject;
   assets: Record<string, Blob>;
   onExportStateChange?: (state: LocalOpenScadPreviewExportState) => void;
   constrained?: boolean;
+  experimentalEnabled?: boolean;
 }) {
   const {
     compileProject,
@@ -217,6 +219,9 @@ export function LocalOpenScadPreview({
   }, [exportDxf, exportFormat, isCompiling, onExportStateChange, output, project]);
 
   const entrypoint = getOpenScadEntrypoint(project);
+  // Experimental is opt-in and applies to the complete renderable geometry.
+  // There is deliberately no SCAD AST mapping or source eligibility gate.
+  const visualEditAllowed = experimentalEnabled;
   return (
     <section
       className={`relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrained ? "min-h-0" : "min-h-[22rem]"}`}
@@ -231,6 +236,7 @@ export function LocalOpenScadPreview({
             geometry={geometry}
             coloredGroup={coloredGroup}
             featureEdges={featureEdges}
+            visualEditAllowed={visualEditAllowed}
             color="#00A6FF"
             isMobile={isMobile}
           />
