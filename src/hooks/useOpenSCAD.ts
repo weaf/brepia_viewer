@@ -22,6 +22,7 @@ type CachedWorkerFile = {
 
 export function useOpenSCAD() {
   const [isCompiling, setIsCompiling] = useState(false);
+  const [isPreviewCancelled, setIsPreviewCancelled] = useState(false);
   const [error, setError] = useState<OpenSCADError | Error | undefined>();
   const [isError, setIsError] = useState(false);
   const [output, setOutput] = useState<Blob | undefined>();
@@ -109,6 +110,7 @@ export function useOpenSCAD() {
   const compileProject = useCallback(
     async (project: OpenScadProject): Promise<void> => {
       setIsCompiling(true);
+      setIsPreviewCancelled(false);
       setError(undefined);
       setIsError(false);
 
@@ -159,6 +161,21 @@ export function useOpenSCAD() {
     },
     [ensureCachedFiles, getClient],
   );
+
+  const cancelPreview = useCallback((): void => {
+    // Invalidate the request ID before rejecting the worker's pending requests.
+    // A late response or rejection from the previous worker must never update
+    // the currently displayed preview.
+    if (activeCompileRef.current === null) return;
+    activeCompileRef.current = null;
+    clientRef.current?.reset(new Error('OpenSCAD preview cancelled'));
+    setIsCompiling(false);
+    setIsPreviewCancelled(true);
+    setIsError(false);
+    setError(undefined);
+    setOutput(undefined);
+    setOffOutput(undefined);
+  }, []);
 
   const previewProjectColored = useCallback(
     async (
@@ -240,6 +257,8 @@ export function useOpenSCAD() {
 
   return {
     compileProject,
+    cancelPreview,
+    isPreviewCancelled,
     exportProject,
     previewProjectColored,
     writeFile,

@@ -32,6 +32,33 @@ const message = (id: string) => ({
 afterEach(() => vi.useRealTimers());
 
 describe('OpenScadWorkerClient timeout recovery', () => {
+  it('rejects a cancelled request, ignores its late response and recovers', async () => {
+    const workers: MockWorker[] = [];
+    const client = new OpenScadWorkerClient(() => {
+      const worker = new MockWorker();
+      workers.push(worker);
+      return worker as unknown as Worker;
+    });
+    const oldRequest = client.request(message('cancelled'));
+    const aborted = expect(oldRequest).rejects.toThrow('Preview cancelled');
+    expect(client.pendingCount()).toBe(1);
+
+    client.reset(new Error('Preview cancelled'));
+    await aborted;
+    expect(workers[0].terminated).toBe(true);
+    expect(client.pendingCount()).toBe(0);
+    expect(client.getGeneration()).toBe(1);
+
+    // A stale reply cannot satisfy a new request created by the new worker.
+    const fresh = client.request(message('new-preview'));
+    workers[0].respond('cancelled', { stale: true });
+    expect(client.pendingCount()).toBe(1);
+    workers[1].respond('new-preview', { current: true });
+    await expect(fresh).resolves.toEqual({ current: true });
+    expect(client.pendingCount()).toBe(0);
+    client.reset();
+  });
+
   it('terminates stale worker and accepts a new request on a fresh worker', async () => {
     vi.useFakeTimers();
     const workers: MockWorker[] = [];
