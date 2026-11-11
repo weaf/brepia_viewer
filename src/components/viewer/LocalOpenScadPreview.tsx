@@ -1,6 +1,7 @@
 import { ActivityIndicator } from "@/components/brand";
 import { ThreeScene } from "@/components/viewer/ThreeScene";
 import { describeOpenScadFailure } from "@/lib/openScadFeedback";
+import { PreviewDiagnostics } from "@/components/viewer/PreviewDiagnostics";
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import {
@@ -51,6 +52,7 @@ export function LocalOpenScadPreview({
     compileProject,
     cancelPreview,
     isPreviewCancelled,
+    previewCompileDurationMs,
     exportProject,
     writeFile,
     isCompiling,
@@ -280,6 +282,15 @@ export function LocalOpenScadPreview({
             </div>
           </div>
         </details>
+      )}
+      {experimentalEnabled && !isCompiling && output instanceof Blob && (
+        <PreviewDiagnostics
+          durationMs={previewCompileDurationMs}
+          stlBytes={output.size}
+          offBytes={offOutput instanceof Blob ? offOutput.size : null}
+          triangleCount={offInspection?.triangleCount ?? null}
+          topology={offInspection?.topology ?? null}
+        />
       )}
       {isCompiling && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black/45 p-4 backdrop-blur-sm">

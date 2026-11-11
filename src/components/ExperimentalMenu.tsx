@@ -42,7 +42,7 @@ export function ExperimentalMenu({
           <span className="flex flex-col gap-1">
             <span className="text-sm font-medium">Enable Experimental</span>
             <span className="text-xs leading-snug text-adam-neutral-300">
-              Show preview-only tools on any rendered model. Visual changes are not saved or exported.
+              Show optional model tools and performance diagnostics. Turn off to hide them.
             </span>
           </span>
         </DropdownMenuCheckboxItem>
