@@ -137,33 +137,114 @@ export function LocalOpenScadPreview({
       return;
     }
     let cancelled = false;
+    let analysisWorker: Worker | null = null;
+    const applyAnalysis = (
+      text: string,
+      parsed: ReturnType<typeof parseColoredOff>,
+      inspection: OffColorInspection,
+      snapEdges: FeatureEdge[],
+    ) => {
+      if (cancelled) return;
+      const group = buildColoredGroupFromOff(text, 0x00a6ff, parsed);
+      if (cancelled) {
+        if (group) disposeColoredGroup(group);
+        return;
+      }
+      if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
+      mountedGroupRef.current = group;
+      setColoredGroup(group);
+      setOffInspection(inspection);
+      setFeatureEdges(snapEdges.length <= 15_000 ? snapEdges : []);
+    };
+    const analyzeOnMainThread = (text: string) => {
+      if (cancelled) return;
+      const parsed = parseColoredOff(text);
+      const inspection = inspectParsedColoredOff(parsed);
+      const snapEdges = parsed.faces.length <= 40_000
+        ? extractFeatureEdgeTopology(parsed).edges
+        : [];
+      applyAnalysis(text, parsed, inspection, snapEdges);
+    };
     void offOutput
       .text()
       .then((text) => {
         if (cancelled) return;
-        const parsed = parseColoredOff(text);
-        const inspection = inspectParsedColoredOff(parsed);
-        const group = buildColoredGroupFromOff(text, 0x00a6ff, parsed);
-        // Stay responsive for unusually large meshes until workerized topology.
-        const snapEdges = parsed.faces.length <= 40_000
-          ? extractFeatureEdgeTopology(parsed).edges
-          : [];
-        if (mountedGroupRef.current)
-          disposeColoredGroup(mountedGroupRef.current);
-        mountedGroupRef.current = group;
-        setColoredGroup(group);
-        setOffInspection(inspection);
-        setFeatureEdges(snapEdges.length <= 15_000 ? snapEdges : []);
+        if (!experimentalEnabled || typeof Worker === "undefined") {
+          analyzeOnMainThread(text);
+          return;
+        }
+        // Separate worker per OFF result: terminating it on cleanup cancels
+        // expensive superseded analysis, not just its eventual UI update.
+        try {
+          const worker = new Worker(
+            new URL("../../worker/offAnalysisWorker.ts", import.meta.url),
+            { type: "module" },
+          );
+          analysisWorker = worker;
+          let settled = false;
+          worker.onmessage = (event: MessageEvent<{
+            ok: boolean;
+            parsed?: ReturnType<typeof parseColoredOff>;
+            inspection?: OffColorInspection;
+            edges?: FeatureEdge[];
+            error?: string;
+          }>) => {
+            if (cancelled || settled) return;
+            settled = true;
+            worker.terminate();
+            analysisWorker = null;
+            const data = event.data;
+            if (!data.ok || !data.parsed || !data.inspection || !data.edges) {
+              throwAsyncError(new Error(data.error ?? "OFF worker analysis failed."));
+              return;
+            }
+            try {
+              applyAnalysis(text, data.parsed, data.inspection, data.edges);
+            } catch (cause) {
+              reportAnalysisError(cause);
+            }
+          };
+          worker.onerror = (event) => {
+            if (cancelled || settled) return;
+            settled = true;
+            event.preventDefault();
+            worker.terminate();
+            analysisWorker = null;
+            // The independent STL preview stays usable if experimental color
+            // analysis crashes. Never synchronously repeat heavy work on UI.
+            reportAnalysisError(new Error(event.message || "OFF analysis worker failed."));
+          };
+          worker.onmessageerror = () => {
+            if (cancelled || settled) return;
+            settled = true;
+            worker.terminate();
+            analysisWorker = null;
+            reportAnalysisError(new Error("OFF worker returned unreadable geometry data."));
+          };
+          worker.postMessage({ text });
+        } catch {
+          analyzeOnMainThread(text);
+        }
       })
-      .catch((cause: unknown) => {
-        setFeatureEdges([]);
-        setOffInspection(null);
-        console.error("[Gallery preview] Could not parse color data:", cause);
-      });
+      .catch(reportAnalysisError);
+    function reportAnalysisError(cause: unknown) {
+      if (cancelled) return;
+      if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
+      mountedGroupRef.current = null;
+      // Leave the already compiled STL visible instead of showing stale colors.
+      setColoredGroup(null);
+      setFeatureEdges([]);
+      setOffInspection(null);
+      console.error("[Gallery preview] Could not parse color data:", cause);
+    }
+    function throwAsyncError(cause: unknown) {
+      reportAnalysisError(cause);
+    }
     return () => {
       cancelled = true;
+      analysisWorker?.terminate();
     };
-  }, [offOutput]);
+  }, [offOutput, experimentalEnabled]);
 
   useEffect(
     () => () => {
