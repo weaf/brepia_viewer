@@ -74,6 +74,7 @@ import {
   replaceOpenScadProjectFileContent,
 } from "@shared/openScadProject";
 import parseParameters from "@shared/parseParameters";
+import { validateParameterValue } from "@/utils/parameterUtils";
 import type { Parameter } from "@shared/types";
 import {
   OPENSCAD_EXPORT_FORMATS,
@@ -146,6 +147,13 @@ export function ModelGalleryView() {
   const [activeRecord, setActiveRecord] = useState<LocalModelRecord | null>(
     null,
   );
+  // Parameter commits can arrive before a previous IndexedDB write resolves.
+  // Keep their next source in a synchronous ref and persist in commit order.
+  const activeRecordRef = useRef<LocalModelRecord | null>(null);
+  const parameterSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    activeRecordRef.current = activeRecord;
+  }, [activeRecord]);
   const [previewExportState, setPreviewExportState] =
     useState<LocalOpenScadPreviewExportState | null>(null);
   const [exportingFormat, setExportingFormat] =
@@ -775,18 +783,40 @@ export function ModelGalleryView() {
     parameter: Parameter,
     value: Parameter["value"],
   ) => {
-    if (!activeRecord) return;
-    const entrypoint = activeRecord.project.files.find(
-      (file) => file.path === activeRecord.project.entrypointPath,
+    const record = activeRecordRef.current ?? activeRecord;
+    if (!record) return;
+    const entrypoint = record.project.files.find(
+      (file) => file.path === record.project.entrypointPath,
     );
     if (!entrypoint) return;
-    const code = updateParameter(entrypoint.content, { ...parameter, value });
+    const safeValue = !parameter.type || parameter.type === "number"
+      ? validateParameterValue(parameter, value) : value;
+    const code = updateParameter(entrypoint.content, { ...parameter, value: safeValue });
+    if (code === entrypoint.content) return;
     const project = replaceOpenScadProjectFileContent(
-      activeRecord.project,
-      activeRecord.project.entrypointPath,
+      record.project,
+      record.project.entrypointPath,
       code,
     );
-    await persistRecord({ ...activeRecord, project });
+    const next = { ...record, project, updatedAt: new Date().toISOString() };
+    activeRecordRef.current = next;
+    // Immediately recompile the newest source; waiting for disk writes here
+    // makes quick enum/slider changes render and save out of order.
+    setActiveRecord(next);
+    const write = parameterSaveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await saveLocalModel(next);
+        if (next.origin === "upload") await refreshLocalModels();
+      });
+    parameterSaveQueueRef.current = write;
+    try {
+      await write;
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Could not save parameter.";
+      setErrorMessage(message);
+      toast({ title: "Parameter save failed", description: message, variant: "destructive" });
+    }
   };
 
   const uploadSourceFile = async (file: File) => {
