@@ -210,12 +210,16 @@ export function LocalOpenScadPreview({
             event.preventDefault();
             worker.terminate();
             analysisWorker = null;
-            // A worker bootstrap failure must not remove the working preview.
-            try {
-              analyzeOnMainThread(text);
-            } catch (cause) {
-              reportAnalysisError(cause);
-            }
+            // The independent STL preview stays usable if experimental color
+            // analysis crashes. Never synchronously repeat heavy work on UI.
+            reportAnalysisError(new Error(event.message || "OFF analysis worker failed."));
+          };
+          worker.onmessageerror = () => {
+            if (cancelled || settled) return;
+            settled = true;
+            worker.terminate();
+            analysisWorker = null;
+            reportAnalysisError(new Error("OFF worker returned unreadable geometry data."));
           };
           worker.postMessage({ text });
         } catch {
@@ -225,6 +229,10 @@ export function LocalOpenScadPreview({
       .catch(reportAnalysisError);
     function reportAnalysisError(cause: unknown) {
       if (cancelled) return;
+      if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
+      mountedGroupRef.current = null;
+      // Leave the already compiled STL visible instead of showing stale colors.
+      setColoredGroup(null);
       setFeatureEdges([]);
       setOffInspection(null);
       console.error("[Gallery preview] Could not parse color data:", cause);
