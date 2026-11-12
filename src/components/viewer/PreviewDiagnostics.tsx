@@ -1,4 +1,4 @@
-import { formatPreviewBytes, formatPreviewDuration } from "@/lib/previewDiagnostics";
+import { formatMeshStageDuration, formatPreviewBytes, formatPreviewDuration } from "@/lib/previewDiagnostics";
 
 type PreviewDiagnosticsProps = {
   durationMs: number | null;
@@ -48,15 +48,15 @@ export function PreviewDiagnostics({
             <>
               <div>
                 <dt className="text-adam-neutral-400">OFF worker</dt>
-                <dd className="mt-0.5 font-mono" data-testid="preview-off-worker-duration">{formatPreviewDuration(meshTimings.workerTotalMs)}</dd>
+                <dd className="mt-0.5 font-mono" data-testid="preview-off-worker-duration">{formatMeshStageDuration(meshTimings.workerTotalMs)}</dd>
               </div>
               <div>
                 <dt className="text-adam-neutral-400">Worker buffers</dt>
-                <dd className="mt-0.5 font-mono" data-testid="preview-off-buffer-duration">{formatPreviewDuration(meshTimings.workerBuffersMs)}</dd>
+                <dd className="mt-0.5 font-mono" data-testid="preview-off-buffer-duration">{formatMeshStageDuration(meshTimings.workerBuffersMs)}</dd>
               </div>
               <div>
                 <dt className="text-adam-neutral-400">Three.js attach</dt>
-                <dd className="mt-0.5 font-mono" data-testid="preview-ui-mesh-duration">{formatPreviewDuration(meshTimings.uiAttachMs)}</dd>
+                <dd className="mt-0.5 font-mono" data-testid="preview-ui-mesh-duration">{formatMeshStageDuration(meshTimings.uiAttachMs)}</dd>
               </div>
             </>
           )}
