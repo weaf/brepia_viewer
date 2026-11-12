@@ -272,9 +272,6 @@ export function LocalOpenScadPreview({
       setMeshTimings(null);
       console.error("[Gallery preview] Could not parse color data:", cause);
     }
-    function throwAsyncError(cause: unknown) {
-      reportAnalysisError(cause);
-    }
     return () => {
       cancelled = true;
       analysisWorker?.terminate();
