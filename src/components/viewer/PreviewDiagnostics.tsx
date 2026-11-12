@@ -1,4 +1,5 @@
 import { formatMeshStageDuration, formatPreviewBytes, formatPreviewDuration } from "@/lib/previewDiagnostics";
+import type { StlWorkerTimings } from "@/utils/preparedStlGeometry";
 
 type PreviewDiagnosticsProps = {
   durationMs: number | null;
@@ -7,11 +8,12 @@ type PreviewDiagnosticsProps = {
   triangleCount: number | null;
   topology: "inspected" | "skipped-for-complexity" | null;
   meshTimings?: { workerTotalMs: number; workerBuffersMs: number; uiAttachMs: number } | null;
+  stlTimings?: { worker: StlWorkerTimings; attachMs: number } | null;
 };
 
 /** Display-only; gated by the existing Experimental opt-in in the caller. */
 export function PreviewDiagnostics({
-  durationMs, stlBytes, offBytes, triangleCount, topology, meshTimings,
+  durationMs, stlBytes, offBytes, triangleCount, topology, meshTimings, stlTimings,
 }: PreviewDiagnosticsProps) {
   return (
     <details
@@ -44,6 +46,26 @@ export function PreviewDiagnostics({
               {triangleCount === null ? "Analyzing…" : triangleCount.toLocaleString()}
             </dd>
           </div>
+          {stlTimings && (
+            <>
+              <div>
+                <dt className="text-adam-neutral-400">STL worker</dt>
+                <dd className="mt-0.5 font-mono" data-testid="preview-stl-worker-duration">{formatMeshStageDuration(stlTimings.worker.totalMs)}</dd>
+              </div>
+              <div>
+                <dt className="text-adam-neutral-400">STL decode</dt>
+                <dd className="mt-0.5 font-mono" data-testid="preview-stl-decode-duration">{formatMeshStageDuration(stlTimings.worker.decodeMs)}</dd>
+              </div>
+              <div>
+                <dt className="text-adam-neutral-400">STL normals</dt>
+                <dd className="mt-0.5 font-mono" data-testid="preview-stl-normals-duration">{formatMeshStageDuration(stlTimings.worker.normalsMs)}</dd>
+              </div>
+              <div>
+                <dt className="text-adam-neutral-400">STL attach</dt>
+                <dd className="mt-0.5 font-mono" data-testid="preview-stl-attach-duration">{formatMeshStageDuration(stlTimings.attachMs)}</dd>
+              </div>
+            </>
+          )}
           {meshTimings && (
             <>
               <div>
@@ -68,8 +90,8 @@ export function PreviewDiagnostics({
         )}
         <p className="mt-2 leading-relaxed text-adam-neutral-400">
           OpenSCAD render time excludes model download, initial worker setup and browser mesh parsing.
-          OFF worker and Three.js attach times measure mesh preparation and synchronous object setup,
-          not browser paint or STL decoding. File sizes measure generated preview data, not RAM usage.
+          STL and OFF worker timings measure mesh preparation and attachment;
+          these exclude browser paint and OpenSCAD compilation. File sizes measure generated preview data, not RAM usage.
         </p>
       </div>
     </details>
