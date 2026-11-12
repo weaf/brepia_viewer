@@ -13,3 +13,11 @@ export function formatPreviewDuration(durationMs: number | null): string {
   if (durationMs < 1000) return Math.round(durationMs) + " ms";
   return (durationMs / 1000).toFixed(2) + " s";
 }
+
+/** Preserve sub-millisecond visibility for experimental mesh profiling. */
+export function formatMeshStageDuration(durationMs: number | null): string {
+  if (durationMs === null || !Number.isFinite(durationMs) || durationMs < 0) {
+    return "Unavailable";
+  }
+  return durationMs < 10 ? durationMs.toFixed(2) + " ms" : formatPreviewDuration(durationMs);
+}
