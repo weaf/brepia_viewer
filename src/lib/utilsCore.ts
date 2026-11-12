@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Parameter } from '@shared/types';
+import { validateParameterValue } from '@/utils/parameterUtils';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -105,13 +106,14 @@ export function validateRedirectUrlServer(
 
 export function updateParameter(code: string, param: Parameter): string {
   const escapedName = escapeRegExp(param.name);
+  const finiteNumericValue = validateParameterValue(param, param.value);
   const regex = new RegExp(
     `^\\s*(${escapedName}\\s*=\\s*)[^;]+;([\\t\\f\\cK ]*\\/\\/[^\n]*)?`,
     'm',
   );
   // Default to assuming the type is number
   if (!param.type) {
-    return code.replace(regex, `$1${param.value};$2`);
+    return code.replace(regex, `$1${finiteNumericValue};$2`);
   }
   switch (param.type) {
     case 'string':
@@ -120,9 +122,9 @@ export function updateParameter(code: string, param: Parameter): string {
         `$1"${escapeReplacement(escapeQuotes(param.value as string))}";$2`,
       );
     case 'number':
-      return code.replace(regex, `$1${param.value};$2`);
+      return code.replace(regex, `$1${finiteNumericValue};$2`);
     case 'boolean':
-      return code.replace(regex, `$1${param.value};$2`);
+      return code.replace(regex, `$1${finiteNumericValue};$2`);
     case 'string[]':
       return code.replace(
         regex,
