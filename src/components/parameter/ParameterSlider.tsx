@@ -4,6 +4,7 @@ import { Slider } from '@/components/ui/slider';
 import {
   calculateParameterRange,
   calculateParameterStep,
+  validateParameterValue,
 } from '@/utils/parameterUtils';
 
 interface ParameterSliderProps {
@@ -20,7 +21,10 @@ function ParameterSliderBase({
   step,
 }: ParameterSliderProps) {
   const { min, max } = calculateParameterRange(param);
-  const calculatedStep = step ?? calculateParameterStep(param);
+  const calculatedStep = Number.isFinite(step) && step! > 0
+    ? step! : calculateParameterStep(param);
+  const sliderValue = Number(validateParameterValue(param, param.value));
+  const defaultValue = Number(validateParameterValue(param, param.defaultValue));
 
   return (
     <Slider
@@ -28,15 +32,18 @@ function ParameterSliderBase({
       name={param.name}
       className="w-full"
       defaultMarkerStyle="line"
-      onValueChange={([newValue]) => onValueChange(newValue)}
+      onValueChange={([newValue]) => {
+        if (Number.isFinite(newValue)) onValueChange(newValue);
+      }}
       onValueCommit={([newValue]) => {
+        if (!Number.isFinite(newValue)) return;
         onValueCommit(newValue);
         onValueChange(newValue);
       }}
       min={min}
       max={max}
-      value={[Number(param.value)]}
-      defaultValue={[Number(param.defaultValue)]}
+      value={[sliderValue]}
+      defaultValue={[defaultValue]}
       step={calculatedStep}
     />
   );

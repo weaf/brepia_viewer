@@ -95,46 +95,12 @@ export default function parseParameters(script: string): Parameter[] {
         continue;
       }
 
-      // The trailing `// ...` comment carries Customizer-style hints.
+      // Parse only the bracketed Customizer hint. Descriptive suffixes may
+      // contain commas; they are not additional enum choices.
       if (match[3]) {
-        const rawComment = match[3].replace(/^\/\/\s*/, '').trim();
-        const cleaned = rawComment.replace(/^\[+|\]+$/g, '');
-
-        if (!isNaN(Number(rawComment))) {
-          // Bare number — step for numerics, maxLength for strings.
-          if (typeAndValue.type === 'string') {
-            range = { max: parseFloat(cleaned) };
-          } else {
-            range = { step: parseFloat(cleaned) };
-          }
-        } else if (rawComment.startsWith('[') && cleaned.includes(',')) {
-          // `[a, b:Label, c]` — enum options. `value:Label` lets the
-          // model pick a human label distinct from the underlying value.
-          options = cleaned
-            .trim()
-            .split(',')
-            .map((option) => {
-              const parts = option.trim().split(':');
-              let optionValue: ParameterOption['value'] = parts[0];
-              const label: ParameterOption['label'] = parts[1];
-              if (typeAndValue.type === 'number') {
-                optionValue = parseFloat(optionValue);
-              }
-              return { value: optionValue, label };
-            });
-        } else if (cleaned.match(/([0-9]+:?)+/)) {
-          // `[min:max]` or `[min:step:max]` — slider bounds.
-          const [min, maxOrStep, max] = cleaned.trim().split(':');
-          if (min && (maxOrStep || max)) {
-            range = { min: parseFloat(min) };
-          }
-          if (max || maxOrStep || min) {
-            range = { ...range, max: parseFloat(max || maxOrStep || min) };
-          }
-          if (max && maxOrStep) {
-            range = { ...range, step: parseFloat(maxOrStep) };
-          }
-        }
+        const hint = parseCustomizerHint(match[3], typeAndValue.type);
+        options = hint.options;
+        range = hint.range;
       }
 
       // The description is the last `// ...` comment on the line
@@ -280,4 +246,67 @@ function convertType(rawValue: string): {
 
 function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const FINITE_NUMERIC_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+function finiteNumber(text: string): number | null {
+  const trimmed = text.trim();
+  if (!FINITE_NUMERIC_LITERAL.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Only the first [bracketed] section is Customizer metadata.
+ * Human-readable descriptions after its closing bracket are never parsed
+ * as enum members or numeric slider bounds.
+ */
+function parseCustomizerHint(
+  comment: string,
+  type: ParameterType | undefined,
+): { range: ParameterRange; options: ParameterOption[] } {
+  const empty = { range: {} as ParameterRange, options: [] as ParameterOption[] };
+  const raw = comment.replace(/^\/\/\s*/, '').trim();
+  const bracket = /^\[([^\]]+)\](?:\s+.*)?$/.exec(raw);
+  if (bracket) {
+    const body = bracket[1].trim();
+    if (body.includes(',')) {
+      if (type !== 'string' && type !== 'number') return empty;
+      const values = body.split(',').map(token => {
+        const separator = token.indexOf(':');
+        const rawValue = (separator < 0 ? token : token.slice(0, separator)).trim();
+        const label = separator < 0 ? undefined : token.slice(separator + 1).trim();
+        const parsed = type === 'number' ? finiteNumber(rawValue) : rawValue;
+        if (parsed === null || parsed === '') return null;
+        return { value: parsed, ...(label ? { label } : {}) } as ParameterOption;
+      });
+      return values.every((item): item is ParameterOption => item !== null)
+        ? { range: {}, options: values }
+        : empty;
+    }
+
+    if (type === 'number') {
+      const tokens = body.split(':').map(token => token.trim());
+      if (tokens.length !== 2 && tokens.length !== 3) return empty;
+      const numbers = tokens.map(finiteNumber);
+      if (numbers.some(value => value === null)) return empty;
+      const [min, middle, last] = numbers as number[];
+      const max = tokens.length === 3 ? last : middle;
+      const step = tokens.length === 3 ? middle : undefined;
+      if (!Number.isFinite(max) || min >= max ||
+          (step !== undefined && step <= 0)) return empty;
+      return {
+        range: { min, max, ...(step !== undefined ? { step } : {}) },
+        options: [],
+      };
+    }
+    return empty;
+  }
+
+  const bare = finiteNumber(raw);
+  if (bare === null || bare <= 0) return empty;
+  if (type === 'string') return { range: { max: bare }, options: [] };
+  if (type === 'number') return { range: { step: bare }, options: [] };
+  return empty;
 }

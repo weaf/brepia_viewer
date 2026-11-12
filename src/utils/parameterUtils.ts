@@ -10,11 +10,16 @@ export function calculateParameterRange(param: Parameter): {
   max: number;
 } {
   // If explicit range is provided, use it
-  if (param.range?.min !== undefined && param.range?.max !== undefined) {
-    return { min: param.range.min, max: param.range.max };
+  if (
+    Number.isFinite(param.range?.min) &&
+    Number.isFinite(param.range?.max) &&
+    param.range!.min! < param.range!.max!
+  ) {
+    return { min: param.range!.min!, max: param.range!.max! };
   }
 
-  const defaultValue = Number(param.defaultValue);
+  const rawDefault = Number(param.defaultValue);
+  const defaultValue = Number.isFinite(rawDefault) ? rawDefault : 0;
 
   // Use only the default value for range calculation to prevent runaway expansion
   const referenceValue = Math.abs(defaultValue);
@@ -43,6 +48,7 @@ export function calculateParameterRange(param: Parameter): {
   }
 
   let maxValue = rangeMultiplier * Math.pow(10, magnitude);
+  if (!Number.isFinite(maxValue) || maxValue <= 0) return { min: 0, max: 1 };
 
   // Special handling for values that should round up to next nice range
   // e.g., 94 -> 100, 2.7 -> 10 (since 2.7 is closer to 10 than 5)
@@ -61,8 +67,8 @@ export function calculateParameterRange(param: Parameter): {
 
   // Determine minimum value
   let minValue: number;
-  if (param.range?.min !== undefined) {
-    minValue = param.range.min;
+  if (Number.isFinite(param.range?.min) && param.range!.min! < maxValue) {
+    minValue = param.range!.min!;
   } else {
     // For negative default values, use symmetric range
     // For positive default values, start from 0
@@ -73,7 +79,9 @@ export function calculateParameterRange(param: Parameter): {
     }
   }
 
-  return { min: minValue, max: maxValue };
+  return Number.isFinite(minValue) && Number.isFinite(maxValue) && minValue < maxValue
+    ? { min: minValue, max: maxValue }
+    : { min: 0, max: 1 };
 }
 
 /**
@@ -81,8 +89,8 @@ export function calculateParameterRange(param: Parameter): {
  */
 export function calculateParameterStep(param: Parameter): number {
   // If explicit step is provided, use it
-  if (param.range?.step !== undefined) {
-    return param.range.step;
+  if (Number.isFinite(param.range?.step) && param.range!.step! > 0) {
+    return param.range!.step!;
   }
 
   const { min, max } = calculateParameterRange(param);
@@ -217,11 +225,14 @@ export function validateParameterValue(
   value: Parameter['value'],
 ): Parameter['value'] {
   if (param.type === 'number' || !param.type) {
-    const numValue = Number(value);
-    if (isNaN(numValue)) {
-      return Number(param.defaultValue);
-    }
-    return numValue;
+    // Empty edits, NaN and Infinity must never reach a slider or SCAD output.
+    const numeric = typeof value === 'string' && !value.trim()
+      ? NaN : Number(value);
+    const fallback = Number(param.defaultValue);
+    const safeValue = Number.isFinite(numeric)
+      ? numeric : Number.isFinite(fallback) ? fallback : 0;
+    const { min, max } = calculateParameterRange(param);
+    return Math.min(max, Math.max(min, safeValue));
   }
 
   return value;
