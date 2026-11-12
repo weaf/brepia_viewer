@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { formatPreviewBytes, formatPreviewDuration } from "./previewDiagnostics";
+import { formatMeshStageDuration, formatPreviewBytes, formatPreviewDuration } from "./previewDiagnostics";
 
 describe("Experimental preview performance metrics", () => {
   it("formats worker compile time without implying total page load", () => {
     expect(formatPreviewDuration(250)).toBe("250 ms");
     expect(formatPreviewDuration(2500)).toBe("2.50 s");
     expect(formatPreviewDuration(0)).toBe("0 ms");
+  });
+
+  it("keeps sub-millisecond mesh setup timings visible", () => {
+    expect(formatMeshStageDuration(0.081)).toBe("0.08 ms");
+    expect(formatMeshStageDuration(0)).toBe("0.00 ms");
+    expect(formatMeshStageDuration(7.126)).toBe("7.13 ms");
+    expect(formatMeshStageDuration(70)).toBe("70 ms");
+    expect(formatMeshStageDuration(NaN)).toBe("Unavailable");
   });
 
   it("formats STL and OFF sizes safely", () => {
