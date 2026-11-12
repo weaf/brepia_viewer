@@ -264,7 +264,7 @@ function finiteNumber(text: string): number | null {
  */
 function parseCustomizerHint(
   comment: string,
-  type: ParameterType,
+  type: ParameterType | undefined,
 ): { range: ParameterRange; options: ParameterOption[] } {
   const empty = { range: {} as ParameterRange, options: [] as ParameterOption[] };
   const raw = comment.replace(/^\/\/\s*/, '').trim();
