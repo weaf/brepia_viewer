@@ -1,4 +1,5 @@
 import {
+  BufferAttribute,
   BufferGeometry,
   Float32BufferAttribute,
   Group,
@@ -6,23 +7,7 @@ import {
   MeshStandardMaterial,
 } from 'three';
 import { parseColoredOff, type ParsedOff } from './offParser';
-
-// OpenSCAD paints any face without an explicit color() call with its built-in
-// model yellow (#F9D72C ≈ 249,215,44). Manifold also emits a secondary
-// yellow-green (#9DCB51 ≈ 157,203,81) for CSG-cut faces. Strip both so those
-// faces fall through to the brand fallback color instead of polluting the
-// preview with OpenSCAD's editor defaults.
-function stripOpenscadDefaults(
-  color: [number, number, number, number] | null,
-): [number, number, number, number] | null {
-  if (!color) return null;
-  const r = Math.round(color[0] * 255);
-  const g = Math.round(color[1] * 255);
-  const b = Math.round(color[2] * 255);
-  if (r === 249 && g === 215 && b === 44) return null;
-  if (r === 157 && g === 203 && b === 81) return null;
-  return color;
-}
+import { stripOpenscadDefaults, type PreparedOffMesh } from './preparedOffMesh';
 
 // Build a Three.js Group whose meshes preserve OpenSCAD's color() calls from
 // an OFF file. `fallbackColor` is used for faces without explicit color. The
@@ -75,24 +60,51 @@ export function buildColoredGroupFromOff(
 
     const firstFace = faces[0];
     const faceColor = key === '__default' ? null : firstFace.color;
-    const mat = new MeshStandardMaterial({
-      color: faceColor
-        ? (Math.round(faceColor[0] * 255) << 16) |
-          (Math.round(faceColor[1] * 255) << 8) |
-          Math.round(faceColor[2] * 255)
-        : fallbackColor,
-      metalness: faceColor ? 0.05 : 0.6,
-      roughness: faceColor ? 0.7 : 0.3,
-      envMapIntensity: faceColor ? 0.15 : 0.3,
-      transparent: faceColor ? faceColor[3] < 1 : false,
-      opacity: faceColor ? faceColor[3] : 1,
-    });
+    const mat = coloredMaterial(faceColor, fallbackColor);
 
     group.add(new Mesh(geom, mat));
   }
 
   if (group.children.length === 0) return null;
   return group;
+}
+
+function coloredMaterial(
+  faceColor: [number, number, number, number] | null,
+  fallbackColor: number,
+): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: faceColor
+      ? (Math.round(faceColor[0] * 255) << 16) |
+        (Math.round(faceColor[1] * 255) << 8) |
+        Math.round(faceColor[2] * 255)
+      : fallbackColor,
+    metalness: faceColor ? 0.05 : 0.6,
+    roughness: faceColor ? 0.7 : 0.3,
+    envMapIntensity: faceColor ? 0.15 : 0.3,
+    transparent: faceColor ? faceColor[3] < 1 : false,
+    opacity: faceColor ? faceColor[3] : 1,
+  });
+}
+
+/**
+ * Experimental-only fast attach path. Float32Arrays arrive via transfer from
+ * the OFF analysis worker and are adopted without an additional copy.
+ * Rendering materials and scene objects remain on the main thread.
+ */
+export function buildColoredGroupFromPreparedOff(
+  prepared: PreparedOffMesh,
+  fallbackColor: number,
+): Group | null {
+  const group = new Group();
+  for (const bucket of prepared.buckets) {
+    if (bucket.positions.length === 0) continue;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(bucket.positions, 3));
+    geometry.setAttribute('normal', new BufferAttribute(bucket.normals, 3));
+    group.add(new Mesh(geometry, coloredMaterial(bucket.color, fallbackColor)));
+  }
+  return group.children.length ? group : null;
 }
 
 export function disposeColoredGroup(group: Group): void {
