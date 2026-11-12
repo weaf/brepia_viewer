@@ -19,11 +19,13 @@ import { parseColoredOff } from "@/utils/offParser";
 import { inspectParsedColoredOff, type OffColorInspection } from "@/utils/offColorInspector";
 import { extractFeatureEdgeTopology, type FeatureEdge } from "@/lib/featureEdgeTopology";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import type { PreparedOffMesh } from "@/utils/preparedOffMesh";
 import { exportStlAsThreeMf } from "@/utils/threeMfExport";
 import { exportColoredOffAsOrcaThreeMf } from "@/utils/orcaThreeMfExport";
 import { exportColoredOffAsOrcaPartsThreeMf } from "@/utils/orcaSplitSafeThreeMf";
 import {
   buildColoredGroupFromOff,
+  buildColoredGroupFromPreparedOff,
   disposeColoredGroup,
 } from "@/utils/coloredOffMesh";
 
@@ -67,6 +69,11 @@ export function LocalOpenScadPreview({
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
   const [featureEdges, setFeatureEdges] = useState<FeatureEdge[]>([]);
   const [offInspection, setOffInspection] = useState<OffColorInspection | null>(null);
+  const [meshTimings, setMeshTimings] = useState<{
+    workerTotalMs: number;
+    workerBuffersMs: number;
+    uiAttachMs: number;
+  } | null>(null);
   const mountedGroupRef = useRef<Group | null>(null);
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
   const compileSequence = useRef(0);
@@ -128,6 +135,7 @@ export function LocalOpenScadPreview({
   }, [output]);
 
   useEffect(() => {
+    setMeshTimings(null);
     if (!(offOutput instanceof Blob)) {
       if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
       mountedGroupRef.current = null;
@@ -138,14 +146,11 @@ export function LocalOpenScadPreview({
     }
     let cancelled = false;
     let analysisWorker: Worker | null = null;
-    const applyAnalysis = (
-      text: string,
-      parsed: ReturnType<typeof parseColoredOff>,
+    const applyGroup = (
+      group: Group | null,
       inspection: OffColorInspection,
       snapEdges: FeatureEdge[],
     ) => {
-      if (cancelled) return;
-      const group = buildColoredGroupFromOff(text, 0x00a6ff, parsed);
       if (cancelled) {
         if (group) disposeColoredGroup(group);
         return;
@@ -155,6 +160,34 @@ export function LocalOpenScadPreview({
       setColoredGroup(group);
       setOffInspection(inspection);
       setFeatureEdges(snapEdges.length <= 15_000 ? snapEdges : []);
+    };
+    const applyAnalysis = (
+      text: string,
+      parsed: ReturnType<typeof parseColoredOff>,
+      inspection: OffColorInspection,
+      snapEdges: FeatureEdge[],
+    ) => {
+      if (cancelled) return;
+      applyGroup(buildColoredGroupFromOff(text, 0x00a6ff, parsed), inspection, snapEdges);
+    };
+    const applyPreparedAnalysis = (
+      prepared: PreparedOffMesh,
+      inspection: OffColorInspection,
+      snapEdges: FeatureEdge[],
+      timings?: { totalMs: number; bufferMs: number },
+    ) => {
+      if (cancelled) return;
+      const started = performance.now();
+      const group = buildColoredGroupFromPreparedOff(prepared, 0x00a6ff);
+      const uiAttachMs = performance.now() - started;
+      applyGroup(group, inspection, snapEdges);
+      if (!cancelled && timings) {
+        setMeshTimings({
+          workerTotalMs: timings.totalMs,
+          workerBuffersMs: timings.bufferMs,
+          uiAttachMs,
+        });
+      }
     };
     const analyzeOnMainThread = (text: string) => {
       if (cancelled) return;
@@ -184,9 +217,10 @@ export function LocalOpenScadPreview({
           let settled = false;
           worker.onmessage = (event: MessageEvent<{
             ok: boolean;
-            parsed?: ReturnType<typeof parseColoredOff>;
+            prepared?: PreparedOffMesh;
             inspection?: OffColorInspection;
             edges?: FeatureEdge[];
+            timings?: { totalMs: number; bufferMs: number };
             error?: string;
           }>) => {
             if (cancelled || settled) return;
@@ -194,12 +228,12 @@ export function LocalOpenScadPreview({
             worker.terminate();
             analysisWorker = null;
             const data = event.data;
-            if (!data.ok || !data.parsed || !data.inspection || !data.edges) {
-              throwAsyncError(new Error(data.error ?? "OFF worker analysis failed."));
+            if (!data.ok || !data.prepared || !data.inspection || !data.edges) {
+              reportAnalysisError(new Error(data.error ?? "OFF worker buffer analysis failed."));
               return;
             }
             try {
-              applyAnalysis(text, data.parsed, data.inspection, data.edges);
+              applyPreparedAnalysis(data.prepared, data.inspection, data.edges, data.timings);
             } catch (cause) {
               reportAnalysisError(cause);
             }
@@ -221,7 +255,7 @@ export function LocalOpenScadPreview({
             analysisWorker = null;
             reportAnalysisError(new Error("OFF worker returned unreadable geometry data."));
           };
-          worker.postMessage({ text });
+          worker.postMessage({ text, prepareBuffers: true });
         } catch {
           analyzeOnMainThread(text);
         }
@@ -235,10 +269,8 @@ export function LocalOpenScadPreview({
       setColoredGroup(null);
       setFeatureEdges([]);
       setOffInspection(null);
+      setMeshTimings(null);
       console.error("[Gallery preview] Could not parse color data:", cause);
-    }
-    function throwAsyncError(cause: unknown) {
-      reportAnalysisError(cause);
     }
     return () => {
       cancelled = true;
@@ -371,6 +403,7 @@ export function LocalOpenScadPreview({
           offBytes={offOutput instanceof Blob ? offOutput.size : null}
           triangleCount={offInspection?.triangleCount ?? null}
           topology={offInspection?.topology ?? null}
+          meshTimings={meshTimings}
         />
       )}
       {isCompiling && (
