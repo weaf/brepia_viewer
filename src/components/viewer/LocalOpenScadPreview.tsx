@@ -19,6 +19,7 @@ import { parseColoredOff } from "@/utils/offParser";
 import { inspectParsedColoredOff, type OffColorInspection } from "@/utils/offColorInspector";
 import { extractFeatureEdgeTopology, type FeatureEdge } from "@/lib/featureEdgeTopology";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { buildGeometryFromPreparedStl, type PreparedStlGeometry, type StlWorkerTimings } from "@/utils/preparedStlGeometry";
 import type { PreparedOffMesh } from "@/utils/preparedOffMesh";
 import { exportStlAsThreeMf } from "@/utils/threeMfExport";
 import { exportColoredOffAsOrcaThreeMf } from "@/utils/orcaThreeMfExport";
@@ -66,6 +67,10 @@ export function LocalOpenScadPreview({
   const isMobile = useIsMobile();
   const failure = isError ? describeOpenScadFailure(error) : null;
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
+  const [stlTimings, setStlTimings] = useState<{
+    worker: StlWorkerTimings;
+    attachMs: number;
+  } | null>(null);
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
   const [featureEdges, setFeatureEdges] = useState<FeatureEdge[]>([]);
   const [offInspection, setOffInspection] = useState<OffColorInspection | null>(null);
@@ -105,6 +110,7 @@ export function LocalOpenScadPreview({
   }, [assets, compileProject, project, writeFile]);
 
   useEffect(() => {
+    setStlTimings(null);
     if (!(output instanceof Blob)) {
       mountedGeometryRef.current?.dispose();
       mountedGeometryRef.current = null;
@@ -112,27 +118,103 @@ export function LocalOpenScadPreview({
       return;
     }
     let cancelled = false;
-    void output
-      .arrayBuffer()
-      .then((buffer) => {
-        if (cancelled) return;
+    let stlWorker: Worker | null = null;
+
+    const showGeometry = (next: BufferGeometry) => {
+      if (cancelled) {
+        next.dispose();
+        return;
+      }
+      mountedGeometryRef.current?.dispose();
+      mountedGeometryRef.current = next;
+      setGeometry(next);
+    };
+    const parseOnMainThread = (buffer: ArrayBuffer) => {
+      if (cancelled) return;
+      try {
         const next = new STLLoader().parse(buffer);
         next.center();
         next.computeVertexNormals();
-        mountedGeometryRef.current?.dispose();
-        mountedGeometryRef.current = next;
-        setGeometry(next);
-      })
-      .catch((cause: unknown) => {
-        console.error(
-          "[Gallery preview] Could not parse OpenSCAD output:",
-          cause,
-        );
+        showGeometry(next);
+      } catch (cause) {
+        console.error("[Gallery preview] Could not parse OpenSCAD output:", cause);
+      }
+    };
+    const recoverWithMainThread = (cause: unknown) => {
+      if (cancelled) return;
+      console.warn("[Gallery preview] Experimental STL worker unavailable; falling back:", cause);
+      // The original Blob was not transferred and remains available for
+      // recovery and all unchanged STL/SCAD/3MF export paths.
+      void output.arrayBuffer().then(parseOnMainThread).catch((error: unknown) => {
+        if (!cancelled) console.error("[Gallery preview] STL fallback failed:", error);
       });
+    };
+
+    void output.arrayBuffer().then((buffer) => {
+      if (cancelled) return;
+      if (!experimentalEnabled || typeof Worker === "undefined") {
+        parseOnMainThread(buffer);
+        return;
+      }
+      try {
+        const worker = new Worker(
+          new URL("../../worker/stlGeometryWorker.ts", import.meta.url),
+          { type: "module" },
+        );
+        stlWorker = worker;
+        let settled = false;
+        worker.onmessage = (event: MessageEvent<{
+          ok: boolean;
+          prepared?: PreparedStlGeometry;
+          timings?: StlWorkerTimings;
+          error?: string;
+        }>) => {
+          if (cancelled || settled) return;
+          settled = true;
+          worker.terminate();
+          stlWorker = null;
+          const result = event.data;
+          if (!result.ok || !result.prepared || !result.timings) {
+            recoverWithMainThread(new Error(result.error ?? "STL worker returned invalid data"));
+            return;
+          }
+          try {
+            const start = performance.now();
+            const next = buildGeometryFromPreparedStl(result.prepared);
+            const attachMs = performance.now() - start;
+            showGeometry(next);
+            if (!cancelled) setStlTimings({ worker: result.timings, attachMs });
+          } catch (cause) {
+            recoverWithMainThread(cause);
+          }
+        };
+        worker.onerror = (event) => {
+          if (cancelled || settled) return;
+          settled = true;
+          event.preventDefault();
+          worker.terminate();
+          stlWorker = null;
+          recoverWithMainThread(new Error(event.message || "STL worker crashed"));
+        };
+        worker.onmessageerror = () => {
+          if (cancelled || settled) return;
+          settled = true;
+          worker.terminate();
+          stlWorker = null;
+          recoverWithMainThread(new Error("STL worker returned unreadable geometry"));
+        };
+        worker.postMessage({ buffer }, [buffer]);
+      } catch (cause) {
+        recoverWithMainThread(cause);
+      }
+    }).catch((cause: unknown) => {
+      if (!cancelled) console.error("[Gallery preview] Could not read OpenSCAD STL output:", cause);
+    });
     return () => {
       cancelled = true;
+      stlWorker?.terminate();
     };
-  }, [output]);
+  }, [output, experimentalEnabled]);
 
   useEffect(() => {
     setMeshTimings(null);
@@ -404,6 +486,7 @@ export function LocalOpenScadPreview({
           triangleCount={offInspection?.triangleCount ?? null}
           topology={offInspection?.topology ?? null}
           meshTimings={meshTimings}
+          stlTimings={stlTimings}
         />
       )}
       {isCompiling && (
