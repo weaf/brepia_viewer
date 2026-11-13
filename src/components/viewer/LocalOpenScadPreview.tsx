@@ -44,12 +44,14 @@ export function LocalOpenScadPreview({
   onExportStateChange,
   constrained = false,
   experimentalEnabled = false,
+  experimentalFastPreview = false,
 }: {
   project: OpenScadProject;
   assets: Record<string, Blob>;
   onExportStateChange?: (state: LocalOpenScadPreviewExportState) => void;
   constrained?: boolean;
   experimentalEnabled?: boolean;
+  experimentalFastPreview?: boolean;
 }) {
   const {
     compileProject,
@@ -95,7 +97,11 @@ export function LocalOpenScadPreview({
             throw new Error(`Missing local model asset: ${asset.path}`);
           await writeFile(asset.path, blob);
         }
-        if (!cancelled) await compileProject(project);
+        if (!cancelled) {
+          await compileProject(project, {
+            includeColorData: experimentalFastPreview ? false : undefined,
+          });
+        }
       } catch (cause) {
         console.error(
           "[Gallery preview] Could not compile OpenSCAD project:",
@@ -107,7 +113,7 @@ export function LocalOpenScadPreview({
       cancelled = true;
       compileSequence.current += 1;
     };
-  }, [assets, compileProject, project, writeFile]);
+  }, [assets, compileProject, experimentalFastPreview, project, writeFile]);
 
   useEffect(() => {
     setStlTimings(null);
@@ -477,6 +483,16 @@ export function LocalOpenScadPreview({
             </div>
           </div>
         </details>
+      )}
+      {experimentalEnabled && experimentalFastPreview && !isCompiling && output instanceof Blob && (
+        <p
+          className="z-10 shrink-0 border-t border-amber-400/25 bg-adam-neutral-800 px-3 py-2 text-xs text-amber-200"
+          role="status"
+          data-testid="fast-preview-color-notice"
+        >
+          Fast STL preview: model colors and parts inspection are hidden.
+          Orca Color export builds full color data on demand.
+        </p>
       )}
       {experimentalEnabled && !isCompiling && output instanceof Blob && (
         <PreviewDiagnostics
