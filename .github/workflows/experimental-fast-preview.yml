@@ -1,0 +1,34 @@
+name: Brepia Viewer Experimental fast-preview smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fast-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      STATIC_VIEWER_BASE: "/"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci --no-fund --no-audit
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Verify opt-in fast STL preview and Orca color 3MF
+        run: node .github/scripts/experimental-fast-preview-smoke.mjs
+      - name: Retain desktop and mobile Chrome evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: experimental-fast-preview
+          path: ${{ runner.temp }}/viewer-fast-preview-evidence/
+          if-no-files-found: warn
