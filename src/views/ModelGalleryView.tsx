@@ -174,6 +174,8 @@ export function ModelGalleryView() {
   const [layoutLocked, setLayoutLocked] = useState(false);
   // Per-browser opt-in; stays off on first visit and avoids SSR hydration drift.
   const [experimentalEnabled, setExperimentalEnabled] = useState(false);
+  // Separate session-only opt-in: Experimental alone never hides model colors.
+  const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
   useEffect(() => {
     try {
       setExperimentalEnabled(
@@ -185,6 +187,7 @@ export function ModelGalleryView() {
   }, []);
   const updateExperimentalMode = useCallback((enabled: boolean) => {
     setExperimentalEnabled(enabled);
+    if (!enabled) setFastPreviewEnabled(false);
     try {
       window.localStorage.setItem(EXPERIMENTAL_MODE_STORAGE_KEY, String(enabled));
     } catch {
@@ -1062,7 +1065,12 @@ export function ModelGalleryView() {
           </div>
           <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
             <RepositoryLink compact />
-            <ExperimentalMenu enabled={experimentalEnabled} onEnabledChange={updateExperimentalMode} />
+            <ExperimentalMenu
+              enabled={experimentalEnabled}
+              onEnabledChange={updateExperimentalMode}
+              fastPreviewEnabled={fastPreviewEnabled}
+              onFastPreviewChange={setFastPreviewEnabled}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1212,6 +1220,7 @@ export function ModelGalleryView() {
             project={activeRecord.project}
             assets={activeRecord.assetBlobs}
             experimentalEnabled={experimentalEnabled}
+            experimentalFastPreview={experimentalEnabled && fastPreviewEnabled}
             onExportStateChange={handlePreviewExportStateChange}
           />
           <aside className={cn(
@@ -1307,7 +1316,12 @@ export function ModelGalleryView() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryLink />
-            <ExperimentalMenu enabled={experimentalEnabled} onEnabledChange={updateExperimentalMode} />
+            <ExperimentalMenu
+              enabled={experimentalEnabled}
+              onEnabledChange={updateExperimentalMode}
+              fastPreviewEnabled={fastPreviewEnabled}
+              onFastPreviewChange={setFastPreviewEnabled}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
