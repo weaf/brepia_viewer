@@ -88,8 +88,9 @@ try {
       await download.saveAs(file);
       const zip = unzipSync(new Uint8Array(await readFile(file)));
       const xml = new TextDecoder().decode(zip['3D/3dmodel.model']);
-      if (!xml.includes('<triangle ') || !xml.includes('unit="millimeter"')) {
-        throw new Error('Invalid color 3MF after fast preview');
+      if (!xml.includes('<triangle ') || !xml.includes('unit="millimeter"') ||
+          !xml.includes('<m:color color="#FF0000FF"/>')) {
+        throw new Error('Invalid or monochrome 3MF after fast preview');
       }
 
       await experimental.click();
