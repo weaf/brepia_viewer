@@ -650,6 +650,28 @@ export function ThreeScene({
         <div className="flex items-center gap-2">
           <Button
             type="button"
+            size="icon"
+            variant={measuring ? "secondary" : "ghost"}
+            className="h-8 w-8 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 text-adam-text-primary backdrop-blur-sm"
+            aria-label={measuring ? "Turn off measurement" : "Measure distance or angle"}
+            title={measuring ? "Turn off measurement" : "Measure distance or angle"}
+            aria-pressed={measuring}
+            data-testid="viewer-measure-toolbar-button"
+            onClick={() => {
+              setVisualMoving(false);
+              setVisualMoveDelta([0, 0, 0]);
+              setAutoPlaceMobileLine(!measuring && isMobile);
+              setDraggingMeasurement(false);
+              setMobileMeasurePanelExpanded(true);
+              setMeasuring(!measuring);
+              setMeasurementPoints([]);
+              setSnapNotice(null);
+            }}
+          >
+            <Ruler className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
             variant={uprightLocked ? "secondary" : "ghost"}
             size="icon"
             className="h-8 w-8 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 text-adam-text-primary backdrop-blur-sm"
@@ -724,11 +746,12 @@ export function ThreeScene({
            <p className="text-[11px] text-amber-200">Preview only. Source code and exports are unchanged.</p>
          </div>
        )}
-       <div className={isMobile && measuring
+       {measuring && (
+       <div className={isMobile
            ? cn("relative z-10 flex w-full shrink-0 flex-col gap-1 border-t border-white/10 bg-adam-background-1/95 px-2 py-1.5",
                mobileMeasurePanelExpanded ? "h-36" : "h-14")
            : "absolute bottom-14 left-2 z-10 flex max-w-[min(92vw,340px)] flex-col gap-1.5"}>
-         {isMobile && measuring && !mobileMeasurePanelExpanded ? (
+         {isMobile && !mobileMeasurePanelExpanded ? (
            <button
              type="button"
              aria-label="Show measurement controls"
@@ -737,7 +760,7 @@ export function ThreeScene({
              className="flex h-11 w-full min-w-0 items-center gap-2 rounded-xl border border-amber-300/30 bg-black/65 px-3 text-left text-sm text-white"
            >
              <Ruler className="h-4 w-4 shrink-0 text-amber-300" />
-             <span className="shrink-0 font-semibold">Measure on</span>
+             <span className="shrink-0 font-semibold">{measurementMode === "distance" ? "Distance" : "Angle"}</span>
              <span className="min-w-0 flex-1 truncate text-amber-200">
                {measurementMode === "distance" ? distanceLabel ?? "Place a dimension" : angleLabel ? angleLabel + " to horizontal" : "Place an angle"}
              </span>
@@ -746,27 +769,6 @@ export function ThreeScene({
          ) : (
          <>
          <div className="flex min-h-11 flex-nowrap items-center gap-1.5 overflow-x-auto">
-          <Button
-            type="button"
-            size="sm"
-            variant={measuring ? "secondary" : "ghost"}
-            className="h-11 gap-1.5 rounded-full border border-white/20 bg-adam-background-1/90 px-3 text-adam-text-primary"
-            aria-label="Measure distance"
-            aria-pressed={measuring}
-            onClick={() => {
-              setVisualMoving(false);
-               setVisualMoveDelta([0, 0, 0]);
-               setAutoPlaceMobileLine(!measuring && isMobile);
-              setDraggingMeasurement(false);
-              setMobileMeasurePanelExpanded(true);
-              setMeasuring(!measuring);
-              setMeasurementPoints([]);
-              setSnapNotice(null);
-            }}
-          >
-            <Ruler className="h-4 w-4" />
-            Measure
-          </Button>
           {measuring && (
             <>
               <select
@@ -908,6 +910,7 @@ export function ThreeScene({
          </>
          )}
        </div>
+       )}
 
 
     </div>
