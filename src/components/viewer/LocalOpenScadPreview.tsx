@@ -83,18 +83,26 @@ export function LocalOpenScadPreview({
   } | null>(null);
   const mountedGroupRef = useRef<Group | null>(null);
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
-  const compileSequence = useRef(0);
+  const previousFastPreviewRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    compileSequence.current += 1;
+    // Only the explicitly selected Experimental fast mode may interrupt an
+    // in-flight compile. Normal previews keep their existing request lifecycle.
+    // When turning fast mode off, cancel its last compile before restoring
+    // the standard full STL+OFF output.
+    if (experimentalFastPreview || previousFastPreviewRef.current) {
+      cancelPreview();
+    }
+    previousFastPreviewRef.current = experimentalFastPreview;
 
-    void (async () => {
+    const renderLatestProject = async () => {
       try {
         for (const asset of project.assets ?? []) {
           const blob = assets[asset.path];
           if (!blob)
             throw new Error(`Missing local model asset: ${asset.path}`);
+          if (cancelled) return;
           await writeFile(asset.path, blob);
         }
         if (!cancelled) {
@@ -103,17 +111,24 @@ export function LocalOpenScadPreview({
           });
         }
       } catch (cause) {
-        console.error(
-          "[Gallery preview] Could not compile OpenSCAD project:",
-          cause,
-        );
+        if (!cancelled) {
+          console.error("[Gallery preview] Could not compile OpenSCAD project:", cause);
+        }
       }
-    })();
+    };
+
+    // Merge rapid parameter commits before they reach the expensive WASM
+    // worker. An outdated active fast preview is terminated above rather than
+    // occupying the queue for each intermediate slider value.
+    const timer = experimentalFastPreview
+      ? globalThis.setTimeout(() => { void renderLatestProject(); }, 160)
+      : null;
+    if (timer === null) void renderLatestProject();
     return () => {
       cancelled = true;
-      compileSequence.current += 1;
+      if (timer !== null) globalThis.clearTimeout(timer);
     };
-  }, [assets, compileProject, experimentalFastPreview, project, writeFile]);
+  }, [assets, cancelPreview, compileProject, experimentalFastPreview, project, writeFile]);
 
   useEffect(() => {
     setStlTimings(null);
