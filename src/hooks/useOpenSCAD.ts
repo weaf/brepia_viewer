@@ -109,7 +109,10 @@ export function useOpenSCAD() {
   );
 
   const compileProject = useCallback(
-    async (project: OpenScadProject): Promise<void> => {
+    async (
+      project: OpenScadProject,
+      options: { includeColorData?: boolean } = {},
+    ): Promise<void> => {
       setIsCompiling(true);
       setIsPreviewCancelled(false);
       setPreviewCompileDurationMs(null);
@@ -125,7 +128,13 @@ export function useOpenSCAD() {
         const response = await getClient().request<OpenSCADWorkerResponseData>({
           id,
           type: WorkerMessageType.PREVIEW,
-          data: { project: normalizedProject, params: [], fileType: 'stl' },
+          data: {
+            project: normalizedProject,
+            params: [],
+            fileType: 'stl',
+            // Missing/undefined retains the existing STL+OFF preview.
+            includeColorData: options.includeColorData,
+          },
         });
         assertOpenScadOutputWithinLimit(response);
 
