@@ -49,9 +49,16 @@ async function deviceCheck(device) {
     await step('folder import preserving use dependency', async () => {
       await page.goto(origin, { waitUntil: 'domcontentloaded' });
       await page.getByText('Model gallery', { exact: true }).waitFor({ timeout: 35000 });
+      // Wait for the hydrated gallery's enabled folder chooser. Mobile
+      // Chromium can transiently replace the hidden input while local model
+      // state settles; attachment alone is not an actionable-ready signal.
+      await page.getByRole('button', { name: 'Upload folder' }).waitFor({ state: 'visible' });
       const folderInput = page.locator('input[type="file"][webkitdirectory]');
-      await folderInput.waitFor({ state: 'attached' });
-      await folderInput.setInputFiles(fixture);
+      await page.waitForFunction(() => {
+        const input = document.querySelector('input[type="file"][webkitdirectory]');
+        return input instanceof HTMLInputElement && !input.disabled;
+      }, null, { timeout: 25000 });
+      await folderInput.setInputFiles(fixture, { timeout: 45000 });
       await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 40000 });
       assert.equal(await page.getByRole('button', { name: 'Open main.scad' }).count(), 1);
       assert.equal(await page.getByRole('button', { name: 'Open lib/geometry.scad' }).count(), 1);
