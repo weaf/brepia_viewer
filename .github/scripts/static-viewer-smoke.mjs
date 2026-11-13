@@ -391,6 +391,51 @@ try {
       // Missing 3D canvas is reported through the test violations below.
     }
     await page.waitForTimeout(2500);
+    // The Measure toggle belongs to the shared viewer control row, not a
+    // floating text button. Exercise it on the same real Chrome model fixture
+    // as the rest of the static-site acceptance suite.
+    if (visibleCanvas) {
+      try {
+        const measure = page.getByTestId('viewer-measure-toolbar-button');
+        const upright = page.getByRole('button', { name: /Lock viewer upright|Unlock viewer rotation/ });
+        await measure.waitFor({ state: 'visible', timeout: 12000 });
+        const measureBox = await measure.boundingBox();
+        const uprightBox = await upright.boundingBox();
+        if (!measureBox || !uprightBox ||
+            Math.abs((measureBox.y + measureBox.height / 2) -
+                     (uprightBox.y + uprightBox.height / 2)) > 3 ||
+            measureBox.x < 0 || measureBox.x + measureBox.width > device.width + 2) {
+          violations.push(device.name + ' compact Measure icon not in viewer control row: ' +
+            JSON.stringify({ measureBox, uprightBox }));
+        }
+        if (await measure.getAttribute('aria-pressed') !== 'false') {
+          violations.push(device.name + ' Measure unexpectedly enabled on open');
+        }
+        await page.screenshot({ path: path.join(evidence, device.name + '-measure-toolbar-idle.png') });
+        await measure.click();
+        await page.getByRole('combobox', { name: 'Measurement mode' }).waitFor({ timeout: 12000 });
+        if (await measure.getAttribute('aria-pressed') !== 'true') {
+          violations.push(device.name + ' Measure icon did not activate');
+        }
+        await page.screenshot({ path: path.join(evidence, device.name + '-measure-toolbar-active.png') });
+        if (device.name === 'mobile') {
+          await page.getByRole('button', { name: 'Hide measurement controls' }).click();
+          await page.getByRole('button', { name: 'Show measurement controls' }).waitFor({ timeout: 5000 });
+          await page.screenshot({ path: path.join(evidence, 'mobile-measure-toolbar-collapsed.png') });
+          await page.getByRole('button', { name: 'Show measurement controls' }).click();
+          await page.getByRole('combobox', { name: 'Measurement mode' }).waitFor({ timeout: 5000 });
+        }
+        await measure.click();
+        if (await measure.getAttribute('aria-pressed') !== 'false' ||
+            await page.getByRole('combobox', { name: 'Measurement mode' }).count() !== 0) {
+          violations.push(device.name + ' Measure did not deactivate/close panel');
+        }
+        findings.push({ type: 'measure-toolbar', device: device.name, measureBox, uprightBox });
+      } catch (error) {
+        violations.push(device.name + ' Measure toolbar interaction failed: ' +
+          String(error?.message || error).slice(0, 500));
+      }
+    }
     const tEditor=Date.now()-t0;
     const snapshot=await page.evaluate(()=>({
       body:document.body.innerText.slice(0,420),
