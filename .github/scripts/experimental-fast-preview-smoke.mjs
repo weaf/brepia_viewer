@@ -19,7 +19,11 @@ const reports = [];
 try {
   let ready = false;
   for (let i = 0; i < 60; i++) {
-    try { if ((await fetch(origin)).ok) { ready = true; break; } } catch {}
+    try {
+      if ((await fetch(origin)).ok) { ready = true; break; }
+    } catch {
+      // The isolated HTTP server may still be starting.
+    }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   if (!ready) throw new Error('Static test server did not become available');
