@@ -77,6 +77,29 @@ try {
       await geometryCanvas.waitFor({ state: 'visible', timeout: 30000 });
       await page.screenshot({ path: path.join(evidence, device.name + '-fast-stl.png') });
 
+      // Rapid numeric commits must coalesce to the newest project. The plain
+      // 3MF uses the *current preview STL* without recompiling, so checking
+      // its bounding box detects stale/out-of-order rendered geometry.
+      const sizeInput = page.getByRole('textbox', { name: 'Size', exact: true });
+      for (const value of ['12', '14', '18']) {
+        await sizeInput.fill(value);
+        await sizeInput.blur();
+      }
+      await page.waitForTimeout(1000);
+      await page.getByRole('button', { name: 'Export model' }).click();
+      const [plainDownload] = await Promise.all([
+        page.waitForEvent('download', { timeout: 30000 }),
+        page.getByRole('menuitem', { name: /\.3MF.*3D Manufacturing Format/ }).click(),
+      ]);
+      const plainPath = path.join(evidence, device.name + '-latest-geometry.3mf');
+      await plainDownload.saveAs(plainPath);
+      const plainZip = unzipSync(new Uint8Array(await readFile(plainPath)));
+      const plainXml = new TextDecoder().decode(plainZip['3D/3dmodel.model']);
+      const xs = [...plainXml.matchAll(/<vertex x="([^"]+)"/g)].map(match => Number(match[1]));
+      if (xs.length === 0 || Math.abs(Math.max(...xs) - Math.min(...xs) - 18) > 0.01) {
+        throw new Error('Fast preview returned obsolete geometry after quick parameter commits');
+      }
+
       // The export must still obtain full OFF colors on demand, rather
       // than silently turning a colored model into a monochrome 3MF.
       await page.getByRole('button', { name: 'Export model' }).click();
