@@ -11,9 +11,13 @@ import {
 export function ExperimentalMenu({
   enabled,
   onEnabledChange,
+  fastPreviewEnabled,
+  onFastPreviewChange,
 }: {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  fastPreviewEnabled: boolean;
+  onFastPreviewChange: (enabled: boolean) => void;
 }) {
   return (
     <DropdownMenu>
@@ -46,6 +50,22 @@ export function ExperimentalMenu({
             </span>
           </span>
         </DropdownMenuCheckboxItem>
+        {enabled && (
+          <DropdownMenuCheckboxItem
+            checked={fastPreviewEnabled}
+            onCheckedChange={(checked) => onFastPreviewChange(checked === true)}
+            className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
+            aria-label="Enable fast STL-only preview"
+          >
+            <span className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Fast STL preview</span>
+              <span className="text-xs leading-snug text-adam-neutral-300">
+                Skip OFF color generation while previewing. Colors and parts are
+                hidden; Orca Color export still generates full color data when needed.
+              </span>
+            </span>
+          </DropdownMenuCheckboxItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
