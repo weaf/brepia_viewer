@@ -108,7 +108,7 @@ export function updateParameter(code: string, param: Parameter): string {
   // parseParameters exposes numeric vectors as name[0], name[1], etc.
   // Update the parent declaration atomically instead of treating name[index]
   // as a standalone SCAD variable. Preserve all sibling vector coordinates.
-  const vectorComponent = /^([A-Za-z_$][A-Za-z0-9_$]*)\\[(\\d+)\\]$/.exec(param.name);
+  const vectorComponent = /^([A-Za-z_$][A-Za-z0-9_$]*)\[(\d+)\]$/.exec(param.name);
   if (vectorComponent && param.type === "number") {
     const name = escapeRegExp(vectorComponent[1]);
     const index = Number(vectorComponent[2]);
@@ -119,7 +119,7 @@ export function updateParameter(code: string, param: Parameter): string {
     );
     return code.replace(assignment, (original, prefix: string, array: string, suffix: string) => {
       const items = array.slice(1, -1).split(",").map(item => item.trim());
-      if (index >= items.length || !items.every(item => /^[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?$/.test(item))) {
+      if (index >= items.length || !items.every(item => /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(item))) {
         return original;
       }
       items[index] = String(validated);
