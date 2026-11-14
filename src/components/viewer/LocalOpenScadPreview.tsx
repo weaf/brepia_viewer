@@ -442,6 +442,7 @@ export function LocalOpenScadPreview({
   // Experimental is opt-in and applies to the complete renderable geometry.
   // There is deliberately no SCAD AST mapping or source eligibility gate.
   const visualEditAllowed = experimentalEnabled;
+  const fastStlOnly = experimentalEnabled && experimentalFastPreview;
   return (
     <section
       className={`relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrained ? "min-h-0" : "min-h-[22rem]"}`}
@@ -450,19 +451,19 @@ export function LocalOpenScadPreview({
       <div className="absolute left-3 top-3 z-10 rounded-md border border-white/10 bg-black/45 px-2.5 py-1.5 font-mono text-[10px] text-white/75">
         {entrypoint.path}
       </div>
-      {(geometry || coloredGroup) && (
+      {(geometry || (!fastStlOnly && coloredGroup)) && (
         <div className="min-h-0 flex-1">
           <ThreeScene
             geometry={geometry}
-            coloredGroup={coloredGroup}
-            featureEdges={featureEdges}
+            coloredGroup={fastStlOnly ? null : coloredGroup}
+            featureEdges={fastStlOnly ? [] : featureEdges}
             visualEditAllowed={visualEditAllowed}
             color="#00A6FF"
             isMobile={isMobile}
           />
         </div>
       )}
-      {offInspection && (
+      {offInspection && !fastStlOnly && (
         <details className="z-10 shrink-0 border-t border-white/15 bg-adam-neutral-800 text-adam-text-primary" data-testid="off-component-inspector">
           <summary className="flex min-h-10 cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-xs font-medium">
             Parts & colors
@@ -514,8 +515,8 @@ export function LocalOpenScadPreview({
           durationMs={previewCompileDurationMs}
           stlBytes={output.size}
           offBytes={offOutput instanceof Blob ? offOutput.size : null}
-          triangleCount={offInspection?.triangleCount ?? null}
-          topology={offInspection?.topology ?? null}
+          triangleCount={fastStlOnly ? null : (offInspection?.triangleCount ?? null)}
+          topology={fastStlOnly ? null : (offInspection?.topology ?? null)}
           meshTimings={meshTimings}
           stlTimings={stlTimings}
         />
