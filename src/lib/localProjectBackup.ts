@@ -208,7 +208,7 @@ export async function readLocalProjectBackup(
         );
         const originalParameters = validated['__brepia_original__'];
         delete validated['__brepia_original__'];
-        if (raw.activeName && !Object.hasOwn(validated, raw.activeName)) {
+        if (raw.activeName && !Object.prototype.hasOwnProperty.call(validated, raw.activeName)) {
           throw new Error('Backup refers to a missing active variant.');
         }
         savedVariants = { originalParameters, parameterSets: validated, activeName: raw.activeName };
