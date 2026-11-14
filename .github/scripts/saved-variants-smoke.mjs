@@ -155,7 +155,9 @@ try {
     try {
       const response = await fetch(origin);
       if (response.ok) break;
-    } catch {}
+    } catch (error) {
+      if (i === 49) throw error;
+    }
     if (i === 49) throw new Error("Static server unavailable: " + stderr);
     await sleep(200);
   }
