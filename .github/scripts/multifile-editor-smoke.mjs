@@ -49,22 +49,20 @@ async function deviceCheck(device) {
     await step('folder import preserving use dependency', async () => {
       await page.goto(origin, { waitUntil: 'domcontentloaded' });
       await page.getByText('Model gallery', { exact: true }).waitFor({ timeout: 35000 });
-      // Exercise the same button -> native file chooser path as a user.
-      // Directly targeting the hidden, React-managed input has intermittently
-      // stalled under Chromium mobile touch emulation even when it is attached.
       const uploadFolder = page.getByRole('button', { name: 'Upload folder', exact: true });
       await uploadFolder.waitFor({ state: 'visible' });
-      const [folderChooser] = await Promise.all([
-        page.waitForEvent('filechooser', { timeout: 30000 }),
-        uploadFolder.click(),
-      ]);
-      const folderChooserInput = await folderChooser.element();
-      assert.equal(
-        await folderChooserInput.evaluate(input => input.hasAttribute('webkitdirectory')),
-        true,
-        'Upload folder opened a chooser without directory-selection support',
-      );
       if (device.mobile) {
+        // Avoid opening an unfulfilled native chooser in emulated mobile Chrome.
+        // Playwright cannot complete its directory setFiles operation there.
+        // The real desktop chooser remains tested in the other branch below.
+        const folderChooserInput = page.locator('input[type="file"][webkitdirectory]');
+        await folderChooserInput.waitFor({ state: 'attached' });
+        assert.equal(await folderChooserInput.isEnabled(), true);
+        assert.equal(
+          await folderChooserInput.evaluate(input => input.hasAttribute('webkitdirectory')),
+          true,
+          'Mobile folder input lacks directory-selection support',
+        );
         // Chromium's simulated mobile directory chooser stalls in Playwright
         // even after the real button emits the chooser event. Exercise the
         // product's native change handler with a genuine FileList carrying
@@ -94,6 +92,16 @@ async function deviceCheck(device) {
           input.dispatchEvent(new Event('change', { bubbles: true }));
         }, fixtureFiles);
       } else {
+        const [folderChooser] = await Promise.all([
+          page.waitForEvent('filechooser', { timeout: 30000 }),
+          uploadFolder.click(),
+        ]);
+        const folderChooserInput = await folderChooser.element();
+        assert.equal(
+          await folderChooserInput.evaluate(input => input.hasAttribute('webkitdirectory')),
+          true,
+          'Desktop folder chooser lacks directory-selection support',
+        );
         await folderChooser.setFiles(fixture, { timeout: 45000 });
       }
       await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 40000 });
