@@ -33,6 +33,7 @@ const imported = JSON.stringify({
   parameterSets: {
     Wide: { width: "35", height: "12", label: "wide", enabled: "false", dimensions: "[35,12,4]", obsolete: "123" },
     Tall: { width: "5", height: "70", label: "tall", enabled: "true", dimensions: "[5,70,6]" },
+    Partial: { width: "22" },
   },
 });
 
@@ -114,6 +115,9 @@ async function checkDevice(device) {
     await select.selectOption("Tall");
     await page.waitForFunction(() => document.querySelector('input[name="width"]')?.value === "5");
     assert.equal(await page.getByRole("textbox", { name: "Height", exact: true }).inputValue(), "70");
+    await select.selectOption("Partial");
+    await page.waitForFunction(() => document.querySelector('input[name="width"]')?.value === "22");
+    assert.equal(await page.getByRole("textbox", { name: "Height", exact: true }).inputValue(), "20", "Partial presets restore omitted parameters to original");
     await panel.getByRole("button", { name: "Original" }).click();
     await page.waitForFunction(() => document.querySelector('input[name="width"]')?.value === "10");
     assert.equal(await page.getByRole("textbox", { name: "Height", exact: true }).inputValue(), "20");
