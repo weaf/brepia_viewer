@@ -42,6 +42,18 @@ export type OpenSCADWorkerMessageData = {
   includeColorData?: boolean;
 };
 
+/** Monotonic wall-clock stages within one worker-side OpenSCAD execution (milliseconds). */
+export type OpenScadCompilePhases = {
+  wasmInitMs: number;
+  fontSetupMs: number;
+  cachedFilesMs: number;
+  projectMountMs: number;
+  libraryLoadMs: number;
+  callMainMs: number;
+  outputReadMs: number;
+  totalMs: number;
+};
+
 export type OpenSCADWorkerResponseData = {
   log: {
     stdErr: string[];
@@ -52,6 +64,7 @@ export type OpenSCADWorkerResponseData = {
   exitCode: number;
   duration: number;
   extraOutputs?: Record<string, Uint8Array>;
+  compilePhases?: OpenScadCompilePhases;
 };
 
 export type FileSystemWorkerMessageData = {

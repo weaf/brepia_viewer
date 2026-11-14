@@ -7,6 +7,7 @@ import {
   FileSystemWorkerMessageData,
   OpenSCADWorkerMessageData,
   OpenSCADWorkerResponseData,
+  type OpenScadCompilePhases,
 } from './types';
 import OpenSCADError from '@/lib/OpenSCADError';
 import { getOpenScadExportFormat } from '@/lib/openScadExportFormats';
@@ -83,12 +84,15 @@ class OpenSCADWrapper {
 
   files: WorkspaceFile[] = [];
 
-  async getInstance(): Promise<OpenSCAD> {
+  async getInstance(phases?: OpenScadCompilePhases): Promise<OpenSCAD> {
+    const wasmStartedAt = performance.now();
     const instance = await openscad({
       noInitialRun: true,
       print: this.logger('stdOut'),
       printErr: this.logger('stdErr'),
     });
+    if (phases) phases.wasmInitMs = performance.now() - wasmStartedAt;
+    const fontsStartedAt = performance.now();
     try {
       if (!defaultFont) {
         const fontResponse = await fetch(
@@ -111,7 +115,9 @@ class OpenSCADWrapper {
     } catch (error) {
       console.error('Error setting up fonts', error);
     }
+    if (phases) phases.fontSetupMs = performance.now() - fontsStartedAt;
 
+    const cachedFilesStartedAt = performance.now();
     for (const file of this.files) {
       // Make sure the directory of the file exists
       if (file.path) {
@@ -127,6 +133,7 @@ class OpenSCADWrapper {
         instance.FS.writeFile(file.path, new Int8Array(content));
       }
     }
+    if (phases) phases.cachedFilesMs = performance.now() - cachedFilesStartedAt;
 
     return instance;
   }
@@ -355,6 +362,17 @@ class OpenSCADWrapper {
     extraOutputs: { path: string; key: string }[] = [],
   ): Promise<OpenSCADWorkerResponseData> {
     const start = Date.now();
+    const totalStartedAt = performance.now();
+    const compilePhases: OpenScadCompilePhases = {
+      wasmInitMs: 0,
+      fontSetupMs: 0,
+      cachedFilesMs: 0,
+      projectMountMs: 0,
+      libraryLoadMs: 0,
+      callMainMs: 0,
+      outputReadMs: 0,
+      totalMs: 0,
+    };
 
     // Reset log
     this.log.stdErr = [];
@@ -375,8 +393,9 @@ class OpenSCADWrapper {
     const projectRoot = '/project';
     const inputFile = `${projectRoot}/${normalizedProject.entrypointPath}`;
     const outputFile = '/out.' + fileType;
-    const instance = await this.getInstance();
+    const instance = await this.getInstance(compilePhases);
     const importLibraries: string[] = [];
+    const mountingStartedAt = performance.now();
 
     // Mount exactly this request's normalized source project into the fresh WASM FS.
     this.createDirectoryRecursive(instance, projectRoot);
@@ -435,6 +454,9 @@ class OpenSCADWrapper {
       instance.FS.mkdir('/libraries');
     }
 
+    compilePhases.projectMountMs = performance.now() - mountingStartedAt;
+    const libraryStartedAt = performance.now();
+
     // Detect against comment- and string-stripped source so only ACTIVE
     // statements count — a commented-out include must not trigger a (now
     // fatal-on-failure) library fetch.
@@ -489,6 +511,8 @@ class OpenSCADWrapper {
       }
     }
 
+    compilePhases.libraryLoadMs = performance.now() - libraryStartedAt;
+
     const extraOutputArgs = extraOutputs.flatMap(({ path }) => ['-o', path]);
     const args = [
       inputFile,
@@ -501,6 +525,7 @@ class OpenSCADWrapper {
     let output;
     const extras: Record<string, Uint8Array> = {};
 
+    const callMainStartedAt = performance.now();
     try {
       exitCode = instance.callMain(args);
     } catch (error) {
@@ -512,6 +537,8 @@ class OpenSCADWrapper {
       );
     }
 
+    compilePhases.callMainMs = performance.now() - callMainStartedAt;
+    const outputStartedAt = performance.now();
     if (exitCode === 0) {
       try {
         output = instance.FS.readFile(outputFile, { encoding: 'binary' });
@@ -538,10 +565,13 @@ class OpenSCADWrapper {
       );
     }
 
+    compilePhases.outputReadMs = performance.now() - outputStartedAt;
+    compilePhases.totalMs = performance.now() - totalStartedAt;
     return {
       output,
       exitCode,
       duration: Date.now() - start,
+      compilePhases,
       log: this.log,
       fileType,
       extraOutputs: Object.keys(extras).length > 0 ? extras : undefined,

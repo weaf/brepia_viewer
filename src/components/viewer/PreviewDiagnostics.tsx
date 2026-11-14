@@ -1,8 +1,11 @@
 import { formatMeshStageDuration, formatPreviewBytes, formatPreviewDuration } from "@/lib/previewDiagnostics";
 import type { StlWorkerTimings } from "@/utils/preparedStlGeometry";
+import type { OpenScadCompilePhases } from "@/worker/types";
 
 type PreviewDiagnosticsProps = {
   durationMs: number | null;
+  roundTripMs: number | null;
+  compilePhases: OpenScadCompilePhases | null;
   stlBytes: number;
   offBytes: number | null;
   triangleCount: number | null;
@@ -13,7 +16,7 @@ type PreviewDiagnosticsProps = {
 
 /** Display-only; gated by the existing Experimental opt-in in the caller. */
 export function PreviewDiagnostics({
-  durationMs, stlBytes, offBytes, triangleCount, topology, meshTimings, stlTimings,
+  durationMs, roundTripMs, compilePhases, stlBytes, offBytes, triangleCount, topology, meshTimings, stlTimings,
 }: PreviewDiagnosticsProps) {
   return (
     <details
@@ -26,7 +29,7 @@ export function PreviewDiagnostics({
           Experimental
         </span>
       </summary>
-      <div className="max-h-40 overflow-y-auto px-3 pb-3 text-xs">
+      <div className="max-h-72 overflow-y-auto px-3 pb-3 text-xs">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2" aria-label="Preview performance statistics">
           <div>
             <dt className="text-adam-neutral-400">OpenSCAD render</dt>
@@ -46,6 +49,28 @@ export function PreviewDiagnostics({
               {triangleCount === null ? "Analyzing…" : triangleCount.toLocaleString()}
             </dd>
           </div>
+          {compilePhases && (
+            <>
+              <div>
+                <dt className="text-adam-neutral-400">Worker round-trip</dt>
+                <dd className="mt-0.5 font-mono" data-testid="preview-round-trip-duration">{formatMeshStageDuration(roundTripMs)}</dd>
+              </div>
+              {([
+                { label: "WASM initialization", value: compilePhases.wasmInitMs, test: "preview-wasm-init-duration" },
+                { label: "Fonts setup", value: compilePhases.fontSetupMs, test: "preview-font-duration" },
+                { label: "Cached files", value: compilePhases.cachedFilesMs, test: "preview-cached-files-duration" },
+                { label: "Project files", value: compilePhases.projectMountMs, test: "preview-project-mount-duration" },
+                { label: "Libraries", value: compilePhases.libraryLoadMs, test: "preview-library-duration" },
+                { label: "OpenSCAD geometry", value: compilePhases.callMainMs, test: "preview-call-main-duration" },
+                { label: "Read STL/OFF", value: compilePhases.outputReadMs, test: "preview-output-read-duration" },
+              ] as const).map(({ label, value, test }) => (
+                <div key={test}>
+                  <dt className="text-adam-neutral-400">{label}</dt>
+                  <dd className="mt-0.5 font-mono" data-testid={test}>{formatMeshStageDuration(value)}</dd>
+                </div>
+              ))}
+            </>
+          )}
           {stlTimings && (
             <>
               <div>
@@ -89,9 +114,11 @@ export function PreviewDiagnostics({
           </p>
         )}
         <p className="mt-2 leading-relaxed text-adam-neutral-400">
-          OpenSCAD render time excludes model download, initial worker setup and browser mesh parsing.
-          STL and OFF worker timings measure mesh preparation and attachment;
-          these exclude browser paint and OpenSCAD compilation. File sizes measure generated preview data, not RAM usage.
+          All measurements describe the latest successful compile. Worker round-trip includes waiting and message transport;
+          the other OpenSCAD stages are measured inside the worker. WASM initialization is repeated for each compile.
+          Initial page load, asset hydration, browser paint and network download are excluded.
+          STL and OFF worker timings measure mesh preparation and attachment, not OpenSCAD compilation.
+          File sizes describe generated preview data, not RAM usage.
         </p>
       </div>
     </details>

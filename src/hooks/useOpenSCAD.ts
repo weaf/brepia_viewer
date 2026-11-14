@@ -4,7 +4,7 @@ import { assertOpenScadOutputWithinLimit, OPENSCAD_EXPORT_TIMEOUT_MS } from '@/l
 import { normalizeOpenSCADDxf } from '@/utils/dxfUtils';
 import { getOpenScadExportFormat, isOpenScadExportFormat } from '@/lib/openScadExportFormats';
 import { OpenScadWorkerClient } from '@/worker/openScadWorkerClient';
-import type { OpenSCADWorkerResponseData, WorkerMessage } from '@/worker/types';
+import type { OpenSCADWorkerResponseData, OpenScadCompilePhases, WorkerMessage } from '@/worker/types';
 import { WorkerMessageType } from '@/worker/types';
 import {
   normalizeOpenScadProject,
@@ -24,6 +24,8 @@ export function useOpenSCAD() {
   const [isCompiling, setIsCompiling] = useState(false);
   const [isPreviewCancelled, setIsPreviewCancelled] = useState(false);
   const [previewCompileDurationMs, setPreviewCompileDurationMs] = useState<number | null>(null);
+  const [previewRoundTripMs, setPreviewRoundTripMs] = useState<number | null>(null);
+  const [previewCompilePhases, setPreviewCompilePhases] = useState<OpenScadCompilePhases | null>(null);
   const [error, setError] = useState<OpenSCADError | Error | undefined>();
   const [isError, setIsError] = useState(false);
   const [output, setOutput] = useState<Blob | undefined>();
@@ -116,6 +118,8 @@ export function useOpenSCAD() {
       setIsCompiling(true);
       setIsPreviewCancelled(false);
       setPreviewCompileDurationMs(null);
+      setPreviewRoundTripMs(null);
+      setPreviewCompilePhases(null);
       setError(undefined);
       setIsError(false);
 
@@ -125,6 +129,7 @@ export function useOpenSCAD() {
       try {
         const normalizedProject = normalizeOpenScadProject(project);
         await ensureCachedFiles();
+        const requestStartedAt = performance.now();
         const response = await getClient().request<OpenSCADWorkerResponseData>({
           id,
           type: WorkerMessageType.PREVIEW,
@@ -136,6 +141,7 @@ export function useOpenSCAD() {
             includeColorData: options.includeColorData,
           },
         });
+        const roundTripMs = performance.now() - requestStartedAt;
         assertOpenScadOutputWithinLimit(response);
 
         if (activeCompileRef.current !== id) return;
@@ -144,6 +150,8 @@ export function useOpenSCAD() {
           throw new Error('OpenSCAD did not return a preview output');
         }
 
+        setPreviewRoundTripMs(roundTripMs);
+        setPreviewCompilePhases(response.compilePhases ?? null);
         setPreviewCompileDurationMs(
           Number.isFinite(response.duration) && response.duration >= 0
             ? response.duration
@@ -167,6 +175,8 @@ export function useOpenSCAD() {
         setError(nextError);
         setIsError(true);
         setPreviewCompileDurationMs(null);
+        setPreviewRoundTripMs(null);
+        setPreviewCompilePhases(null);
         setOutput(undefined);
         setOffOutput(undefined);
       } finally {
@@ -189,6 +199,8 @@ export function useOpenSCAD() {
     setIsCompiling(false);
     setIsPreviewCancelled(true);
     setPreviewCompileDurationMs(null);
+    setPreviewRoundTripMs(null);
+    setPreviewCompilePhases(null);
     setIsError(false);
     setError(undefined);
     setOutput(undefined);
@@ -278,6 +290,8 @@ export function useOpenSCAD() {
     cancelPreview,
     isPreviewCancelled,
     previewCompileDurationMs,
+    previewRoundTripMs,
+    previewCompilePhases,
     exportProject,
     previewProjectColored,
     writeFile,
