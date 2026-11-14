@@ -163,7 +163,7 @@ try {
     if (i === 49) throw new Error("Static server unavailable: " + stderr);
     await sleep(200);
   }
-  browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+  browser = await chromium.launch({ channel: "chrome", headless: true, args: ["--disable-dev-shm-usage", "--enable-unsafe-swiftshader"] });
   await checkDevice({ name: "desktop", width: 1440, height: 900, mobile: false });
   await checkDevice({ name: "mobile", width: 390, height: 844, mobile: true });
   if (failures.length) throw new Error(failures.join("\n\n"));
