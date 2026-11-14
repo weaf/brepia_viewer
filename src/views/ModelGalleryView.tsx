@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProjectFilesEditor } from "@/components/parameter/ProjectFilesEditor";
 import { ParameterInput } from "@/components/parameter/ParameterInput";
+import { SavedVariantsPanel } from "@/components/parameter/SavedVariantsPanel";
+import { createSavedVariantActions } from "@/lib/savedVariantActions";
 import {
   LocalOpenScadPreview,
   type LocalOpenScadPreviewExportState,
@@ -176,6 +178,8 @@ export function ModelGalleryView() {
   const [experimentalEnabled, setExperimentalEnabled] = useState(false);
   // Separate session-only opt-in: Experimental alone never hides model colors.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
+  // Session-only opt-in: Experimental alone does not enable Saved Variants.
+  const [savedVariantsEnabled, setSavedVariantsEnabled] = useState(false);
   useEffect(() => {
     try {
       setExperimentalEnabled(
@@ -187,7 +191,10 @@ export function ModelGalleryView() {
   }, []);
   const updateExperimentalMode = useCallback((enabled: boolean) => {
     setExperimentalEnabled(enabled);
-    if (!enabled) setFastPreviewEnabled(false);
+    if (!enabled) {
+      setFastPreviewEnabled(false);
+      setSavedVariantsEnabled(false);
+    }
     try {
       window.localStorage.setItem(EXPERIMENTAL_MODE_STORAGE_KEY, String(enabled));
     } catch {
@@ -516,6 +523,7 @@ export function ModelGalleryView() {
             ...loaded,
             project: latestProject,
             baseProject: loaded.project,
+            savedVariants: saved.savedVariants,
           });
         } else {
           record = await saveBuiltInWorkingCopy({
@@ -801,7 +809,12 @@ export function ModelGalleryView() {
       record.project.entrypointPath,
       code,
     );
-    const next = { ...record, project, updatedAt: new Date().toISOString() };
+    const next = {
+      ...record,
+      project,
+      savedVariants: record.savedVariants ? { ...record.savedVariants, activeName: null } : undefined,
+      updatedAt: new Date().toISOString(),
+    };
     activeRecordRef.current = next;
     // Immediately recompile the newest source; waiting for disk writes here
     // makes quick enum/slider changes render and save out of order.
@@ -821,6 +834,12 @@ export function ModelGalleryView() {
       toast({ title: "Parameter save failed", description: message, variant: "destructive" });
     }
   };
+
+  const savedVariantActions = createSavedVariantActions({
+    activeRecord, activeRecordRef,
+    saveQueueRef: parameterSaveQueueRef,
+    setActiveRecord, refreshLocalModels, toast,
+  });
 
   const uploadSourceFile = async (file: File) => {
     if (!supportedSourceFile.test(file.name)) {
@@ -1070,6 +1089,8 @@ export function ModelGalleryView() {
               onEnabledChange={updateExperimentalMode}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
+              variantsEnabled={savedVariantsEnabled}
+              onVariantsChange={setSavedVariantsEnabled}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1262,6 +1283,20 @@ export function ModelGalleryView() {
                 onSaveFile={saveProjectFile}
                 onEditorOpen={dismissUploadConfirmation}
               />
+              {experimentalEnabled && savedVariantsEnabled && (
+                <SavedVariantsPanel
+                  key={activeRecord.id}
+                  saved={activeRecord.savedVariants}
+                  onCreate={savedVariantActions.create}
+                  onApply={savedVariantActions.select}
+                  onUpdate={savedVariantActions.update}
+                  onRename={savedVariantActions.rename}
+                  onDelete={savedVariantActions.remove}
+                  onReset={savedVariantActions.reset}
+                  onImport={(file) => { void savedVariantActions.importJson(file); }}
+                  onExport={savedVariantActions.exportJson}
+                />
+              )}
               <section className="p-4">
                 <h2 className="mb-3 text-xs font-semibold text-adam-text-primary">
                   Model parameters
@@ -1321,6 +1356,8 @@ export function ModelGalleryView() {
               onEnabledChange={updateExperimentalMode}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
+              variantsEnabled={savedVariantsEnabled}
+              onVariantsChange={setSavedVariantsEnabled}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
