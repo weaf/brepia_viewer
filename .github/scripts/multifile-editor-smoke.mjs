@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
@@ -64,7 +64,38 @@ async function deviceCheck(device) {
         true,
         'Upload folder opened a chooser without directory-selection support',
       );
-      await folderChooser.setFiles(fixture, { timeout: 45000 });
+      if (device.mobile) {
+        // Chromium's simulated mobile directory chooser stalls in Playwright
+        // even after the real button emits the chooser event. Exercise the
+        // product's native change handler with a genuine FileList carrying
+        // the same relative paths; keep desktop's native chooser coverage.
+        const fixtureFiles = await Promise.all([
+          'main.scad',
+          'lib/geometry.scad',
+        ].map(async relativePath => ({
+          relativePath,
+          bytes: Array.from(await readFile(path.join(fixture, relativePath))),
+        })));
+        await folderChooserInput.evaluate((input, files) => {
+          const transfer = new DataTransfer();
+          for (const { relativePath, bytes } of files) {
+            const file = new File(
+              [new Uint8Array(bytes)],
+              relativePath.split('/').at(-1),
+              { type: 'text/plain' },
+            );
+            Object.defineProperty(file, 'webkitRelativePath', {
+              value: 'editor-twofiles/' + relativePath,
+              configurable: true,
+            });
+            transfer.items.add(file);
+          }
+          input.files = transfer.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, fixtureFiles);
+      } else {
+        await folderChooser.setFiles(fixture, { timeout: 45000 });
+      }
       await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 40000 });
       assert.equal(await page.getByRole('button', { name: 'Open main.scad' }).count(), 1);
       assert.equal(await page.getByRole('button', { name: 'Open lib/geometry.scad' }).count(), 1);
