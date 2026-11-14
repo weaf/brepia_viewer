@@ -89,7 +89,7 @@ export function serializeOpenScadPresetJson(sets: OpenScadParameterSets): string
 
 export function validateVariantName(name: string): string {
   const normalized = name.trim();
-  if (!normalized || normalized.length > 80 || /[\u0000-\u001f]/.test(normalized) ||
+  if (!normalized || normalized.length > 80 || [...normalized].some(character => character.charCodeAt(0) < 32) ||
       normalized === "__proto__" || normalized === "constructor" ||
       normalized === "prototype") {
     throw new Error("Variant name must have 1–80 printable characters.");
