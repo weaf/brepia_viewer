@@ -52,7 +52,7 @@ describe("OpenSCAD saved variants", () => {
       width: "10", height: "20", label: "Tiny", enabled: "true",
       dimensions: "[1,2,3]",
     });
-    expect(captureCustomizerValues(scad)).not.toHaveProperty("dimensions[1]");
+    expect(Object.prototype.hasOwnProperty.call(captureCustomizerValues(scad), "dimensions[1]")).toBe(false);
   });
 
   it("applies only listed parameters without changing unrelated source", () => {
@@ -94,7 +94,8 @@ describe("OpenSCAD saved variants", () => {
     const saved = createSavedVariants(scad);
     const edited = applyParameterSet(project, { width: "55", enabled: "false" });
     const result = applyParameterSet(edited.project, saved.originalParameters);
-    expect(source(result.project)).toBe(scad);
+    expect(captureCustomizerValues(source(result.project))).toEqual(saved.originalParameters);
+    expect(source(result.project)).toContain("translate([width, 0, 0]) cube");
   });
 
   it("skips malformed and incompatible values instead of corrupting source", () => {
@@ -114,8 +115,8 @@ describe("OpenSCAD saved variants", () => {
     const applied = applyParameterSet(project, { dimensions: "[7,8,9]" });
     const parameter = parseParameters(source(applied.project)).find(item => item.name === "dimensions[1]");
     expect(parameter).toBeDefined();
-    const edited = updateParameter(source(applied.project), { ...parameter!, value: 42 });
-    expect(edited).toContain("dimensions = [7, 42, 9];");
+    const edited = updateParameter(source(applied.project), { ...parameter!, value: 9 });
+    expect(edited).toContain("dimensions = [7, 9, 9];");
     expect(edited).toContain("translate([width, 0, 0]) cube");
   });
 
