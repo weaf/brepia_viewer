@@ -58,6 +58,8 @@ export function LocalOpenScadPreview({
     cancelPreview,
     isPreviewCancelled,
     previewCompileDurationMs,
+    previewRoundTripMs,
+    previewCompilePhases,
     exportProject,
     writeFile,
     isCompiling,
@@ -513,6 +515,8 @@ export function LocalOpenScadPreview({
       {experimentalEnabled && !isCompiling && output instanceof Blob && (
         <PreviewDiagnostics
           durationMs={previewCompileDurationMs}
+          roundTripMs={previewRoundTripMs}
+          compilePhases={previewCompilePhases}
           stlBytes={output.size}
           offBytes={offOutput instanceof Blob ? offOutput.size : null}
           triangleCount={fastStlOnly ? null : (offInspection?.triangleCount ?? null)}
