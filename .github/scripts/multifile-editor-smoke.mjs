@@ -49,9 +49,22 @@ async function deviceCheck(device) {
     await step('folder import preserving use dependency', async () => {
       await page.goto(origin, { waitUntil: 'domcontentloaded' });
       await page.getByText('Model gallery', { exact: true }).waitFor({ timeout: 35000 });
-      const folderInput = page.locator('input[type="file"][webkitdirectory]');
-      await folderInput.waitFor({ state: 'attached' });
-      await folderInput.setInputFiles(fixture);
+      // Exercise the same button -> native file chooser path as a user.
+      // Directly targeting the hidden, React-managed input has intermittently
+      // stalled under Chromium mobile touch emulation even when it is attached.
+      const uploadFolder = page.getByRole('button', { name: 'Upload folder', exact: true });
+      await uploadFolder.waitFor({ state: 'visible' });
+      const [folderChooser] = await Promise.all([
+        page.waitForEvent('filechooser', { timeout: 30000 }),
+        uploadFolder.click(),
+      ]);
+      const folderChooserInput = await folderChooser.element();
+      assert.equal(
+        await folderChooserInput.evaluate(input => input.hasAttribute('webkitdirectory')),
+        true,
+        'Upload folder opened a chooser without directory-selection support',
+      );
+      await folderChooser.setFiles(fixture, { timeout: 45000 });
       await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 40000 });
       assert.equal(await page.getByRole('button', { name: 'Open main.scad' }).count(), 1);
       assert.equal(await page.getByRole('button', { name: 'Open lib/geometry.scad' }).count(), 1);
