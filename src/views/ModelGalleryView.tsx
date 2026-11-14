@@ -809,12 +809,7 @@ export function ModelGalleryView() {
       record.project.entrypointPath,
       code,
     );
-    const next = {
-      ...record,
-      project,
-      savedVariants: record.savedVariants ? { ...record.savedVariants, activeName: null } : undefined,
-      updatedAt: new Date().toISOString(),
-    };
+    const next = { ...record, project, updatedAt: new Date().toISOString() };
     activeRecordRef.current = next;
     // Immediately recompile the newest source; waiting for disk writes here
     // makes quick enum/slider changes render and save out of order.
