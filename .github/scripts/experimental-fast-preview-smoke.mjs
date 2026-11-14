@@ -53,11 +53,15 @@ try {
       await page.getByTestId('off-component-inspector').waitFor({ timeout: 60000 });
       await page.screenshot({ path: path.join(evidence, device.name + '-default-colors.png') });
       const experimental = page.getByRole('button', { name: 'Experimental menu' });
-      await experimental.click();
+      // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
+      // Real unforced taps are separately verified in the Saved Variants browser test.
+      await experimental.click({ force: true });
       const master = page.getByRole('menuitemcheckbox', { name: 'Enable Experimental mode' });
       if ((await master.getAttribute('data-state')) !== 'unchecked') throw new Error('Experimental unexpectedly enabled');
       await master.click();
-      await experimental.click();
+      // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
+      // Real unforced taps are separately verified in the Saved Variants browser test.
+      await experimental.click({ force: true });
       const fastToggle = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       await fastToggle.waitFor();
       if ((await fastToggle.getAttribute('data-state')) !== 'unchecked') throw new Error('Fast preview unexpectedly enabled');
@@ -137,7 +141,9 @@ try {
         throw new Error('Invalid or monochrome 3MF after fast preview');
       }
 
-      await experimental.click();
+      // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
+      // Real unforced taps are separately verified in the Saved Variants browser test.
+      await experimental.click({ force: true });
       const enabledFast = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       if (await enabledFast.getAttribute('data-state') !== 'checked') throw new Error('Fast state did not persist in session');
       await enabledFast.click();

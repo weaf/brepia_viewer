@@ -47,6 +47,9 @@ jobs:
       - name: Verify two-file OpenSCAD editing and parameter sliders
         run: node .github/scripts/multifile-editor-smoke.mjs
 
+      - name: Verify Saved Variants JSON on desktop and mobile
+        run: node .github/scripts/saved-variants-smoke.mjs
+
       - name: Retain test results and screenshots
         if: always()
         uses: actions/upload-artifact@v7

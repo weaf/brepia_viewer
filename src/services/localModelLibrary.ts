@@ -19,6 +19,7 @@ import {
 } from "@shared/openScadProjectReferences";
 import { OPENSCAD_MAX_SOURCE_BYTES } from "@/lib/openScadLimits";
 import { createUuid } from "@/lib/uuid";
+import type { SavedVariants } from "@/lib/openScadPresets";
 import type { ScadFolderAssetInput } from "@/lib/scadImport";
 import {
   getModelRepositories,
@@ -69,6 +70,7 @@ export type LocalModelRecord = {
   sourceRepositoryId?: string;
   sourceSha?: string;
   baseProject?: OpenScadProject;
+  savedVariants?: SavedVariants;
 };
 
 type CatalogCache = {
@@ -661,6 +663,7 @@ export async function createUploadedModel(input: {
     name: input.name.trim() || "Uploaded model",
     origin: "upload",
     project,
+    baseProject: project,
     assetBlobs,
     updatedAt: new Date().toISOString(),
   };
@@ -712,6 +715,7 @@ export async function saveBuiltInWorkingCopy(input: {
   project: OpenScadProject;
   assetBlobs: Record<string, Blob>;
   baseProject: OpenScadProject;
+  savedVariants?: SavedVariants;
 }): Promise<LocalModelRecord> {
   const id = builtInModelRecordId(input.entry.path, input.entry.repositoryId);
   const record: LocalModelRecord = {
@@ -723,6 +727,7 @@ export async function saveBuiltInWorkingCopy(input: {
     project: input.project,
     assetBlobs: input.assetBlobs,
     baseProject: input.baseProject,
+    savedVariants: input.savedVariants,
     sourceSha: input.entry.sha,
     updatedAt: new Date().toISOString(),
   };
