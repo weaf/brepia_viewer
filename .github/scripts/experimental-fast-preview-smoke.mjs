@@ -72,6 +72,27 @@ try {
       if (await page.getByTestId('off-component-inspector').count() !== 0) {
         throw new Error('Stale OFF color inspector remained in fast mode');
       }
+      // The profiling rows are Experimental-only and must describe the
+      // completed fast render, not stale data from the previous full render.
+      const profiler = await page.waitForFunction(() => {
+        const ids = [
+          'preview-round-trip-duration',
+          'preview-wasm-init-duration',
+          'preview-font-duration',
+          'preview-cached-files-duration',
+          'preview-project-mount-duration',
+          'preview-library-duration',
+          'preview-call-main-duration',
+          'preview-output-read-duration',
+        ];
+        const values = ids.map(id => document.querySelector('[data-testid="' + id + '"]')?.textContent?.trim() ?? '');
+        if (!values.every(value => /^\\d+(?:\\.\\d+)? (ms|s)$/.test(value))) return false;
+        return Object.fromEntries(ids.map((id, i) => [id, values[i]]));
+      }, null, { timeout: 45000 });
+      const profilerRows = await profiler.jsonValue();
+      const kernel = profilerRows['preview-call-main-duration'];
+      if (!kernel || kernel.startsWith('0.00 ')) throw new Error('Missing geometry kernel measurement');
+      console.log('COMPILER_PHASES ' + JSON.stringify({ device: device.name, phases: profilerRows }));
       const previewPane = page.getByRole('region', { name: '3D model preview' });
       const geometryCanvas = previewPane.locator('canvas');
       await geometryCanvas.waitFor({ state: 'visible', timeout: 30000 });
