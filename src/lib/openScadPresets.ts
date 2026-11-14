@@ -223,7 +223,7 @@ export function mergeImportedVariants(
   for (const [name, set] of Object.entries(imported)) {
     let candidate = name;
     let index = 2;
-    while (Object.hasOwn(merged, candidate)) {
+    while (Object.prototype.hasOwnProperty.call(merged, candidate)) {
       candidate = name + " (imported " + index++ + ")";
       validateVariantName(candidate);
     }
