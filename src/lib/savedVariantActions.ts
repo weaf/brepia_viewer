@@ -104,7 +104,7 @@ export function createSavedVariantActions(config: ActionsConfig) {
 
   const create = (name: string) => attempt((record, saved) => {
     const validated = validateVariantName(name);
-    if (Object.hasOwn(saved.parameterSets, validated)) {
+    if (Object.prototype.hasOwnProperty.call(saved.parameterSets, validated)) {
       throw new Error("A variant with that name already exists.");
     }
     const values = captureCustomizerValues(sourceOf(record));
@@ -117,7 +117,7 @@ export function createSavedVariantActions(config: ActionsConfig) {
   });
 
   const select = (name: string) => attempt((record, saved) => {
-    if (!Object.hasOwn(saved.parameterSets, name)) throw new Error("Variant does not exist.");
+    if (!Object.prototype.hasOwnProperty.call(saved.parameterSets, name)) throw new Error("Variant does not exist.");
     const result = applyParameterSet(record.project, saved.parameterSets[name]);
     void commit(record, result.project, { ...saved, activeName: name },
       "Variant applied", '"' + name + '" applied to the Customizer and 3D model.',
@@ -126,7 +126,7 @@ export function createSavedVariantActions(config: ActionsConfig) {
 
   const update = () => attempt((record, saved) => {
     const name = saved.activeName;
-    if (!name || !Object.hasOwn(saved.parameterSets, name)) {
+    if (!name || !Object.prototype.hasOwnProperty.call(saved.parameterSets, name)) {
       throw new Error("Choose a saved variant to update.");
     }
     void commit(record, record.project, {
@@ -137,11 +137,11 @@ export function createSavedVariantActions(config: ActionsConfig) {
 
   const rename = (newName: string) => attempt((record, saved) => {
     const oldName = saved.activeName;
-    if (!oldName || !Object.hasOwn(saved.parameterSets, oldName)) {
+    if (!oldName || !Object.prototype.hasOwnProperty.call(saved.parameterSets, oldName)) {
       throw new Error("Choose a variant to rename.");
     }
     const name = validateVariantName(newName);
-    if (name !== oldName && Object.hasOwn(saved.parameterSets, name)) {
+    if (name !== oldName && Object.prototype.hasOwnProperty.call(saved.parameterSets, name)) {
       throw new Error("A variant with that name already exists.");
     }
     const renamed = Object.fromEntries(Object.entries(saved.parameterSets)
@@ -153,7 +153,7 @@ export function createSavedVariantActions(config: ActionsConfig) {
 
   const remove = () => attempt((record, saved) => {
     const name = saved.activeName;
-    if (!name || !Object.hasOwn(saved.parameterSets, name)) {
+    if (!name || !Object.prototype.hasOwnProperty.call(saved.parameterSets, name)) {
       throw new Error("Choose a variant to delete.");
     }
     if (!window.confirm('Delete "' + name + '"? The current model will remain unchanged.')) return;
