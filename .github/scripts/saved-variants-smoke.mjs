@@ -122,6 +122,8 @@ async function checkDevice(device) {
     await page.waitForFunction(() => document.querySelector('input[name="width"]')?.value === "35");
     await page.screenshot({ path: path.join(output, device.name + "-saved-variants.png"), fullPage: true });
     await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Open saved-variants-smoke", exact: true }).waitFor({ timeout: 40000 });
+    await page.getByRole("button", { name: "Open saved-variants-smoke", exact: true }).click();
     await page.getByText("Source and parameters", { exact: true }).waitFor({ timeout: 45000 });
     await enable();
     assert.equal(await page.getByTestId("saved-variants-panel").getByRole("combobox", { name: "Choose saved variant" }).inputValue(), "Wide");
