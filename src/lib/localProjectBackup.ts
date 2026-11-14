@@ -7,6 +7,7 @@ import {
 } from '@shared/openScadProjectReferences';
 import { createUuid } from '@/lib/uuid';
 import type { LocalModelRecord } from '@/services/localModelLibrary';
+import { parseOpenScadPresetJson, serializeOpenScadPresetJson, type SavedVariants } from '@/lib/openScadPresets';
 
 const BACKUP_KIND = 'brepia-viewer-local-projects';
 const BACKUP_VERSION = 1;
@@ -20,6 +21,8 @@ type BackupModel = {
   name: string;
   originalOrigin: 'upload' | 'built-in';
   project: OpenScadProject;
+  baseProject?: OpenScadProject;
+  savedVariants?: SavedVariants;
 };
 
 type BackupManifest = {
@@ -89,7 +92,13 @@ export async function createLocalProjectBackup(
       bytesTotal += data.byteLength;
       assertSize(bytesTotal);
     }
-    models.push({ name: record.name, originalOrigin: record.origin, project });
+    models.push({
+      name: record.name,
+      originalOrigin: record.origin,
+      project,
+      baseProject: record.baseProject ? normalizeOpenScadProject(record.baseProject) : undefined,
+      savedVariants: record.savedVariants,
+    });
   }
 
   const manifest: BackupManifest = {
@@ -185,11 +194,32 @@ export async function readLocalProjectBackup(
         }
         assetBlobs[asset.path] = new Blob([data], { type: asset.mediaType });
       }
+      let savedVariants: SavedVariants | undefined;
+      if (saved.savedVariants !== undefined) {
+        const raw = saved.savedVariants;
+        if (!raw || typeof raw !== 'object' ||
+            !raw.originalParameters || typeof raw.originalParameters !== 'object' ||
+            !raw.parameterSets || typeof raw.parameterSets !== 'object' ||
+            (raw.activeName !== null && typeof raw.activeName !== 'string')) {
+          throw new Error('Backup contains invalid Saved Variants.');
+        }
+        const validated = parseOpenScadPresetJson(
+          serializeOpenScadPresetJson({ ...raw.parameterSets, '__brepia_original__': raw.originalParameters }),
+        );
+        const originalParameters = validated['__brepia_original__'];
+        delete validated['__brepia_original__'];
+        if (raw.activeName && !Object.hasOwn(validated, raw.activeName)) {
+          throw new Error('Backup refers to a missing active variant.');
+        }
+        savedVariants = { originalParameters, parameterSets: validated, activeName: raw.activeName };
+      }
       copies.push({
         id: 'upload:' + createUuid(),
         name: saved.name,
         origin: 'upload', // Never overwrite a built-in or existing local record.
         project,
+        baseProject: saved.baseProject ? normalizeOpenScadProject(saved.baseProject) : undefined,
+        savedVariants,
         assetBlobs,
         updatedAt: new Date().toISOString(),
       });
