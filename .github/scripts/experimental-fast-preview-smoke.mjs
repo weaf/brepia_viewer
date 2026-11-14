@@ -86,7 +86,7 @@ try {
           'preview-output-read-duration',
         ];
         const values = ids.map(id => document.querySelector('[data-testid="' + id + '"]')?.textContent?.trim() ?? '');
-        if (!values.every(value => /^\\d+(?:\\.\\d+)? (ms|s)$/.test(value))) return false;
+        if (!values.every(value => /^\d+(?:\.\d+)? (ms|s)$/.test(value))) return false;
         return Object.fromEntries(ids.map((id, i) => [id, values[i]]));
       }, null, { timeout: 45000 });
       const profilerRows = await profiler.jsonValue();
