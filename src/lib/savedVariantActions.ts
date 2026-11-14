@@ -118,7 +118,12 @@ export function createSavedVariantActions(config: ActionsConfig) {
 
   const select = (name: string) => attempt((record, saved) => {
     if (!Object.prototype.hasOwnProperty.call(saved.parameterSets, name)) throw new Error("Variant does not exist.");
-    const result = applyParameterSet(record.project, saved.parameterSets[name]);
+    // OpenSCAD presets are overlays on the model defaults, not cumulative edits.
+    // Omitted keys revert to the original parameter values when switching presets.
+    const result = applyParameterSet(record.project, {
+      ...saved.originalParameters,
+      ...saved.parameterSets[name],
+    });
     void commit(record, result.project, { ...saved, activeName: name },
       "Variant applied", '"' + name + '" applied to the Customizer and 3D model.',
       result.skipped);
