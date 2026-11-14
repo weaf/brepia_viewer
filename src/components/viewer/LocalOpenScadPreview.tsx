@@ -44,12 +44,14 @@ export function LocalOpenScadPreview({
   onExportStateChange,
   constrained = false,
   experimentalEnabled = false,
+  experimentalFastPreview = false,
 }: {
   project: OpenScadProject;
   assets: Record<string, Blob>;
   onExportStateChange?: (state: LocalOpenScadPreviewExportState) => void;
   constrained?: boolean;
   experimentalEnabled?: boolean;
+  experimentalFastPreview?: boolean;
 }) {
   const {
     compileProject,
@@ -81,33 +83,52 @@ export function LocalOpenScadPreview({
   } | null>(null);
   const mountedGroupRef = useRef<Group | null>(null);
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
-  const compileSequence = useRef(0);
+  const previousFastPreviewRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    compileSequence.current += 1;
+    // Only the explicitly selected Experimental fast mode may interrupt an
+    // in-flight compile. Normal previews keep their existing request lifecycle.
+    // When turning fast mode off, cancel its last compile before restoring
+    // the standard full STL+OFF output.
+    if (experimentalFastPreview || previousFastPreviewRef.current) {
+      cancelPreview();
+    }
+    previousFastPreviewRef.current = experimentalFastPreview;
 
-    void (async () => {
+    const renderLatestProject = async () => {
       try {
         for (const asset of project.assets ?? []) {
           const blob = assets[asset.path];
           if (!blob)
             throw new Error(`Missing local model asset: ${asset.path}`);
+          if (cancelled) return;
           await writeFile(asset.path, blob);
         }
-        if (!cancelled) await compileProject(project);
+        if (!cancelled) {
+          await compileProject(project, {
+            includeColorData: experimentalFastPreview ? false : undefined,
+          });
+        }
       } catch (cause) {
-        console.error(
-          "[Gallery preview] Could not compile OpenSCAD project:",
-          cause,
-        );
+        if (!cancelled) {
+          console.error("[Gallery preview] Could not compile OpenSCAD project:", cause);
+        }
       }
-    })();
+    };
+
+    // Merge rapid parameter commits before they reach the expensive WASM
+    // worker. An outdated active fast preview is terminated above rather than
+    // occupying the queue for each intermediate slider value.
+    const timer = experimentalFastPreview
+      ? globalThis.setTimeout(() => { void renderLatestProject(); }, 160)
+      : null;
+    if (timer === null) void renderLatestProject();
     return () => {
       cancelled = true;
-      compileSequence.current += 1;
+      if (timer !== null) globalThis.clearTimeout(timer);
     };
-  }, [assets, compileProject, project, writeFile]);
+  }, [assets, cancelPreview, compileProject, experimentalFastPreview, project, writeFile]);
 
   useEffect(() => {
     setStlTimings(null);
@@ -421,6 +442,7 @@ export function LocalOpenScadPreview({
   // Experimental is opt-in and applies to the complete renderable geometry.
   // There is deliberately no SCAD AST mapping or source eligibility gate.
   const visualEditAllowed = experimentalEnabled;
+  const fastStlOnly = experimentalEnabled && experimentalFastPreview;
   return (
     <section
       className={`relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrained ? "min-h-0" : "min-h-[22rem]"}`}
@@ -429,19 +451,19 @@ export function LocalOpenScadPreview({
       <div className="absolute left-3 top-3 z-10 rounded-md border border-white/10 bg-black/45 px-2.5 py-1.5 font-mono text-[10px] text-white/75">
         {entrypoint.path}
       </div>
-      {(geometry || coloredGroup) && (
+      {(geometry || (!fastStlOnly && coloredGroup)) && (
         <div className="min-h-0 flex-1">
           <ThreeScene
             geometry={geometry}
-            coloredGroup={coloredGroup}
-            featureEdges={featureEdges}
+            coloredGroup={fastStlOnly ? null : coloredGroup}
+            featureEdges={fastStlOnly ? [] : featureEdges}
             visualEditAllowed={visualEditAllowed}
             color="#00A6FF"
             isMobile={isMobile}
           />
         </div>
       )}
-      {offInspection && (
+      {offInspection && !fastStlOnly && (
         <details className="z-10 shrink-0 border-t border-white/15 bg-adam-neutral-800 text-adam-text-primary" data-testid="off-component-inspector">
           <summary className="flex min-h-10 cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-xs font-medium">
             Parts & colors
@@ -478,13 +500,23 @@ export function LocalOpenScadPreview({
           </div>
         </details>
       )}
+      {experimentalEnabled && experimentalFastPreview && !isCompiling && output instanceof Blob && (
+        <p
+          className="z-10 shrink-0 border-t border-amber-400/25 bg-adam-neutral-800 px-3 py-2 text-xs text-amber-200"
+          role="status"
+          data-testid="fast-preview-color-notice"
+        >
+          Fast STL preview: model colors and parts inspection are hidden.
+          Orca Color export builds full color data on demand.
+        </p>
+      )}
       {experimentalEnabled && !isCompiling && output instanceof Blob && (
         <PreviewDiagnostics
           durationMs={previewCompileDurationMs}
           stlBytes={output.size}
           offBytes={offOutput instanceof Blob ? offOutput.size : null}
-          triangleCount={offInspection?.triangleCount ?? null}
-          topology={offInspection?.topology ?? null}
+          triangleCount={fastStlOnly ? null : (offInspection?.triangleCount ?? null)}
+          topology={fastStlOnly ? null : (offInspection?.topology ?? null)}
           meshTimings={meshTimings}
           stlTimings={stlTimings}
         />

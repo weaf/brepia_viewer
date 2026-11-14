@@ -382,7 +382,11 @@ try {
       if (!(await toastClose.count())) break;
       await toastClose.first().click({force:true,timeout:2500});
     }
-    await savedSourceDialog.getByRole('button',{name:'Close'}).click();
+    // Close through the dialog's keyboard-dismiss path. The explicit Close
+    // button can transiently disappear from the accessibility tree during
+    // save/reopen, while the dialog itself and the saved source are present.
+    await page.keyboard.press('Escape');
+    await savedSourceDialog.waitFor({state:'hidden',timeout:15000});
     let visibleCanvas=false;
     try {
       await page.waitForFunction(()=>Array.from(document.querySelectorAll('canvas')).some(x=>x.getBoundingClientRect().width>40 && x.getBoundingClientRect().height>40),null,{timeout:85000});
