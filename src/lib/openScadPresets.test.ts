@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeOpenScadProject } from "@shared/openScadProject";
+import { updateParameter } from "@/lib/utilsCore";
+import parseParameters from "@shared/parseParameters";
 import {
   applyParameterSet,
   captureCustomizerValues,
@@ -106,6 +108,15 @@ describe("OpenSCAD saved variants", () => {
     expect(source(result.project)).toContain("width = 10;");
     expect(source(result.project)).toContain("enabled = true;");
     expect(source(result.project)).toContain('label = "new";');
+  });
+
+  it("edits a numeric vector slider after loading a preset", () => {
+    const applied = applyParameterSet(project, { dimensions: "[7,8,9]" });
+    const parameter = parseParameters(source(applied.project)).find(item => item.name === "dimensions[1]");
+    expect(parameter).toBeDefined();
+    const edited = updateParameter(source(applied.project), { ...parameter!, value: 42 });
+    expect(edited).toContain("dimensions = [7, 42, 9];");
+    expect(edited).toContain("translate([width, 0, 0]) cube");
   });
 
   it("rejects invalid preset formats and unsafe entries", () => {
