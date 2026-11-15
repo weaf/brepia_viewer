@@ -1244,7 +1244,7 @@ export function ModelGalleryView() {
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-adam-neutral-700 px-3 py-1.5 text-xs font-semibold">
               <span className="inline-flex min-w-0 items-center gap-2">
                 <Code2 className="h-4 w-4 shrink-0 text-adam-neutral-300" />
-                <span className="hidden min-[420px]:inline">Source and parameters</span><span className="min-[420px]:hidden">Parameters</span>
+                <span className="truncate" title="Source and parameters">Source and parameters</span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
                 <button
@@ -1265,22 +1265,22 @@ export function ModelGalleryView() {
                   <Bookmark className="h-4 w-4" />
                   <span>Presets</span>
                 </button>
-              <button
-                type="button"
-                aria-label={layoutLocked ? "Unlock viewer and parameters layout" : "Lock viewer and parameters layout"}
-                aria-pressed={layoutLocked}
-                title={layoutLocked ? "Return to normal page scrolling" : "Keep the 3D viewer visible while scrolling parameters"}
-                onClick={() => setLayoutLocked(value => !value)}
-                className={cn(
-                  "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue",
-                  layoutLocked
-                    ? "bg-adam-blue/20 text-adam-text-primary"
-                    : "text-adam-neutral-300 hover:bg-adam-neutral-800",
-                )}
-              >
-                {layoutLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                <span>{layoutLocked ? "Scroll locked" : "Scroll on"}</span>
-              </button>
+                <button
+                    type="button"
+                    aria-label={layoutLocked ? "Unlock viewer and parameters layout" : "Lock viewer and parameters layout"}
+                  aria-pressed={layoutLocked}
+                  title={layoutLocked ? "Return to normal page scrolling" : "Keep the 3D viewer visible while scrolling parameters"}
+                  onClick={() => setLayoutLocked(value => !value)}
+                  className={cn(
+                    "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue",
+                    layoutLocked
+                      ? "bg-adam-blue/20 text-adam-text-primary"
+                      : "text-adam-neutral-300 hover:bg-adam-neutral-800",
+                  )}
+                >
+                  {layoutLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                  <span>{layoutLocked ? "Scroll locked" : "Scroll on"}</span>
+                </button>
               </div>
             </div>
             <div
