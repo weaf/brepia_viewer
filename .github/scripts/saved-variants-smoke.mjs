@@ -55,19 +55,15 @@ async function checkDevice(device) {
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
 
-  const enable = async () => {
-    if (await page.getByTestId("saved-variants-panel").count()) return;
-    await page.getByRole("button", { name: "Experimental menu" }).click();
-    const experiment = page.getByRole("menuitemcheckbox", { name: "Enable Experimental mode" });
-    if (await experiment.getAttribute("data-state") !== "checked") {
-      await experiment.click();
-    } else {
-      await page.keyboard.press("Escape");
-    }
-    if (await page.getByTestId("saved-variants-panel").count()) return;
-    await page.getByRole("button", { name: "Experimental menu" }).click();
-    await page.getByRole("menuitemcheckbox", { name: "Enable Saved variants" }).click();
-    await page.getByTestId("saved-variants-panel").waitFor({ state: "visible" });
+  const showPresets = async () => {
+    const panel = page.getByTestId("saved-variants-panel");
+    if (await panel.count()) return;
+    const toggle = page.getByRole("button", { name: "Show saved variants" });
+    assert.equal(await toggle.getAttribute("aria-pressed"), "false");
+    await toggle.click();
+    await panel.waitFor({ state: "visible" });
+    assert.equal(await page.getByRole("button", { name: "Hide saved variants" })
+      .getAttribute("aria-expanded"), "true");
   };
 
   try {
@@ -80,8 +76,9 @@ async function checkDevice(device) {
     ]);
     await chooser.setFiles({ name: "saved-variants-smoke.scad", mimeType: "text/plain", buffer: Buffer.from(scad) });
     await page.getByText("Source and parameters", { exact: true }).waitFor({ timeout: 45000 });
-    assert.equal(await page.getByTestId("saved-variants-panel").count(), 0, "Saved variants visible before Experimental opt-in");
-    await enable();
+    assert.equal(await page.getByTestId("saved-variants-panel").count(), 0, "Saved variants should start collapsed in standard mode");
+    assert.equal(await page.getByRole("button", { name: "Show saved variants" }).getAttribute("aria-pressed"), "false");
+    await showPresets();
 
     const panel = page.getByTestId("saved-variants-panel");
     const select = panel.getByRole("combobox", { name: "Choose saved variant" });
@@ -140,11 +137,18 @@ async function checkDevice(device) {
     await select.selectOption("Wide");
     await page.waitForFunction(() => document.querySelector('input[name="width"]')?.value === "35");
     await page.screenshot({ path: path.join(output, device.name + "-saved-variants.png"), fullPage: true });
+    await page.getByRole("button", { name: "Hide saved variants" }).click();
+    await panel.waitFor({ state: "detached" });
+    assert.equal(await page.getByRole("button", { name: "Show saved variants" }).getAttribute("aria-pressed"), "false");
+    await page.screenshot({ path: path.join(output, device.name + "-presets-collapsed.png"), fullPage: true });
+    await showPresets();
+    assert.equal(await select.inputValue(), "Wide", "Hiding presets must not change selection");
     await page.reload({ waitUntil: "domcontentloaded" });
+    assert.equal(await page.getByTestId("saved-variants-panel").count(), 0, "Presets should stay collapsed after reload");
     await page.getByRole("button", { name: "Open saved-variants-smoke", exact: true }).waitFor({ timeout: 40000 });
     await page.getByRole("button", { name: "Open saved-variants-smoke", exact: true }).click();
     await page.getByText("Source and parameters", { exact: true }).waitFor({ timeout: 45000 });
-    await enable();
+    await showPresets();
     assert.equal(await page.getByTestId("saved-variants-panel").getByRole("combobox", { name: "Choose saved variant" }).inputValue(), "Wide");
     assert.equal(await page.getByRole("textbox", { name: "Width", exact: true }).inputValue(), "35");
 
@@ -162,7 +166,7 @@ async function checkDevice(device) {
         .some(option => option.value === "Wide renamed"));
 
     assert.deepEqual(errors, [], "Uncaught browser errors");
-    console.log("[" + device.name + "] PASS Saved Variants JSON, one-tap save, switch, reset, reload, rename, delete");
+    console.log("[" + device.name + "] PASS standard Presets toggle, JSON, one-tap save, switch, reset, reload, rename, delete");
   } catch (error) {
     failures.push(device.name + ": " + (error?.stack ?? String(error)));
     await page.screenshot({ path: path.join(output, device.name + "-saved-variants-failed.png"), fullPage: true }).catch(() => {});
