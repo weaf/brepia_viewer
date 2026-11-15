@@ -85,6 +85,7 @@ import {
 import {
   ArrowLeft,
   Box,
+  Bookmark,
   Check,
   Clock3,
   Code2,
@@ -178,8 +179,8 @@ export function ModelGalleryView() {
   const [experimentalEnabled, setExperimentalEnabled] = useState(false);
   // Separate session-only opt-in: Experimental alone never hides model colors.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
-  // Session-only opt-in: Experimental alone does not enable Saved Variants.
-  const [savedVariantsEnabled, setSavedVariantsEnabled] = useState(false);
+  // Same pattern as Scroll lock: panel starts collapsed, presets stay saved per model.
+  const [savedVariantsVisible, setSavedVariantsVisible] = useState(false);
   useEffect(() => {
     try {
       setExperimentalEnabled(
@@ -193,7 +194,6 @@ export function ModelGalleryView() {
     setExperimentalEnabled(enabled);
     if (!enabled) {
       setFastPreviewEnabled(false);
-      setSavedVariantsEnabled(false);
     }
     try {
       window.localStorage.setItem(EXPERIMENTAL_MODE_STORAGE_KEY, String(enabled));
@@ -1084,8 +1084,6 @@ export function ModelGalleryView() {
               onEnabledChange={updateExperimentalMode}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
-              variantsEnabled={savedVariantsEnabled}
-              onVariantsChange={setSavedVariantsEnabled}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1246,24 +1244,44 @@ export function ModelGalleryView() {
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-adam-neutral-700 px-3 py-1.5 text-xs font-semibold">
               <span className="inline-flex min-w-0 items-center gap-2">
                 <Code2 className="h-4 w-4 shrink-0 text-adam-neutral-300" />
-                Source and parameters
+                <span className="truncate" title="Source and parameters">Source and parameters</span>
               </span>
-              <button
-                type="button"
-                aria-label={layoutLocked ? "Unlock viewer and parameters layout" : "Lock viewer and parameters layout"}
-                aria-pressed={layoutLocked}
-                title={layoutLocked ? "Return to normal page scrolling" : "Keep the 3D viewer visible while scrolling parameters"}
-                onClick={() => setLayoutLocked(value => !value)}
-                className={cn(
-                  "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue",
-                  layoutLocked
-                    ? "bg-adam-blue/20 text-adam-text-primary"
-                    : "text-adam-neutral-300 hover:bg-adam-neutral-800",
-                )}
-              >
-                {layoutLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                <span>{layoutLocked ? "Scroll locked" : "Scroll on"}</span>
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  aria-label={savedVariantsVisible ? "Hide saved variants" : "Show saved variants"}
+                  aria-pressed={savedVariantsVisible}
+                  aria-expanded={savedVariantsVisible}
+                  aria-controls="saved-variants-panel"
+                  title={savedVariantsVisible ? "Hide Saved variants panel" : "Show Saved variants panel"}
+                  onClick={() => setSavedVariantsVisible(value => !value)}
+                  className={cn(
+                    "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue",
+                    savedVariantsVisible
+                      ? "bg-adam-blue/20 text-adam-text-primary"
+                      : "text-adam-neutral-300 hover:bg-adam-neutral-800",
+                  )}
+                >
+                  <Bookmark className="h-4 w-4" />
+                  <span>Presets</span>
+                </button>
+                <button
+                    type="button"
+                    aria-label={layoutLocked ? "Unlock viewer and parameters layout" : "Lock viewer and parameters layout"}
+                  aria-pressed={layoutLocked}
+                  title={layoutLocked ? "Return to normal page scrolling" : "Keep the 3D viewer visible while scrolling parameters"}
+                  onClick={() => setLayoutLocked(value => !value)}
+                  className={cn(
+                    "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue",
+                    layoutLocked
+                      ? "bg-adam-blue/20 text-adam-text-primary"
+                      : "text-adam-neutral-300 hover:bg-adam-neutral-800",
+                  )}
+                >
+                  {layoutLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                  <span>{layoutLocked ? "Scroll locked" : "Scroll on"}</span>
+                </button>
+              </div>
             </div>
             <div
               data-testid="model-parameters-scroll"
@@ -1278,7 +1296,7 @@ export function ModelGalleryView() {
                 onSaveFile={saveProjectFile}
                 onEditorOpen={dismissUploadConfirmation}
               />
-              {experimentalEnabled && savedVariantsEnabled && (
+              {savedVariantsVisible && (
                 <SavedVariantsPanel
                   key={activeRecord.id}
                   saved={activeRecord.savedVariants}
@@ -1351,8 +1369,6 @@ export function ModelGalleryView() {
               onEnabledChange={updateExperimentalMode}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
-              variantsEnabled={savedVariantsEnabled}
-              onVariantsChange={setSavedVariantsEnabled}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

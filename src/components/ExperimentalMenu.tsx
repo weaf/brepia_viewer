@@ -13,15 +13,11 @@ export function ExperimentalMenu({
   onEnabledChange,
   fastPreviewEnabled,
   onFastPreviewChange,
-  variantsEnabled,
-  onVariantsChange,
 }: {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
   fastPreviewEnabled: boolean;
   onFastPreviewChange: (enabled: boolean) => void;
-  variantsEnabled: boolean;
-  onVariantsChange: (enabled: boolean) => void;
 }) {
   return (
     <DropdownMenu>
@@ -54,21 +50,6 @@ export function ExperimentalMenu({
             </span>
           </span>
         </DropdownMenuCheckboxItem>
-        {enabled && (
-          <DropdownMenuCheckboxItem
-            checked={variantsEnabled}
-            onCheckedChange={(checked) => onVariantsChange(checked === true)}
-            className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
-            aria-label="Enable Saved variants"
-          >
-            <span className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Saved variants</span>
-              <span className="text-xs leading-snug text-adam-neutral-300">
-                Save and switch OpenSCAD Customizer JSON presets per model.
-              </span>
-            </span>
-          </DropdownMenuCheckboxItem>
-        )}
         {enabled && (
           <DropdownMenuCheckboxItem
             checked={fastPreviewEnabled}
