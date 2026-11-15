@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SavedVariants } from "@/lib/openScadPresets";
 
+/** Match the familiar OpenSCAD Customizer default naming while avoiding collisions. */
+function nextVariantName(existingNames: readonly string[]): string {
+  let index = 1;
+  while (existingNames.includes(`New set ${index}`)) index += 1;
+  return `New set ${index}`;
+}
+
 export function SavedVariantsPanel({
   saved,
   onCreate,
@@ -30,10 +37,11 @@ export function SavedVariantsPanel({
   const fileRef = useRef<HTMLInputElement>(null);
   const names = Object.keys(saved?.parameterSets ?? {});
   const selected = saved?.activeName ?? "";
+  const autoName = nextVariantName(names);
   const submit = () => {
-    if (!name.trim()) return;
-    if (renaming) onRename(name);
-    else onCreate(name);
+    if (renaming && !name.trim()) return;
+    if (renaming) onRename(name.trim());
+    else onCreate(name.trim() || autoName);
     setName("");
     setRenaming(false);
   };
@@ -84,11 +92,11 @@ export function SavedVariantsPanel({
           maxLength={80}
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => { if (event.key === "Enter") submit(); }}
-          placeholder={renaming ? "Rename selected variant" : "New variant name"}
+          placeholder={renaming ? "Rename selected variant" : `Name (optional: ${autoName})`}
           className="h-11 w-full min-w-0 flex-1"
         />
-        <Button type="button" className="h-11 shrink-0" disabled={!name.trim()} onClick={submit}>
-          <Plus className="mr-1.5 h-4 w-4" /> {renaming ? "Save name" : "Save variant"}
+        <Button type="button" className="h-11 shrink-0" disabled={renaming && !name.trim()} onClick={submit}>
+          <Plus className="mr-1.5 h-4 w-4" /> {renaming ? "Save name" : "Save new variant"}
         </Button>
         {renaming && (
           <Button type="button" variant="ghost" className="h-11" onClick={() => {
@@ -97,6 +105,11 @@ export function SavedVariantsPanel({
           }}>Cancel</Button>
         )}
       </div>
+      {!renaming && (
+        <p className="mt-1 text-xs text-adam-neutral-400">
+          Leave the name empty to save as {autoName}. Existing variants are kept.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2 border-t border-adam-neutral-700/70 pt-3">
         <input
           ref={fileRef}

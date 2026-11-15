@@ -34,6 +34,8 @@ const imported = JSON.stringify({
     Wide: { width: "35", height: "12", label: "wide", enabled: "false", dimensions: "[35,12,4]", obsolete: "123" },
     Tall: { width: "5", height: "70", label: "tall", enabled: "true", dimensions: "[5,70,6]" },
     Partial: { width: "22" },
+    "New set 1": { width: "11" },
+    "New set 2": { width: "12" },
   },
 });
 
@@ -84,7 +86,7 @@ async function checkDevice(device) {
     const panel = page.getByTestId("saved-variants-panel");
     const select = panel.getByRole("combobox", { name: "Choose saved variant" });
     await panel.getByRole("textbox", { name: "Name for new variant" }).fill("Initial");
-    await panel.getByRole("button", { name: "Save variant" }).click();
+    await panel.getByRole("button", { name: "Save new variant" }).click();
     await page.waitForFunction(() => {
       const select = document.querySelector('[aria-label="Choose saved variant"]');
       return select && Array.from(select.options).some(option => option.value === "Initial");
@@ -102,6 +104,15 @@ async function checkDevice(device) {
     assert.equal(await page.getByRole("textbox", { name: "Height", exact: true }).inputValue(), "12");
     assert.equal(await page.getByRole("textbox", { name: "Width", exact: true }).inputValue(), "35");
 
+    // Saving without a name is a first-class action, even after import.
+    const saveNewVariant = panel.getByRole("button", { name: "Save new variant" });
+    assert.equal(await saveNewVariant.isEnabled(), true, "Save new variant must not be disabled when the name is empty");
+    assert.equal(await panel.getByRole("textbox", { name: "Name for new variant" }).inputValue(), "");
+    await saveNewVariant.click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Choose saved variant"]')?.value === "New set 3");
+    await saveNewVariant.click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Choose saved variant"]')?.value === "New set 4");
+
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       panel.getByRole("button", { name: "Export JSON" }).click(),
@@ -111,6 +122,10 @@ async function checkDevice(device) {
     assert.equal(downloaded.parameterSets.Wide.dimensions, "[35,12,4]");
     assert.equal(downloaded.parameterSets.Tall.height, "70");
     assert.equal(downloaded.parameterSets.Wide.obsolete, "123");
+    assert.equal(downloaded.parameterSets["New set 1"].width, "11", "Imported variant must not be overwritten");
+    assert.equal(downloaded.parameterSets["New set 2"].width, "12", "Imported variant must not be overwritten");
+    assert.equal(downloaded.parameterSets["New set 3"].width, "35", "Auto-named variant must capture active Customizer values");
+    assert.equal(downloaded.parameterSets["New set 4"].width, "35", "Repeated one-tap save must not overwrite");
 
     await select.selectOption("Tall");
     await page.waitForFunction(() => document.querySelector('input[name="width"]')?.value === "5");
@@ -147,7 +162,7 @@ async function checkDevice(device) {
         .some(option => option.value === "Wide renamed"));
 
     assert.deepEqual(errors, [], "Uncaught browser errors");
-    console.log("[" + device.name + "] PASS Saved Variants JSON, switch, reset, reload, rename, delete");
+    console.log("[" + device.name + "] PASS Saved Variants JSON, one-tap save, switch, reset, reload, rename, delete");
   } catch (error) {
     failures.push(device.name + ": " + (error?.stack ?? String(error)));
     await page.screenshot({ path: path.join(output, device.name + "-saved-variants-failed.png"), fullPage: true }).catch(() => {});
