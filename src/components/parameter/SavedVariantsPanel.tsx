@@ -47,9 +47,9 @@ export function SavedVariantsPanel({
   };
 
   return (
-    <section data-testid="saved-variants-panel" aria-label="Saved variants" className="border-b border-adam-neutral-700 p-3 sm:p-4">
+    <section id="saved-variants-panel" data-testid="saved-variants-panel" aria-label="Saved variants" className="border-b border-adam-neutral-700 p-3 sm:p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold text-adam-text-primary">Saved variants <span className="font-normal text-adam-neutral-400">(Experimental)</span></h2>
+        <h2 className="text-xs font-semibold text-adam-text-primary">Saved variants</h2>
         <span className="text-[11px] text-adam-neutral-400">{names.length} presets</span>
       </div>
       <p className="mt-1 text-xs text-adam-neutral-400">
