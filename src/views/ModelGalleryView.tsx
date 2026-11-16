@@ -1112,7 +1112,6 @@ export function ModelGalleryView() {
               onVisualToolsChange={updateVisualTools}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
-              onOpenChain={() => setChainVisible(true)}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1398,7 +1397,6 @@ export function ModelGalleryView() {
               onVisualToolsChange={updateVisualTools}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
-              onOpenChain={() => setChainVisible(true)}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
