@@ -38,7 +38,7 @@ interface ThreeSceneProps {
   visualEditAllowed?: boolean;
 }
 
-function ViewerControls({ uprightLocked, enabled }: { uprightLocked: boolean; enabled: boolean }) {
+function ViewerControls({ uprightLocked, enabled, onUserCameraMove }: { uprightLocked: boolean; enabled: boolean; onUserCameraMove: () => void }) {
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
 
@@ -56,10 +56,10 @@ function ViewerControls({ uprightLocked, enabled }: { uprightLocked: boolean; en
   }, [camera, invalidate, uprightLocked]);
 
   if (uprightLocked) {
-    return <OrbitControls makeDefault enabled={enabled} minZoom={0.01} maxZoom={1000} />;
+    return <OrbitControls makeDefault enabled={enabled} onStart={onUserCameraMove} minZoom={0.01} maxZoom={1000} />;
   }
 
-  return <ArcballControls makeDefault enabled={enabled} minZoom={0.01} maxZoom={1000} />;
+  return <ArcballControls makeDefault enabled={enabled} onStart={onUserCameraMove} minZoom={0.01} maxZoom={1000} />;
 }
 
 type ModelSurfacePointer = {
@@ -209,6 +209,11 @@ export function ThreeScene({
   const [uprightLocked, setUprightLocked] = useState(true);
   const [measuring, setMeasuring] = useState(false);
   const [visualMoving, setVisualMoving] = useState(false);
+  // Stage may fit a newly opened model, but never override a user's
+  // zoom/orientation when a parameter triggers another OpenSCAD render.
+  const [cameraManuallyAdjusted, setCameraManuallyAdjusted] = useState(false);
+  const preserveCamera = useCallback(() => setCameraManuallyAdjusted(true), []);
+  const shouldAutoFitCamera = !measuring && !visualMoving && !cameraManuallyAdjusted;
   const [visualMoveKey, setVisualMoveKey] = useState(0);
   const [visualMoveAxis, setVisualMoveAxis] = useState<0 | 1 | 2>(0);
   const [visualMoveDelta, setVisualMoveDelta] = useState<[number, number, number]>([0, 0, 0]);
@@ -436,7 +441,12 @@ export function ThreeScene({
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
-      <div ref={sceneHostRef} className="relative min-h-0 flex-1">
+      <div
+        ref={sceneHostRef}
+        className="relative min-h-0 flex-1"
+        data-camera-auto-fit={shouldAutoFitCamera ? "true" : "false"}
+        onWheelCapture={preserveCamera}
+      >
       {/* Local Suspense boundary — `<Canvas>` re-throws suspension upward
           when any drei loader (e.g. <Environment> fetching city.hdr) is in
           flight. Without this boundary the suspension propagates all the
@@ -470,8 +480,9 @@ export function ThreeScene({
               zoom={0.4}
             />
           )}
-          {/* Do not refit a user-zoomed camera when dimension endpoints change. */}
-          <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={!measuring && !visualMoving}>
+          {/* Keep Stage's initial model fit. After manual camera movement, do
+              not refit on geometry changes (Customizer, sliders or presets). */}
+          <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={shouldAutoFitCamera}>
             <Environment files={`${import.meta.env.BASE_URL}city.hdr`} />
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={1.2} castShadow />
@@ -575,9 +586,10 @@ export function ThreeScene({
           followCamera={false}
           infiniteGrid={true}
         /> */}
-          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement} />
+          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement} onUserCameraMove={preserveCamera} />
           {showViewGizmo && (
             <ViewGizmo
+              onViewChange={preserveCamera}
               alignment={initialIsMobile ? "top-right" : "bottom-right"}
               margin={initialIsMobile ? [58, 58] : [80, 80]}
             />

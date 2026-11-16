@@ -124,6 +124,7 @@ try {
     const modelWorkspace=page.getByTestId('model-workspace');
     const parameterScroller=page.getByTestId('model-parameters-scroll');
     const previewPane=page.getByRole('region',{name:'3D model preview'});
+
     const originalPreview=await previewPane.boundingBox();
     const lockButton=page.getByRole('button',{name:'Lock viewer and parameters layout'});
     await lockButton.click();

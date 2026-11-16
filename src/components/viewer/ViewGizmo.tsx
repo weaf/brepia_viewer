@@ -15,6 +15,7 @@ type Alignment =
   | 'top-center';
 
 interface ViewGizmoProps {
+  onViewChange?: () => void;
   alignment?: Alignment;
   margin?: [number, number];
 }
@@ -49,6 +50,7 @@ function isControlsWithTarget(value: unknown): value is ControlsWithTarget {
 // update the active controls. This keeps view-cube snaps deterministic while
 // still allowing unrestricted trackball rotation between snaps.
 export function ViewGizmo({
+  onViewChange,
   alignment = 'bottom-right',
   margin = [80, 80],
 }: ViewGizmoProps) {
@@ -86,9 +88,10 @@ export function ViewGizmo({
       camera.position.copy(target).addScaledVector(direction, radius);
       camera.lookAt(target);
       controls?.update?.();
+      onViewChange?.();
       invalidate();
     },
-    [camera, controls, invalidate, fallbackTarget],
+    [camera, controls, invalidate, fallbackTarget, onViewChange],
   );
   return (
     <GizmoHelper alignment={alignment} margin={margin}>
