@@ -1,0 +1,56 @@
+name: Experimental chain CAD acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/chainGenerator/**'
+      - 'src/components/experimental/ChainGeneratorPanel.tsx'
+      - '.github/workflows/chain-generator-cad.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chain-cad:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-fund
+      - name: Generate CAD fixtures from TypeScript without network calls
+        run: |
+          mkdir -p /tmp/brepia-chain-fixtures
+          CHAIN_FIXTURE_DIR=/tmp/brepia-chain-fixtures npx vitest run src/lib/chainGenerator/chainExportFixtures.test.ts
+      - name: Install OpenSCAD Desktop CLI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openscad
+      - name: Parse and evaluate all chain sizes with OpenSCAD
+        run: |
+          set -eu
+          for n in 1 5 25 150; do
+            openscad -o "/tmp/brepia-chain-fixtures/chain-$n.csg" "/tmp/brepia-chain-fixtures/chain-$n.scad"
+            test -s "/tmp/brepia-chain-fixtures/chain-$n.csg"
+          done
+      - name: Render one-link mesh with OpenSCAD CGAL
+        run: |
+          openscad -o /tmp/brepia-chain-fixtures/chain-1.stl /tmp/brepia-chain-fixtures/chain-1.scad
+          test -s /tmp/brepia-chain-fixtures/chain-1.stl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chain-cad-fixtures
+          path: |
+            /tmp/brepia-chain-fixtures/*.scad
+            /tmp/brepia-chain-fixtures/*.csg
+            /tmp/brepia-chain-fixtures/chain-1.stl
+          if-no-files-found: ignore
+          retention-days: 7
