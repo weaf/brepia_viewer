@@ -4,6 +4,7 @@ import { BuiltInFolderCard } from "@/components/gallery/BuiltInFolderCard";
 import { buildBuiltInGalleryCards } from "@/lib/builtInGalleryGroups";
 import { ExperimentalMenu } from "@/components/ExperimentalMenu";
 import { ChainGeneratorPanel } from "@/components/experimental/ChainGeneratorPanel";
+import { createChain } from "@/lib/chainGenerator/chainGenerator";
 import { EXPERIMENTAL_MODE_STORAGE_KEY, readExperimentalMode } from "@/lib/experimentalMode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,6 +182,7 @@ export function ModelGalleryView() {
   // Separate session-only opt-in: Experimental alone never hides model colors.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
   const [chainVisible, setChainVisible] = useState(false);
+  const [chainConfig, setChainConfig] = useState(() => createChain(5));
   // Same pattern as Scroll lock: panel starts collapsed, presets stay saved per model.
   const [savedVariantsVisible, setSavedVariantsVisible] = useState(false);
   useEffect(() => {
@@ -1069,7 +1071,7 @@ export function ModelGalleryView() {
 
   if (chainVisible) {
     return <main className="flex h-full min-h-0 flex-col bg-[#191a1a] p-2 text-adam-text-primary sm:p-4">
-      <ChainGeneratorPanel onClose={() => setChainVisible(false)} onOpenPreview={openChainPreview} />
+      <ChainGeneratorPanel config={chainConfig} onConfigChange={setChainConfig} onClose={() => setChainVisible(false)} onOpenPreview={openChainPreview} />
     </main>;
   }
 
