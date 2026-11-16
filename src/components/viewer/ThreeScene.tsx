@@ -441,7 +441,12 @@ export function ThreeScene({
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
-      <div ref={sceneHostRef} className="relative min-h-0 flex-1" data-camera-auto-fit={shouldAutoFitCamera ? "true" : "false"}>
+      <div
+        ref={sceneHostRef}
+        className="relative min-h-0 flex-1"
+        data-camera-auto-fit={shouldAutoFitCamera ? "true" : "false"}
+        onWheelCapture={preserveCamera}
+      >
       {/* Local Suspense boundary — `<Canvas>` re-throws suspension upward
           when any drei loader (e.g. <Environment> fetching city.hdr) is in
           flight. Without this boundary the suspension propagates all the
