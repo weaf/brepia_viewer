@@ -125,6 +125,21 @@ try {
       assert.equal(await panel.getByRole("group",{name:"Choose segment"}).getByRole("button",{name:"12",exact:true}).count(),1);
       await page.screenshot({path:path.join(output,device.name+"-chain-return.png"),fullPage:true});
 
+      // Experimental also exposes Chain generator immediately, without a
+      // global enable checkbox, even after returning from the Links shortcut.
+      await panel.getByRole("button",{name:"Close",exact:true}).click();
+      await page.getByRole("button",{name:"Experimental menu"}).click();
+      const experimentalAction = page.getByRole("menuitem",{name:"Open parametric chain generator"});
+      await experimentalAction.waitFor({state:"visible"});
+      if (await page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"}).count()) {
+        throw new Error("Experimental still requires a master enable action.");
+      }
+      await page.screenshot({path:path.join(output,device.name+"-experimental-menu.png"),fullPage:true});
+      await experimentalAction.click();
+      await panel.waitFor({state:"visible"});
+      assert.equal(await panel.getByLabel("Number of segments (1–150)").inputValue(),"25",
+        "Opening from Experimental must preserve the existing chain.");
+
       assert.deepEqual(errors,[],"Client errors: "+errors.join("; "));
       console.log("["+device.name+"] chain JSON/SCAD and Viewer preview passed");
     } catch (error) {

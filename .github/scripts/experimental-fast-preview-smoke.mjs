@@ -64,22 +64,23 @@ try {
         // the real Experimental trigger without forced hit testing.
         await page.locator('[toast-close]').evaluateAll(buttons => buttons.forEach(button => button.click()));
         await experimental.click();
-        await page.getByRole('menuitemcheckbox', { name: 'Enable Experimental mode' }).waitFor({ state:'visible' });
+        await page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' }).waitFor({ state:'visible' });
       };
       // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
       // Real unforced taps are separately verified in the Saved Variants browser test.
       await openExperimental();
-      const master = page.getByRole('menuitemcheckbox', { name: 'Enable Experimental mode' });
-      if ((await master.getAttribute('data-state')) !== 'unchecked') throw new Error('Experimental unexpectedly enabled');
-      await master.click();
-      // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
-      // Real unforced taps are separately verified in the Saved Variants browser test.
-      await openExperimental();
+      const chainAction = page.getByRole('menuitem', { name: 'Open parametric chain generator' });
+      await chainAction.waitFor({ state:'visible' });
+      const visualTools = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
+      if ((await visualTools.getAttribute('data-state')) !== 'unchecked') throw new Error('Visual move should default off');
       const fastToggle = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       await fastToggle.waitFor();
       if ((await fastToggle.getAttribute('data-state')) !== 'unchecked') throw new Error('Fast preview unexpectedly enabled');
       await fastToggle.click();
       await page.getByTestId('fast-preview-color-notice').waitFor({ timeout: 45000 });
+      if (await page.getByTestId('visual-move-preview').count()) {
+        throw new Error('Fast preview incorrectly enabled visual movement');
+      }
       await page.waitForFunction(() => {
         const diagnostics = document.querySelector('[data-testid="experimental-preview-diagnostics"]');
         const field = [...(diagnostics?.querySelectorAll('dt') ?? [])]
@@ -165,6 +166,22 @@ try {
         throw new Error('Fast-preview warning remained when disabled');
       }
       await page.screenshot({ path: path.join(evidence, device.name + '-restored-colors.png') });
+
+      // The other toggle is independent: visual move appears on its own,
+      // and Fast STL stays off throughout this action.
+      await openExperimental();
+      const visualToggle = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
+      if (await visualToggle.getAttribute('data-state') !== 'unchecked') throw new Error('Visual mode unexpectedly enabled');
+      await visualToggle.click();
+      await page.getByTestId('visual-move-preview').waitFor({ state: 'visible' });
+      await openExperimental();
+      const visualOn = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
+      if (await visualOn.getAttribute('data-state') !== 'checked') throw new Error('Visual mode did not activate on first click');
+      if (await page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' }).getAttribute('data-state') !== 'unchecked') {
+        throw new Error('Visual mode incorrectly enabled fast preview');
+      }
+      await visualOn.click();
+      await page.getByTestId('visual-move-preview').waitFor({ state: 'hidden' });
       if (errors.length) throw new Error('Browser errors: ' + errors.join('; '));
       reports.push({ device: device.name, status: 'PASS', canvas: await geometryCanvas.count(),
         orca3mfBytes: (await readFile(file)).byteLength });

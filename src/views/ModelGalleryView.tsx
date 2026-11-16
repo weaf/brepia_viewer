@@ -177,9 +177,9 @@ export function ModelGalleryView() {
   const [urlImportProgress, setUrlImportProgress] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
-  // Per-browser opt-in; stays off on first visit and avoids SSR hydration drift.
-  const [experimentalEnabled, setExperimentalEnabled] = useState(false);
-  // Separate session-only opt-in: Experimental alone never hides model colors.
+  // Visual move is a standalone, saved opt-in; other experiments remain independent.
+  const [visualToolsEnabled, setVisualToolsEnabled] = useState(false);
+  // Fast STL preview remains session-only and does not enable visual movement.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
   const [chainVisible, setChainVisible] = useState(false);
   const [chainConfig, setChainConfig] = useState(() => createChain(5));
@@ -187,7 +187,7 @@ export function ModelGalleryView() {
   const [savedVariantsVisible, setSavedVariantsVisible] = useState(false);
   useEffect(() => {
     try {
-      setExperimentalEnabled(
+      setVisualToolsEnabled(
         readExperimentalMode(window.localStorage.getItem(EXPERIMENTAL_MODE_STORAGE_KEY)),
       );
     } catch {
@@ -200,11 +200,8 @@ export function ModelGalleryView() {
       delete document.documentElement.dataset.brepiaClientReady;
     };
   }, []);
-  const updateExperimentalMode = useCallback((enabled: boolean) => {
-    setExperimentalEnabled(enabled);
-    if (!enabled) {
-      setFastPreviewEnabled(false);
-    }
+  const updateVisualTools = useCallback((enabled: boolean) => {
+    setVisualToolsEnabled(enabled);
     try {
       window.localStorage.setItem(EXPERIMENTAL_MODE_STORAGE_KEY, String(enabled));
     } catch {
@@ -1111,8 +1108,8 @@ export function ModelGalleryView() {
           <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
             <RepositoryLink compact />
             <ExperimentalMenu
-              enabled={experimentalEnabled}
-              onEnabledChange={updateExperimentalMode}
+              visualToolsEnabled={visualToolsEnabled}
+              onVisualToolsChange={updateVisualTools}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
               onOpenChain={() => setChainVisible(true)}
@@ -1265,8 +1262,8 @@ export function ModelGalleryView() {
             key={activeRecord.id}
             project={activeRecord.project}
             assets={activeRecord.assetBlobs}
-            experimentalEnabled={experimentalEnabled}
-            experimentalFastPreview={experimentalEnabled && fastPreviewEnabled}
+            experimentalEnabled={visualToolsEnabled}
+            experimentalFastPreview={fastPreviewEnabled}
             onExportStateChange={handlePreviewExportStateChange}
           />
           <aside className={cn(
@@ -1397,8 +1394,8 @@ export function ModelGalleryView() {
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryLink />
             <ExperimentalMenu
-              enabled={experimentalEnabled}
-              onEnabledChange={updateExperimentalMode}
+              visualToolsEnabled={visualToolsEnabled}
+              onVisualToolsChange={updateVisualTools}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
               onOpenChain={() => setChainVisible(true)}

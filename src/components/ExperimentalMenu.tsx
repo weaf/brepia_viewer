@@ -10,14 +10,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function ExperimentalMenu({
-  enabled,
-  onEnabledChange,
+  visualToolsEnabled,
+  onVisualToolsChange,
   fastPreviewEnabled,
   onFastPreviewChange,
   onOpenChain,
 }: {
-  enabled: boolean;
-  onEnabledChange: (enabled: boolean) => void;
+  visualToolsEnabled: boolean;
+  onVisualToolsChange: (enabled: boolean) => void;
   fastPreviewEnabled: boolean;
   onFastPreviewChange: (enabled: boolean) => void;
   onOpenChain: () => void;
@@ -35,54 +35,49 @@ export function ExperimentalMenu({
         >
           <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="hidden text-[11px] sm:inline">Experimental</span>
-          {enabled && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" aria-label="Experimental enabled" />}
+          {(visualToolsEnabled || fastPreviewEnabled) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" aria-label="An experimental tool is active" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-1rem)] p-1">
         <DropdownMenuLabel className="px-3 py-2">Experimental features</DropdownMenuLabel>
-        <DropdownMenuCheckboxItem
-          checked={enabled}
-          onCheckedChange={(checked) => onEnabledChange(checked === true)}
-          className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
-          aria-label="Enable Experimental mode"
+        <DropdownMenuItem
+          onSelect={onOpenChain}
+          className="min-h-14 rounded-md border border-transparent px-3 py-2 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
+          aria-label="Open parametric chain generator"
         >
           <span className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Enable Experimental</span>
+            <span className="text-sm font-medium">Chain generator</span>
             <span className="text-xs leading-snug text-adam-neutral-300">
-              Show optional model tools and performance diagnostics. Turn off to hide them.
+              Open the articulated OpenSCAD chain editor.
+            </span>
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuCheckboxItem
+          checked={fastPreviewEnabled}
+          onCheckedChange={(checked) => onFastPreviewChange(checked === true)}
+          className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
+          aria-label="Enable fast STL-only preview"
+        >
+          <span className="flex flex-col gap-1">
+            <span className="text-sm font-medium">Fast STL preview</span>
+            <span className="text-xs leading-snug text-adam-neutral-300">
+              Faster preview without part colors. Orca Color export remains available.
             </span>
           </span>
         </DropdownMenuCheckboxItem>
-        {enabled && (
-          <DropdownMenuItem
-            onSelect={onOpenChain}
-            className="min-h-14 rounded-md border border-transparent px-2 py-2 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
-            aria-label="Open parametric chain generator"
-          >
-            <span className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Chain generator</span>
-              <span className="text-xs leading-snug text-adam-neutral-300">
-                Build editable articulated C-joint chains and export standalone OpenSCAD.
-              </span>
+        <DropdownMenuCheckboxItem
+          checked={visualToolsEnabled}
+          onCheckedChange={(checked) => onVisualToolsChange(checked === true)}
+          className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
+          aria-label="Enable visual move and diagnostics"
+        >
+          <span className="flex flex-col gap-1">
+            <span className="text-sm font-medium">Visual move & diagnostics</span>
+            <span className="text-xs leading-snug text-adam-neutral-300">
+              Show preview-only visual movement and render statistics.
             </span>
-          </DropdownMenuItem>
-        )}
-        {enabled && (
-          <DropdownMenuCheckboxItem
-            checked={fastPreviewEnabled}
-            onCheckedChange={(checked) => onFastPreviewChange(checked === true)}
-            className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
-            aria-label="Enable fast STL-only preview"
-          >
-            <span className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Fast STL preview</span>
-              <span className="text-xs leading-snug text-adam-neutral-300">
-                Skip OFF color generation while previewing. Colors and parts are
-                hidden; Orca Color export still generates full color data when needed.
-              </span>
-            </span>
-          </DropdownMenuCheckboxItem>
-        )}
+          </span>
+        </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
