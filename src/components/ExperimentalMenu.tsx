@@ -5,7 +5,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -14,13 +13,11 @@ export function ExperimentalMenu({
   onVisualToolsChange,
   fastPreviewEnabled,
   onFastPreviewChange,
-  onOpenChain,
 }: {
   visualToolsEnabled: boolean;
   onVisualToolsChange: (enabled: boolean) => void;
   fastPreviewEnabled: boolean;
   onFastPreviewChange: (enabled: boolean) => void;
-  onOpenChain: () => void;
 }) {
   return (
     <DropdownMenu modal={false}>
@@ -40,18 +37,6 @@ export function ExperimentalMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-1rem)] p-1">
         <DropdownMenuLabel className="px-3 py-2">Experimental features</DropdownMenuLabel>
-        <DropdownMenuItem
-          onSelect={onOpenChain}
-          className="min-h-14 rounded-md border border-transparent px-3 py-2 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
-          aria-label="Open parametric chain generator"
-        >
-          <span className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Chain generator</span>
-            <span className="text-xs leading-snug text-adam-neutral-300">
-              Open the articulated OpenSCAD chain editor.
-            </span>
-          </span>
-        </DropdownMenuItem>
         <DropdownMenuCheckboxItem
           checked={fastPreviewEnabled}
           onCheckedChange={(checked) => onFastPreviewChange(checked === true)}
