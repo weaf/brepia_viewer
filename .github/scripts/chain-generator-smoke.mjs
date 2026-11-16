@@ -35,12 +35,20 @@ try {
       isMobile:device.mobile,hasTouch:device.mobile,
       acceptDownloads:true,serviceWorkers:"block",
     });
-    // Mock only the unrelated public catalog. Chain SCAD generation itself
-    // still runs locally and must not depend on network requests.
+    // Use the real Link folder shape, with deterministic offline source data.
+    // Chain SCAD generation must remain entirely client-side.
     await context.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route => route.fulfill({
       status:200,
       contentType:"application/json",
-      body:JSON.stringify({truncated:false,tree:[]}),
+      body:JSON.stringify({truncated:false,tree:[
+        {path:"link/A_rotationsled_print_in_place.scad",type:"blob",size:128,sha:"fixture-link-a"},
+        {path:"link/C_kulled_snappfaste.scad",type:"blob",size:128,sha:"fixture-link-c"},
+      ]}),
+    }));
+    await context.route("https://raw.githubusercontent.com/Noty-design/Parametric-designs/main/link/**", route => route.fulfill({
+      status:200,
+      contentType:"text/plain",
+      body:"/* [Body] */\\nsize=10; // [5:1:20]\\ncube([size,size,size]);\\n",
     }));
     const page = await context.newPage();
     page.setDefaultTimeout(25000);
@@ -55,21 +63,15 @@ try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
       await page.waitForFunction(() => document.documentElement.dataset.brepiaClientReady === "true", null, {timeout:60000});
-      // The generator is available directly in the existing model gallery.
-      // Do not upload a preliminary model or introduce an overlapping toast.
-      const openExperimental = async () => {
-        const trigger = page.getByRole("button",{name:"Experimental menu"});
-        await trigger.click({force:true});
-        await page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"}).waitFor({state:"visible"});
-      };
-      await openExperimental();
-      const enable = page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"});
-      if ((await enable.getAttribute("data-state")) !== "checked") {
-        await enable.click();
-        await enable.waitFor({state:"hidden"});
-      }
-      await openExperimental();
-      await page.getByRole("menuitem",{name:"Open parametric chain generator"}).click();
+      // The generator is a dedicated action on the Link folder, even while
+      // Experimental mode is off and the folder model list is collapsed.
+      const folder = page.getByRole("button",{name:"Open link folder"});
+      await folder.waitFor({state:"visible"});
+      assert.equal(await folder.getAttribute("aria-expanded"),"false");
+      const chainShortcut = page.getByRole("button",{name:"Open chain generator",exact:true});
+      await chainShortcut.waitFor({state:"visible"});
+      await page.screenshot({path:path.join(output,device.name+"-links-shortcut.png"),fullPage:true});
+      await chainShortcut.click();
       const panel = page.getByTestId("chain-generator");
       await panel.waitFor({state:"visible"});
       const pointerLock = await page.evaluate(() => document.body.style.pointerEvents);
@@ -116,8 +118,8 @@ try {
       await page.getByRole("region",{name:"3D model preview"}).locator("canvas").waitFor({state:"visible",timeout:60000});
       await page.getByTestId("off-component-inspector").waitFor({state:"visible",timeout:120000});
       await page.screenshot({path:path.join(output,device.name+"-chain-preview.png"),fullPage:true});
-      await openExperimental();
-      await page.getByRole("menuitem",{name:"Open parametric chain generator"}).click();
+      await page.getByRole("button",{name:"Back to model gallery"}).click();
+      await page.getByRole("button",{name:"Open chain generator",exact:true}).click();
       await panel.waitFor({state:"visible"});
       assert.equal(await panel.getByLabel("Number of segments (1–150)").inputValue(),"25","Chain should survive Viewer preview");
       assert.equal(await panel.getByRole("group",{name:"Choose segment"}).getByRole("button",{name:"12",exact:true}).count(),1);
