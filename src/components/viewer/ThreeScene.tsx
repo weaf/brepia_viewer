@@ -567,7 +567,7 @@ export function ThreeScene({
 
   // Controls wrap the displayed mesh only in the explicit preview mode.
   // The OpenSCAD source and the export buffers remain untouched.
-  const modelElement = coloredGroup && groupCenterOffset ? (
+  const modelElement = useMemo(() => coloredGroup && groupCenterOffset ? (
     <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]} onClick={chooseMeasurementPoint}>
       <primitive object={coloredGroup} position={groupCenterOffset.toArray()} />
     </group>
@@ -577,7 +577,7 @@ export function ThreeScene({
         <meshStandardMaterial color={color} metalness={0.6} roughness={0.3} envMapIntensity={0.3} />
       </mesh>
     </group>
-  ) : null;
+  ) : null, [coloredGroup, groupCenterOffset, geometry, geometryCenterOffset, color, chooseMeasurementPoint]);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
