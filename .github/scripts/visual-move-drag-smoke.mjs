@@ -54,6 +54,14 @@ try {
     throw new Error("Mobile controls not visible after move toggle: " +
       await moveToggle.getAttribute("aria-pressed") + " / " + error.message);
   });
+  const collapsedPanel = await panel.boundingBox();
+  assert.ok(collapsedPanel && collapsedPanel.height <= 60,
+    "Mobile precision controls must be compact by default: " + collapsedPanel?.height);
+  await panel.getByRole("button", { name: "Show precision slider" }).click();
+  await page.getByTestId("visual-move-mobile-precision").waitFor();
+  await panel.getByRole("slider", { name: "Move model along X axis" }).waitFor();
+  await panel.getByRole("button", { name: "Hide precision slider" }).click();
+  await page.getByTestId("visual-move-mobile-precision").waitFor({ state: "hidden" });
   const offsets = page.getByTestId("visual-move-offsets");
   const preview = page.getByRole("region", { name: "3D model preview" });
   const canvas = preview.locator("canvas").first();
@@ -106,6 +114,97 @@ try {
   await canvas.screenshot({ path: path.join(evidence, "after-reset.png") });
   console.log("VISUAL_MOVE_TOUCH_PASS " + JSON.stringify({ during, after }));
   await context.close();
+  const desktop = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    recordVideo: { dir: evidence }, serviceWorkers: "block",
+  });
+  await desktop.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route =>
+    route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ truncated: false, tree: [] }) }));
+  const desktopPage = await desktop.newPage();
+  const desktopErrors = [];
+  desktopPage.on("pageerror", error => desktopErrors.push(error.message));
+  try {
+    await desktopPage.goto(origin, { waitUntil: "domcontentloaded" });
+    await desktopPage.waitForFunction(
+      () => document.documentElement.dataset.brepiaClientReady === "true",
+      null, { timeout: 60000 },
+    );
+    await desktopPage.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
+      name: "move-desktop.scad", mimeType: "text/plain",
+      buffer: Buffer.from("cube([20,20,20],center=true);\n"),
+    });
+    await desktopPage.getByTestId("off-component-inspector").waitFor({ state: "visible", timeout: 90000 });
+    await desktopPage.getByRole("button", { name: "Cancel preview" })
+      .waitFor({ state: "hidden", timeout: 90000 });
+    await desktopPage.getByRole("button", { name: "Experimental menu" }).click();
+    await desktopPage.getByRole("menuitemcheckbox",
+      { name: "Enable visual move and diagnostics" }).click();
+    const desktopMoveToggle = desktopPage.getByRole("button", { name: "Preview visual movement" });
+    if (await desktopMoveToggle.getAttribute("aria-pressed") !== "true") {
+      await desktopMoveToggle.click();
+    }
+    assert.equal(await desktopMoveToggle.getAttribute("aria-pressed"), "true");
+    const desktopCanvas = desktopPage.getByRole("region",
+      { name: "3D model preview" }).locator("canvas").first();
+    await desktopCanvas.waitFor({ state: "visible" });
+    await pause(400);
+    const dc = await desktopCanvas.boundingBox();
+    assert.ok(dc && dc.width > 250 && dc.height > 200,
+      "Desktop 3D canvas is missing");
+    const px = dc.x + dc.width / 2;
+    const py = dc.y + dc.height / 2;
+    const desktopOffsets = desktopPage.getByTestId("visual-move-offsets");
+    const desktopAxes = [];
+    await desktopCanvas.screenshot({ path: path.join(evidence, "desktop-initial.png") });
+    for (const [axisId, dx, dy] of [[0, 160, 60], [1, 80, -140], [2, -150, -100]]) {
+      await desktopPage.getByRole("combobox", { name: "Visual move axis" })
+        .selectOption(String(axisId));
+      await desktopPage.mouse.move(px, py);
+      await desktopPage.mouse.down();
+      const samples = [];
+      for (let i = 1; i <= 12; i++) {
+        await desktopPage.mouse.move(px + dx * i / 12, py + dy * i / 12, { steps: 2 });
+        if (i % 3 === 0) {
+          const value = await desktopOffsets.textContent();
+          samples.push(value);
+        }
+        await pause(45);
+      }
+      await desktopCanvas.screenshot({ path: path.join(evidence,
+        "desktop-axis-" + axisId + "-during.png") });
+      await desktopPage.mouse.up();
+      const result = await desktopOffsets.textContent();
+      const match = result?.match(/Scene X (-?\d+\.\d+) \/ Y (-?\d+\.\d+) \/ Z (-?\d+\.\d+)/);
+      assert.ok(match && Math.abs(Number(match[axisId + 1])) > 0.2,
+        "Desktop drag did not translate along axis " + axisId + ": " + result);
+      assert.ok(new Set(samples).size >= 2,
+        "Desktop offset must change during a single mouse-down gesture: " + samples);
+      for (let other = 0; other < 3; other++) {
+        if (other !== axisId) {
+          assert.ok(Math.abs(Number(match[other + 1])) < 0.1,
+            "Desktop drag leaked to another axis: " + result);
+        }
+      }
+      desktopAxes.push({ axisId, result, samples });
+      await desktopPage.getByRole("button", { name: "Reset position" }).click();
+      assert.match(await desktopOffsets.textContent(), /X 0\.0 \/ Y 0\.0 \/ Z 0\.0/);
+    }
+    assert.equal(await desktopPage.locator("[data-camera-auto-fit]").first()
+      .getAttribute("data-camera-auto-fit"), "false",
+      "Mouse dragging must not activate Stage camera refitting");
+    await desktopMoveToggle.click();
+    assert.equal(await desktopMoveToggle.getAttribute("aria-pressed"), "false",
+      "Move must be deactivatable after dragging");
+    assert.deepEqual(desktopErrors, [], "Unexpected desktop JS errors");
+    console.log("VISUAL_MOVE_DESKTOP_PASS " + JSON.stringify(desktopAxes));
+  } catch (error) {
+    await desktopPage.screenshot({ path: path.join(evidence, "desktop-failure.png"),
+      fullPage: true }).catch(() => {});
+    throw error;
+  } finally {
+    await desktop.close();
+  }
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
