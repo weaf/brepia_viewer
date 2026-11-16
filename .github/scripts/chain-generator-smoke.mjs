@@ -39,7 +39,10 @@ try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
       const openExperimental = async () => {
-        await page.getByRole("button",{name:"Experimental menu"}).click({force:true});
+        const trigger = page.getByRole("button",{name:"Experimental menu"});
+        await trigger.focus();
+        await trigger.press("Enter");
+        console.log("EXPERIMENTAL_DIAG",device.name,"trigger state",await trigger.getAttribute("data-state"),"menu",await page.locator('[role="menu"]').allTextContents());
         await page.getByText("Enable Experimental",{exact:true}).waitFor({state:"visible",timeout:10000});
       };
       await openExperimental();
