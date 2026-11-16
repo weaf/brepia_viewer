@@ -1,0 +1,42 @@
+name: Experimental chain UI acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/chainGenerator/**'
+      - 'src/components/ExperimentalMenu.tsx'
+      - 'src/components/experimental/ChainGeneratorPanel.tsx'
+      - 'src/views/ModelGalleryView.tsx'
+      - '.github/scripts/chain-generator-smoke.mjs'
+      - '.github/workflows/chain-generator-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chain-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      STATIC_VIEWER_BASE: "/"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-fund --no-audit
+      - name: Validate browser test syntax
+        run: node --check .github/scripts/chain-generator-smoke.mjs
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Exercise chain editor, JSON, SCAD and preview on desktop and mobile
+        run: node .github/scripts/chain-generator-smoke.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: chain-ui-screenshots
+          path: ${{ runner.temp }}/viewer-static-evidence/
+          if-no-files-found: warn

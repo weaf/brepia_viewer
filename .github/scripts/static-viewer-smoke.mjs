@@ -203,9 +203,10 @@ try {
       initialDialogBounds && expandedDialogBounds &&
       initialDialogBounds.height >= viewport.height * 0.94 &&
       expandedDialogBounds.height >= viewport.height - 6 &&
-      expandedDialogBounds.width >= viewport.width - 6 &&
+      // Preserve the editor's existing 4px mobile safe-area margins.
+      expandedDialogBounds.width >= viewport.width - 8 &&
       expandedDialogBounds.height >= initialDialogBounds.height - 1 &&
-      expandedDialogBounds.width >= initialDialogBounds.width + 3;
+      expandedDialogBounds.width >= initialDialogBounds.width - 1;
     if(!expandedDialogBounds || !initialDialogBounds ||
        (!expandedToMobileEdges && expandedDialogBounds.height < initialDialogBounds.height + minGrowth) ||
        expandedDialogBounds.width < initialDialogBounds.width - 2) {

@@ -38,6 +38,11 @@ try {
       viewport: { width: device.width, height: device.height },
       acceptDownloads: true, serviceWorkers: 'block',
     });
+    // Keep the unrelated public GitHub gallery deterministic.
+    await context.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route => route.fulfill({
+      status:200, contentType:"application/json",
+      body:JSON.stringify({truncated:false,tree:[]}),
+    }));
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -53,15 +58,23 @@ try {
       await page.getByTestId('off-component-inspector').waitFor({ timeout: 60000 });
       await page.screenshot({ path: path.join(evidence, device.name + '-default-colors.png') });
       const experimental = page.getByRole('button', { name: 'Experimental menu' });
+      const openExperimental = async () => {
+        // An upload success notification can overlap the mobile toolbar.
+        // Dismiss notifications through their own Close controls, then tap
+        // the real Experimental trigger without forced hit testing.
+        await page.locator('[toast-close]').evaluateAll(buttons => buttons.forEach(button => button.click()));
+        await experimental.click();
+        await page.getByRole('menuitemcheckbox', { name: 'Enable Experimental mode' }).waitFor({ state:'visible' });
+      };
       // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
       // Real unforced taps are separately verified in the Saved Variants browser test.
-      await experimental.click({ force: true });
+      await openExperimental();
       const master = page.getByRole('menuitemcheckbox', { name: 'Enable Experimental mode' });
       if ((await master.getAttribute('data-state')) !== 'unchecked') throw new Error('Experimental unexpectedly enabled');
       await master.click();
       // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
       // Real unforced taps are separately verified in the Saved Variants browser test.
-      await experimental.click({ force: true });
+      await openExperimental();
       const fastToggle = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       await fastToggle.waitFor();
       if ((await fastToggle.getAttribute('data-state')) !== 'unchecked') throw new Error('Fast preview unexpectedly enabled');
@@ -143,7 +156,7 @@ try {
 
       // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
       // Real unforced taps are separately verified in the Saved Variants browser test.
-      await experimental.click({ force: true });
+      await openExperimental();
       const enabledFast = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       if (await enabledFast.getAttribute('data-state') !== 'checked') throw new Error('Fast state did not persist in session');
       await enabledFast.click();
