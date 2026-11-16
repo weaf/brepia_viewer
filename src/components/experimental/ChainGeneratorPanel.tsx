@@ -3,13 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { downloadFile } from "@/utils/downloadUtils";
 import {
-  createChain, segmentAt, resetSegment, resizeChain, updateSegment,
+  segmentAt, resetSegment, resizeChain, updateSegment,
   parseChainJson, serializeChainJson, generateCaChainScad, chainWarnings,
   SHAPES, DECORATIONS, FITS, FACES, PORTS, LETTERS,
   type ChainConfig, type ChainSegment, type ChainLayout, type Face, type Port,
 } from "@/lib/chainGenerator/chainGenerator";
 
 type Props = {
+  config: ChainConfig;
+  onConfigChange: (next: ChainConfig | ((current: ChainConfig) => ChainConfig)) => void;
   onClose: () => void;
   onOpenPreview: (source: string) => Promise<void>;
 };
@@ -22,8 +24,7 @@ function Choose<T extends string>({label, value, values, onChange}: {
     {values.map(v => <option key={v} value={v}>{v}</option>)}
   </select></label>;
 }
-export function ChainGeneratorPanel({onClose, onOpenPreview}: Props) {
-  const [config, setConfig] = useState<ChainConfig>(() => createChain(5));
+export function ChainGeneratorPanel({config, onConfigChange: setConfig, onClose, onOpenPreview}: Props) {
   const [index, setIndex] = useState(0);
   const [layout, setLayout] = useState<ChainLayout>("assembly");
   const [error, setError] = useState("");
