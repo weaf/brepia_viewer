@@ -56,7 +56,7 @@ try {
       await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
         name:"chain-acceptance.scad",
         mimeType:"text/plain",
-        buffer:Buffer.from("cube([4,4,4]);\n"),
+        buffer:Buffer.from("/* [Shape] */\nwidth = 10; // [5:1:25]\ncube([width,width,width]);\n"),
       });
       await page.getByText("Source and parameters",{exact:true}).waitFor({timeout:45000});
       const openExperimental = async () => {
