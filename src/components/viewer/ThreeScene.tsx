@@ -8,7 +8,6 @@ import {
   OrbitControls,
   Line,
   Html,
-  TransformControls,
 } from "@react-three/drei";
 import * as THREE from "three";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -196,6 +195,172 @@ function MobileMeasurementHandles({
   );
 }
 
+
+type VisualMoveOffset = [number, number, number];
+
+// Both desktop and mobile use the same captured R3F pointer gesture.
+// A click on an arrow selects its axis and immediately starts the drag;
+// a drag from the model surface uses the previously selected axis.
+function VisualMoveManipulator({
+  children,
+  offset,
+  axis,
+  handleLength,
+  isMobile,
+  onAxisChange,
+  onOffsetChange,
+  onDraggingChange,
+  onUserCameraMove,
+}: {
+  children: React.ReactNode;
+  offset: VisualMoveOffset;
+  axis: 0 | 1 | 2;
+  handleLength: number;
+  isMobile: boolean;
+  onAxisChange: (axis: 0 | 1 | 2) => void;
+  onOffsetChange: (offset: VisualMoveOffset) => void;
+  onDraggingChange: (dragging: boolean) => void;
+  onUserCameraMove: () => void;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
+  const controls = useThree((state) => state.controls);
+  const dragRef = useRef<{
+    pointerId: number;
+    axis: 0 | 1 | 2;
+    x: number;
+    y: number;
+    initialOffset: VisualMoveOffset;
+    axisPixelsX: number;
+    axisPixelsY: number;
+    fallbackUnitsPerPixel: number;
+  } | null>(null);
+  const controlsRef = useRef<{ controls: { enabled: boolean }; wasEnabled: boolean } | null>(null);
+
+  const endDrag = useCallback((pointerId: number) => {
+    if (dragRef.current?.pointerId !== pointerId) return;
+    dragRef.current = null;
+    if (controlsRef.current) {
+      controlsRef.current.controls.enabled = controlsRef.current.wasEnabled;
+      controlsRef.current = null;
+    }
+    onDraggingChange(false);
+  }, [onDraggingChange]);
+
+  useEffect(() => () => {
+    if (controlsRef.current) controlsRef.current.controls.enabled = controlsRef.current.wasEnabled;
+    controlsRef.current = null;
+    dragRef.current = null;
+  }, []);
+
+  const startDrag = (event: ThreeEvent<PointerEvent>, chosenAxis: 0 | 1 | 2) => {
+    if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
+    const model = groupRef.current;
+    if (!model) return;
+    event.stopPropagation();
+    event.nativeEvent.preventDefault();
+    model.updateWorldMatrix(true, false);
+    const origin = model.localToWorld(new THREE.Vector3());
+    const direction = new THREE.Vector3(
+      chosenAxis === 0 ? 1 : 0,
+      chosenAxis === 1 ? 1 : 0,
+      chosenAxis === 2 ? 1 : 0,
+    );
+    const screenOrigin = origin.clone().project(camera);
+    const screenEnd = origin.clone().add(direction).project(camera);
+    const axisPixelsX = (screenEnd.x - screenOrigin.x) * size.width / 2;
+    const axisPixelsY = (screenOrigin.y - screenEnd.y) * size.height / 2;
+    const fallbackUnitsPerPixel = camera instanceof THREE.OrthographicCamera
+      ? Math.abs(camera.top - camera.bottom) / (camera.zoom * size.height)
+      : camera instanceof THREE.PerspectiveCamera
+        ? 2 * origin.distanceTo(camera.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / size.height
+        : 1 / size.height;
+    dragRef.current = {
+      pointerId: event.pointerId, axis: chosenAxis,
+      x: event.clientX, y: event.clientY,
+      initialOffset: [...offset] as VisualMoveOffset,
+      axisPixelsX, axisPixelsY, fallbackUnitsPerPixel,
+    };
+    const activeControls = controls as { enabled: boolean } | null;
+    if (activeControls) {
+      controlsRef.current = { controls: activeControls, wasEnabled: activeControls.enabled };
+      activeControls.enabled = false;
+    }
+    onAxisChange(chosenAxis);
+    onDraggingChange(true);
+    onUserCameraMove();
+    (event.target as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture(event.pointerId);
+  };
+
+  const movePointer = (event: ThreeEvent<PointerEvent>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    event.nativeEvent.preventDefault();
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    const axisLengthSquared = drag.axisPixelsX ** 2 + drag.axisPixelsY ** 2;
+    // Looking directly along the selected axis: use vertical movement,
+    // scaled to the current camera, instead of dividing by a near-zero projection.
+    const displacement = axisLengthSquared >= 16
+      ? (dx * drag.axisPixelsX + dy * drag.axisPixelsY) / axisLengthSquared
+      : -dy * drag.fallbackUnitsPerPixel;
+    const next = [...drag.initialOffset] as VisualMoveOffset;
+    next[drag.axis] += displacement;
+    onOffsetChange(next);
+  };
+
+  const arrowColors = ["#ff5959", "#43e6a2", "#4887ff"];
+  const axisDirections: VisualMoveOffset[] = [
+    [handleLength, 0, 0], [0, handleLength, 0], [0, 0, handleLength],
+  ];
+
+  return (
+    <group
+      ref={groupRef}
+      position={offset}
+      onPointerDown={(event) => startDrag(event, axis)}
+      onPointerMove={movePointer}
+      onPointerUp={(event) => {
+        if (dragRef.current?.pointerId !== event.pointerId) return;
+        movePointer(event);
+        endDrag(event.pointerId);
+        const capture = event.target as unknown as {
+          hasPointerCapture: (id: number) => boolean;
+          releasePointerCapture: (id: number) => void;
+        };
+        if (capture.hasPointerCapture(event.pointerId)) capture.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={(event) => endDrag(event.pointerId)}
+      onLostPointerCapture={(event) => endDrag(event.pointerId)}
+    >
+      {children}
+      {axisDirections.map((direction, i) => {
+        if (isMobile && i !== axis) return null;
+        const selected = i === axis;
+        const axisIndex = i as 0 | 1 | 2;
+        return (
+          <group key={i}>
+            <Line points={[[0, 0, 0], direction]} color={arrowColors[i]}
+              lineWidth={selected ? 4 : 2.5} raycast={() => {}} />
+            <mesh
+              position={direction}
+              onPointerDown={(event) => startDrag(event, axisIndex)}
+              onPointerOver={() => { if (!isMobile) document.body.style.cursor = "grab"; }}
+              onPointerOut={() => { if (!isMobile) document.body.style.cursor = ""; }}
+            >
+              <sphereGeometry args={[Math.max(0.7, handleLength * 0.085), 16, 12]} />
+              <meshBasicMaterial color={arrowColors[i]} depthTest={false}
+                transparent opacity={selected ? 1 : 0.8} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 export function ThreeScene({
   geometry,
   color,
@@ -214,9 +379,10 @@ export function ThreeScene({
   const [cameraManuallyAdjusted, setCameraManuallyAdjusted] = useState(false);
   const preserveCamera = useCallback(() => setCameraManuallyAdjusted(true), []);
   const shouldAutoFitCamera = !measuring && !visualMoving && !cameraManuallyAdjusted;
-  const [visualMoveKey, setVisualMoveKey] = useState(0);
   const [visualMoveAxis, setVisualMoveAxis] = useState<0 | 1 | 2>(0);
-  const [visualMoveDelta, setVisualMoveDelta] = useState<[number, number, number]>([0, 0, 0]);
+  const [visualMoveDelta, setVisualMoveDelta] = useState<VisualMoveOffset>([0, 0, 0]);
+  const [draggingVisualMove, setDraggingVisualMove] = useState(false);
+  const [mobilePrecisionExpanded, setMobilePrecisionExpanded] = useState(false);
   const [measurementMode, setMeasurementMode] = useState<"distance" | "angle">("distance");
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("mm");
   const [snapping, setSnapping] = useState(true);
@@ -247,6 +413,7 @@ export function ThreeScene({
     if (!visualEditAllowed) {
       setVisualMoving(false);
       setVisualMoveDelta([0, 0, 0]);
+      setDraggingVisualMove(false);
     }
   }, [visualEditAllowed]);
 
@@ -254,7 +421,6 @@ export function ThreeScene({
     // A new render invalidates any preview-only transform.
     setVisualMoving(false);
     setVisualMoveDelta([0, 0, 0]);
-    setVisualMoveKey((key) => key + 1);
   }, [geometry, coloredGroup]);
 
   const viewerBackgroundColor = useMemo(
@@ -285,6 +451,13 @@ export function ThreeScene({
   useEffect(() => {
     setMeasurementPoints([]);
     setSnapNotice(null);
+  }, [geometry, coloredGroup]);
+
+  const visualMoveHandleLength = useMemo(() => {
+    const box = coloredGroup
+      ? new THREE.Box3().setFromObject(coloredGroup)
+      : geometry ? new THREE.Box3().setFromBufferAttribute(geometry.getAttribute("position") as THREE.BufferAttribute) : null;
+    return box && !box.isEmpty() ? Math.max(2, box.getSize(new THREE.Vector3()).length() * 0.4) : 5;
   }, [geometry, coloredGroup]);
 
   const geometryCenterOffset = useMemo(() => {
@@ -427,7 +600,7 @@ export function ThreeScene({
 
   // Controls wrap the displayed mesh only in the explicit preview mode.
   // The OpenSCAD source and the export buffers remain untouched.
-  const modelElement = coloredGroup && groupCenterOffset ? (
+  const modelElement = useMemo(() => coloredGroup && groupCenterOffset ? (
     <group ref={renderedModelRef} rotation={[-Math.PI / 2, 0, 0]} onClick={chooseMeasurementPoint}>
       <primitive object={coloredGroup} position={groupCenterOffset.toArray()} />
     </group>
@@ -437,7 +610,7 @@ export function ThreeScene({
         <meshStandardMaterial color={color} metalness={0.6} roughness={0.3} envMapIntensity={0.3} />
       </mesh>
     </group>
-  ) : null;
+  ) : null, [coloredGroup, groupCenterOffset, geometry, geometryCenterOffset, color, chooseMeasurementPoint]);
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
@@ -460,7 +633,7 @@ export function ThreeScene({
           />
         }
       >
-        <Canvas className="block h-full w-full">
+        <Canvas className="block h-full w-full" style={isMobile && visualMoving ? { touchAction: "none" } : undefined}>
           <color attach="background" args={[viewerBackgroundColor]} />
           {isOrthographic ? (
             <OrthographicCamera
@@ -491,20 +664,16 @@ export function ThreeScene({
             <directionalLight position={[0, 5, 0]} intensity={0.2} />
             <directionalLight position={[-5, -5, -5]} intensity={0.6} />
             {visualMoving && visualEditAllowed && modelElement ? (
-              isMobile ? <group position={visualMoveDelta}>{modelElement}</group> : <TransformControls
-                key={visualMoveKey}
-                mode="translate"
-                showX showY showZ
-                size={1}
-                onObjectChange={(event) => {
-                  const object = (event?.target as unknown as { object?: THREE.Object3D })?.object;
-                  if (object) {
-                    setVisualMoveDelta([object.position.x, object.position.y, object.position.z]);
-                  }
-                }}
-              >
-                {modelElement}
-              </TransformControls>
+              <VisualMoveManipulator
+                offset={visualMoveDelta}
+                axis={visualMoveAxis}
+                handleLength={visualMoveHandleLength}
+                isMobile={isMobile}
+                onAxisChange={setVisualMoveAxis}
+                onOffsetChange={setVisualMoveDelta}
+                onDraggingChange={setDraggingVisualMove}
+                onUserCameraMove={preserveCamera}
+              >{modelElement}</VisualMoveManipulator>
             ) : modelElement}
           </Stage>
           {measuring && isMobile && (
@@ -586,7 +755,7 @@ export function ThreeScene({
           followCamera={false}
           infiniteGrid={true}
         /> */}
-          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement} onUserCameraMove={preserveCamera} />
+          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement && !draggingVisualMove} onUserCameraMove={preserveCamera} />
           {showViewGizmo && (
             <ViewGizmo
               onViewChange={preserveCamera}
@@ -608,16 +777,25 @@ export function ThreeScene({
             aria-pressed={visualMoving}
             onClick={() => {
               setVisualMoving(current => !current);
+              setDraggingVisualMove(false);
               setMeasuring(false);
               setVisualMoveDelta([0, 0, 0]);
-              setVisualMoveKey(value => value + 1);
             }}
           >
             Visual move {visualMoving ? "on" : "preview"}
           </Button>
           {visualMoving && !isMobile && (
             <div className="space-y-1 px-2 pb-1 text-xs">
-              <p>Drag the axis handles to move the preview.</p>
+              <p>Drag the model or a colored axis marker.</p>
+              <div className="flex items-center gap-2">
+                <label htmlFor="desktop-move-axis">Axis</label>
+                <select id="desktop-move-axis" aria-label="Visual move axis"
+                  className="h-9 rounded border border-white/20 bg-black px-2"
+                  value={visualMoveAxis}
+                  onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}>
+                  <option value={0}>X</option><option value={1}>Y</option><option value={2}>Z</option>
+                </select>
+              </div>
               <p className="font-mono" data-testid="visual-move-offsets">
                 Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
               </p>
@@ -625,7 +803,6 @@ export function ThreeScene({
               <button type="button" className="min-h-10 rounded border border-white/20 px-3"
                 onClick={() => {
                   setVisualMoveDelta([0, 0, 0]);
-                  setVisualMoveKey(value => value + 1);
                 }}>Reset position</button>
             </div>
           )}
@@ -728,34 +905,46 @@ export function ThreeScene({
       </div>
       </div>
        {visualEditAllowed && visualMoving && isMobile && (
-         <div className="relative z-10 flex w-full shrink-0 flex-col gap-1 border-t border-white/15 bg-adam-background-1/95 px-3 py-2 text-xs text-adam-text-primary"
+         <div className="relative z-10 flex w-full shrink-0 flex-col border-t border-white/15 bg-adam-background-1/95 px-2 py-1 text-xs text-adam-text-primary"
            data-testid="visual-move-mobile-controls">
-           <div className="flex min-h-11 items-center gap-2">
-             <label htmlFor="visual-move-axis" className="shrink-0">Move axis</label>
+           <div className="flex h-10 items-center gap-2">
+             <label htmlFor="visual-move-axis" className="sr-only">Move axis</label>
              <select id="visual-move-axis" aria-label="Visual move axis"
                value={visualMoveAxis}
                onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}
-               className="h-11 rounded-lg border border-white/20 bg-adam-background-1 px-3">
+               className="h-9 shrink-0 rounded-md border border-white/20 bg-adam-background-1 px-2">
                <option value={0}>X</option><option value={1}>Y</option><option value={2}>Z</option>
              </select>
              <span className="min-w-0 flex-1 truncate font-mono" data-testid="visual-move-offsets">
                Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
              </span>
-             <button type="button" className="min-h-11 shrink-0 rounded-lg border border-white/20 px-3"
-               onClick={() => setVisualMoveDelta([0, 0, 0])}>Reset position</button>
+             <button type="button" aria-label="Reset position" title="Reset position"
+               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
+               onClick={() => setVisualMoveDelta([0, 0, 0])}><Undo2 className="h-4 w-4" /></button>
+             <button type="button"
+               aria-label={mobilePrecisionExpanded ? "Hide precision slider" : "Show precision slider"}
+               aria-expanded={mobilePrecisionExpanded}
+               className="h-9 shrink-0 rounded-md border border-white/20 px-2"
+               onClick={() => setMobilePrecisionExpanded(current => !current)}>
+               {mobilePrecisionExpanded ? "Hide" : "Adjust"}
+             </button>
            </div>
-           <input
-             type="range" min={-50} max={50} step={1}
-             aria-label={"Move model along " + ["X", "Y", "Z"][visualMoveAxis] + " axis"}
-             value={visualMoveDelta[visualMoveAxis]}
-             onChange={(event) => {
-               const number = Number(event.currentTarget.value);
-               setVisualMoveDelta(current => current.map((value, index) =>
-                 index === visualMoveAxis ? number : value) as [number, number, number]);
-             }}
-             className="h-11 w-full touch-pan-x accent-cyan-400"
-           />
-           <p className="text-[11px] text-amber-200">Preview only. Source code and exports are unchanged.</p>
+           {mobilePrecisionExpanded && (
+             <div className="flex min-h-10 items-center gap-2" data-testid="visual-move-mobile-precision">
+               <input
+                 type="range" min={-50} max={50} step={0.1}
+                 aria-label={"Move model along " + ["X", "Y", "Z"][visualMoveAxis] + " axis"}
+                 value={Math.max(-50, Math.min(50, visualMoveDelta[visualMoveAxis]))}
+                 onChange={(event) => {
+                   const number = Number(event.currentTarget.value);
+                   setVisualMoveDelta(current => current.map((value, index) =>
+                     index === visualMoveAxis ? number : value) as VisualMoveOffset);
+                 }}
+                 className="h-9 min-w-0 flex-1 touch-pan-x accent-cyan-400"
+               />
+               <span className="shrink-0 font-mono tabular-nums">{visualMoveDelta[visualMoveAxis].toFixed(1)}</span>
+             </div>
+           )}
          </div>
        )}
        {measuring && (

@@ -1,0 +1,37 @@
+name: Experimental Move pointer drag
+
+on:
+  pull_request:
+    paths:
+      - 'src/components/viewer/ThreeScene.tsx'
+      - '.github/scripts/visual-move-drag-smoke.mjs'
+      - '.github/workflows/visual-move-drag.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pointer-drag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      STATIC_VIEWER_BASE: "/"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-fund --no-audit
+      - run: npx playwright install ffmpeg
+      - run: node --check .github/scripts/visual-move-drag-smoke.mjs
+      - run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - run: node .github/scripts/visual-move-drag-smoke.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: visual-move-touch-video-and-images
+          path: ${{ runner.temp }}/move-drag-evidence/
+          if-no-files-found: warn
+          retention-days: 7
