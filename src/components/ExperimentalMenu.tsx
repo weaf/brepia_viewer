@@ -5,6 +5,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -53,10 +54,9 @@ export function ExperimentalMenu({
           </span>
         </DropdownMenuCheckboxItem>
         {enabled && (
-          <DropdownMenuCheckboxItem
-            checked={false}
-            onSelect={(event) => { event.preventDefault(); onOpenChain(); }}
-            className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
+          <DropdownMenuItem
+            onSelect={onOpenChain}
+            className="min-h-14 rounded-md border border-transparent px-2 py-2 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
             aria-label="Open parametric chain generator"
           >
             <span className="flex flex-col gap-1">
@@ -65,7 +65,7 @@ export function ExperimentalMenu({
                 Build editable articulated C-joint chains and export standalone OpenSCAD.
               </span>
             </span>
-          </DropdownMenuCheckboxItem>
+          </DropdownMenuItem>
         )}
         {enabled && (
           <DropdownMenuCheckboxItem
