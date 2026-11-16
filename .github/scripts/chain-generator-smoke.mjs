@@ -66,11 +66,16 @@ try {
       };
       await openExperimental();
       const enable = page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"});
-      if ((await enable.getAttribute("data-state")) !== "checked") await enable.click();
+      if ((await enable.getAttribute("data-state")) !== "checked") {
+        await enable.click();
+        await enable.waitFor({state:"hidden"});
+      }
       await openExperimental();
       await page.getByRole("menuitem",{name:"Open parametric chain generator"}).click();
       const panel = page.getByTestId("chain-generator");
       await panel.waitFor({state:"visible"});
+      const pointerLock = await page.evaluate(() => document.body.style.pointerEvents);
+      assert.notEqual(pointerLock,"none","Experimental menu left body interactions disabled");
       await panel.getByLabel("Number of segments (1–150)").fill("25");
       await panel.getByRole("group",{name:"Choose segment"}).getByRole("button",{name:"7",exact:true}).click();
       await panel.getByLabel("Body Shape").selectOption("Sphere");
