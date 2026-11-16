@@ -13,11 +13,13 @@ export function ExperimentalMenu({
   onEnabledChange,
   fastPreviewEnabled,
   onFastPreviewChange,
+  onOpenChain,
 }: {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
   fastPreviewEnabled: boolean;
   onFastPreviewChange: (enabled: boolean) => void;
+  onOpenChain: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -50,6 +52,21 @@ export function ExperimentalMenu({
             </span>
           </span>
         </DropdownMenuCheckboxItem>
+        {enabled && (
+          <DropdownMenuCheckboxItem
+            checked={false}
+            onSelect={(event) => { event.preventDefault(); onOpenChain(); }}
+            className="min-h-14 rounded-md border border-transparent px-2 py-2 pl-8 focus:bg-adam-neutral-800 focus:text-adam-neutral-100"
+            aria-label="Open parametric chain generator"
+          >
+            <span className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Chain generator</span>
+              <span className="text-xs leading-snug text-adam-neutral-300">
+                Build editable articulated C-joint chains and export standalone OpenSCAD.
+              </span>
+            </span>
+          </DropdownMenuCheckboxItem>
+        )}
         {enabled && (
           <DropdownMenuCheckboxItem
             checked={fastPreviewEnabled}
