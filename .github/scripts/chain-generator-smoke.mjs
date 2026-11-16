@@ -24,6 +24,10 @@ try {
     await sleep(250);
   }
   if (!available) throw new Error("HTTP server unavailable: " + serverError);
+  const html = await (await fetch(origin)).text();
+  if (/\\/brepia_viewer\\/assets\\//.test(html)) {
+    throw new Error("Wrong static asset base: test server serves / but build expects /brepia_viewer/. Set STATIC_VIEWER_BASE=/.");
+  }
   browser = await chromium.launch({channel:"chrome",headless:true,args:["--disable-dev-shm-usage","--enable-unsafe-swiftshader"]});
   for (const device of [{name:"desktop",width:1440,height:900,mobile:false},{name:"mobile",width:390,height:844,mobile:true}]) {
     const context = await browser.newContext({
