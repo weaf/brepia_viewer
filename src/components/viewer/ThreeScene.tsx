@@ -252,7 +252,7 @@ function MobileVisualMove({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.stopPropagation();
-    event.preventDefault();
+    event.nativeEvent.preventDefault();
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     const axisLengthSquared = drag.axisPixelsX ** 2 + drag.axisPixelsY ** 2;
@@ -278,7 +278,7 @@ function MobileVisualMove({
         const model = groupRef.current;
         if (!model) return;
         event.stopPropagation();
-        event.preventDefault();
+        event.nativeEvent.preventDefault();
         model.updateWorldMatrix(true, false);
         const origin = model.localToWorld(new THREE.Vector3());
         const unitAxis = new THREE.Vector3(
@@ -304,16 +304,18 @@ function MobileVisualMove({
         if (activeControls) activeControls.enabled = false;
         onDraggingChange(true);
         onUserCameraMove();
-        event.target.setPointerCapture(event.pointerId);
+        (event.target as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture(event.pointerId);
       }}
       onPointerMove={movePointer}
       onPointerUp={(event) => {
         if (dragRef.current?.pointerId !== event.pointerId) return;
         movePointer(event);
         endDrag(event.pointerId);
-        if (event.target.hasPointerCapture(event.pointerId)) {
-          event.target.releasePointerCapture(event.pointerId);
-        }
+        const capture = event.target as unknown as {
+          hasPointerCapture: (id: number) => boolean;
+          releasePointerCapture: (id: number) => void;
+        };
+        if (capture.hasPointerCapture(event.pointerId)) capture.releasePointerCapture(event.pointerId);
       }}
       onPointerCancel={(event) => endDrag(event.pointerId)}
       onLostPointerCapture={(event) => endDrag(event.pointerId)}
