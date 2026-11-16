@@ -40,7 +40,14 @@ try {
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
       // Use a deterministic local fixture to prove client hydration and avoid
       // blocking UI acceptance on GitHub's external model-catalog request.
-      await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
+      await page.waitForLoadState("load");
+      // A genuine click must invoke React's hydrated Upload handler. Setting
+      // files on the SSR input too early can silently lose its change event.
+      const [chooser] = await Promise.all([
+        page.waitForEvent("filechooser",{timeout:45000}),
+        page.getByRole("button",{name:"Upload model",exact:true}).click({force:true}),
+      ]);
+      await chooser.setFiles({
         name:"chain-acceptance.scad",
         mimeType:"text/plain",
         buffer:Buffer.from("cube([4,4,4]);\n"),
