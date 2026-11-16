@@ -39,11 +39,20 @@ try {
     buffer: Buffer.from("cube([20,20,20],center=true);\n"),
   });
   await page.getByTestId("off-component-inspector").waitFor({ state: "visible", timeout: 90000 });
+  await page.getByRole("button", { name: "Cancel preview" }).waitFor({ state: "hidden", timeout: 90000 });
   await page.getByRole("button", { name: "Experimental menu" }).click();
   await page.getByRole("menuitemcheckbox", { name: "Enable visual move and diagnostics" }).click();
-  await page.getByRole("button", { name: "Preview visual movement" }).click();
+  const moveToggle = page.getByRole("button", { name: "Preview visual movement" });
+  await moveToggle.click();
+  console.log("MOVE_TOGGLE_STATE", await moveToggle.getAttribute("aria-pressed"),
+    "viewport", await page.evaluate(() => [window.innerWidth, window.innerHeight]),
+    "scene", await page.getByTestId("visual-move-preview").innerText());
   const panel = page.getByTestId("visual-move-mobile-controls");
-  await panel.waitFor();
+  await panel.waitFor({ timeout: 10000 }).catch(async error => {
+    await page.screenshot({ path: path.join(evidence, "move-panel-missing.png"), fullPage: true });
+    throw new Error("Mobile controls not visible after move toggle: " +
+      await moveToggle.getAttribute("aria-pressed") + " / " + error.message);
+  });
   const offsets = page.getByTestId("visual-move-offsets");
   const preview = page.getByRole("region", { name: "3D model preview" });
   const canvas = preview.locator("canvas").first();
