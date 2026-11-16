@@ -1,0 +1,41 @@
+name: Viewer camera zoom regression
+
+on:
+  pull_request:
+    paths:
+      - 'src/components/viewer/ThreeScene.tsx'
+      - 'src/components/viewer/ViewGizmo.tsx'
+      - '.github/scripts/camera-zoom-smoke.mjs'
+      - '.github/workflows/camera-zoom-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  camera-zoom:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      STATIC_VIEWER_BASE: "/"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-fund --no-audit
+      - name: Check browser test syntax
+        run: node --check .github/scripts/camera-zoom-smoke.mjs
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Verify camera zoom survives parameter recompilation
+        run: node .github/scripts/camera-zoom-smoke.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: camera-zoom-desktop-mobile
+          path: ${{ runner.temp }}/camera-zoom-evidence/
+          if-no-files-found: warn
+          retention-days: 7
