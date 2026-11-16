@@ -40,10 +40,14 @@ try {
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
       const openExperimental = async () => {
         const trigger = page.getByRole("button",{name:"Experimental menu"});
-        await trigger.focus();
-        await trigger.press("Enter");
-        console.log("EXPERIMENTAL_DIAG",device.name,"trigger state",await trigger.getAttribute("data-state"),"menu",await page.locator('[role="menu"]').allTextContents());
-        await page.getByText("Enable Experimental",{exact:true}).waitFor({state:"visible",timeout:10000});
+        for (let attempt = 0; attempt < 10; attempt++) {
+          if (await trigger.getAttribute("data-state") === "open") return;
+          await trigger.click({force:true});
+          await page.waitForTimeout(350);
+          if (await trigger.getAttribute("data-state") === "open") return;
+        }
+        console.log("EXPERIMENTAL_DIAG",device.name,await trigger.getAttribute("data-state"),await page.locator('[role="menu"]').allTextContents(),"errors",errors);
+        throw new Error("Experimental menu did not open after hydration retries.");
       };
       await openExperimental();
       const enable = page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"});
