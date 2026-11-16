@@ -34,7 +34,12 @@ try {
     const page = await context.newPage();
     page.setDefaultTimeout(25000);
     const errors = [];
+    const failedRequests = [];
+    const badResponses = [];
     page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if(message.type()==="error") errors.push("console: "+message.text()); });
+    page.on("requestfailed", request => failedRequests.push(request.url()+": "+request.failure()?.errorText));
+    page.on("response", response => { if(response.status()>=400) badResponses.push(response.status()+": "+response.url()); });
     try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
@@ -115,7 +120,14 @@ try {
       assert.deepEqual(errors,[],"Client errors: "+errors.join("; "));
       console.log("["+device.name+"] chain JSON/SCAD and Viewer preview passed");
     } catch (error) {
-      failures.push(device.name+": "+(error.stack||error.message));
+      const diagnostic = await page.evaluate(() => ({
+        readyState:document.readyState,
+        clientReady:document.documentElement.dataset.brepiaClientReady,
+        scripts:[...document.querySelectorAll("script")].map(s=>({src:s.src,type:s.type})).slice(0,15),
+        title:document.title,
+      })).catch(()=>null);
+      failures.push(device.name+": "+(error.stack||error.message)+
+        "\\nCLIENT_DIAGNOSTICS "+JSON.stringify({diagnostic,errors,failedRequests,badResponses}));
       await page.screenshot({path:path.join(output,device.name+"-chain-failure.png"),fullPage:true}).catch(()=>{});
     } finally {
       await context.close();
