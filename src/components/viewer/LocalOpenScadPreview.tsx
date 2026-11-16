@@ -441,10 +441,10 @@ export function LocalOpenScadPreview({
   }, [exportDxf, exportFormat, isCompiling, onExportStateChange, output, project]);
 
   const entrypoint = getOpenScadEntrypoint(project);
-  // Experimental is opt-in and applies to the complete renderable geometry.
-  // There is deliberately no SCAD AST mapping or source eligibility gate.
+  // Visual movement is a separate opt-in from STL-only rendering.
+  // Neither experiment changes the exported OpenSCAD source.
   const visualEditAllowed = experimentalEnabled;
-  const fastStlOnly = experimentalEnabled && experimentalFastPreview;
+  const fastStlOnly = experimentalFastPreview;
   return (
     <section
       className={`relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrained ? "min-h-0" : "min-h-[22rem]"}`}
@@ -502,7 +502,7 @@ export function LocalOpenScadPreview({
           </div>
         </details>
       )}
-      {experimentalEnabled && experimentalFastPreview && !isCompiling && output instanceof Blob && (
+      {experimentalFastPreview && !isCompiling && output instanceof Blob && (
         <p
           className="z-10 shrink-0 border-t border-amber-400/25 bg-adam-neutral-800 px-3 py-2 text-xs text-amber-200"
           role="status"
@@ -512,7 +512,7 @@ export function LocalOpenScadPreview({
           Orca Color export builds full color data on demand.
         </p>
       )}
-      {experimentalEnabled && !isCompiling && output instanceof Blob && (
+      {(experimentalEnabled || experimentalFastPreview) && !isCompiling && output instanceof Blob && (
         <PreviewDiagnostics
           durationMs={previewCompileDurationMs}
           roundTripMs={previewRoundTripMs}
