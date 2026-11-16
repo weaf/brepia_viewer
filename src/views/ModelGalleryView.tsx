@@ -3,6 +3,7 @@ import { RepositoryLink } from "@/components/RepositoryLink";
 import { BuiltInFolderCard } from "@/components/gallery/BuiltInFolderCard";
 import { buildBuiltInGalleryCards } from "@/lib/builtInGalleryGroups";
 import { ExperimentalMenu } from "@/components/ExperimentalMenu";
+import { ChainGeneratorPanel } from "@/components/experimental/ChainGeneratorPanel";
 import { EXPERIMENTAL_MODE_STORAGE_KEY, readExperimentalMode } from "@/lib/experimentalMode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -179,6 +180,7 @@ export function ModelGalleryView() {
   const [experimentalEnabled, setExperimentalEnabled] = useState(false);
   // Separate session-only opt-in: Experimental alone never hides model colors.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
+  const [chainVisible, setChainVisible] = useState(false);
   // Same pattern as Scroll lock: panel starts collapsed, presets stay saved per model.
   const [savedVariantsVisible, setSavedVariantsVisible] = useState(false);
   useEffect(() => {
@@ -1050,6 +1052,27 @@ export function ModelGalleryView() {
     return entrypoint ? parseParameters(entrypoint.content) : [];
   }, [activeRecord]);
 
+  const openChainPreview = async (source: string) => {
+    const name = "Brepia chain";
+    const project = normalizeOpenScadProject({
+      schemaVersion: 1,
+      entrypointPath: "brepia-chain.scad",
+      files: [{ path: "brepia-chain.scad", content: source }],
+    });
+    const record = await createUploadedModel({name, project});
+    await saveLocalModel(record);
+    await refreshLocalModels();
+    setActiveRecord(record);
+    setChainVisible(false);
+    await setLastOpenedLocalModel(record.id);
+  };
+
+  if (chainVisible) {
+    return <main className="flex h-full min-h-0 flex-col bg-[#191a1a] p-2 text-adam-text-primary sm:p-4">
+      <ChainGeneratorPanel onClose={() => setChainVisible(false)} onOpenPreview={openChainPreview} />
+    </main>;
+  }
+
   if (activeRecord) {
     return (
       <main className="flex h-full min-h-0 flex-col bg-[#191a1a] text-adam-text-primary">
@@ -1084,6 +1107,7 @@ export function ModelGalleryView() {
               onEnabledChange={updateExperimentalMode}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
+              onOpenChain={() => setChainVisible(true)}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1369,6 +1393,7 @@ export function ModelGalleryView() {
               onEnabledChange={updateExperimentalMode}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
+              onOpenChain={() => setChainVisible(true)}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
