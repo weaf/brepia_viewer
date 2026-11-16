@@ -20,7 +20,7 @@ const fieldStyle = "flex min-w-0 flex-col gap-1 text-xs text-adam-neutral-300";
 function Choose<T extends string>({label, value, values, onChange}: {
   label: string; value: T; values: readonly T[]; onChange: (value: T) => void;
 }) {
-  return <label className={fieldStyle}><span>{label}</span><select className={selectStyle} value={value} onChange={event => onChange(event.currentTarget.value as T)}>
+  return <label className={fieldStyle}><span>{label}</span><select aria-label={label} className={selectStyle} value={value} onChange={event => onChange(event.currentTarget.value as T)}>
     {values.map(v => <option key={v} value={v}>{v}</option>)}
   </select></label>;
 }
