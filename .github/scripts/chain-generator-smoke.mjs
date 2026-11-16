@@ -38,10 +38,13 @@ try {
     try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
-      const openExperimental = async () => page.getByRole("button",{name:"Experimental menu"}).click();
+      const openExperimental = async () => {
+        await page.getByRole("button",{name:"Experimental menu"}).click({force:true});
+        await page.getByText("Enable Experimental",{exact:true}).waitFor({state:"visible",timeout:10000});
+      };
       await openExperimental();
       const enable = page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"});
-      if ((await enable.getAttribute("aria-checked")) !== "true") await enable.click();
+      if ((await enable.getAttribute("data-state")) !== "checked") await enable.click();
       await openExperimental();
       await page.getByRole("menuitemcheckbox",{name:"Open parametric chain generator"}).click();
       const panel = page.getByTestId("chain-generator");
