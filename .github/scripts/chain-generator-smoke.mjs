@@ -20,7 +20,7 @@ const failures = [];
 try {
   let available = false;
   for (let attempt = 0; attempt < 60; attempt++) {
-    try { if ((await fetch(origin)).ok) { available = true; break; } } catch {}
+    try { if ((await fetch(origin)).ok) { available = true; break; } } catch { /* Retry while the local HTTP server is starting. */ }
     await sleep(250);
   }
   if (!available) throw new Error("HTTP server unavailable: " + serverError);
