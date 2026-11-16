@@ -78,7 +78,7 @@ try {
   assert.ok(after && !after.includes("X 0.0 / Y 0.0 / Z 0.0"),
     "Touch drag must update preview translation: " + after + ", during=" + during);
   await panel.getByRole("button", { name: "Reset position" }).click();
-  assert.match(await offsets.textContent(), /X 0\\.0 \\/ Y 0\\.0 \\/ Z 0\\.0/, "Reset should zero translation");
+  assert.match(await offsets.textContent(), /X 0\.0 \/ Y 0\.0 \/ Z 0\.0/, "Reset should zero translation");
   const repeatedDrags = [];
   for (const axisIndex of [1, 2, 0]) {
     await panel.getByRole("combobox", { name: "Visual move axis" }).selectOption(String(axisIndex));
@@ -89,7 +89,7 @@ try {
     }
     await send("touchEnd", centerX + 72, centerY - 72);
     const valueText = await offsets.textContent();
-    const values = valueText?.match(/Scene X (-?\\d+\\.\\d+) \\/ Y (-?\\d+\\.\\d+) \\/ Z (-?\\d+\\.\\d+)/);
+    const values = valueText?.match(/Scene X (-?\d+\.\d+) \/ Y (-?\d+\.\d+) \/ Z (-?\d+\.\d+)/);
     assert.ok(values && Math.abs(Number(values[axisIndex + 1])) >= 0.1,
       "Drag must move selected axis " + axisIndex + ": " + valueText);
     for (let other = 0; other < 3; other++) {
