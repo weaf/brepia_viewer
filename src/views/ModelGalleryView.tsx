@@ -193,6 +193,12 @@ export function ModelGalleryView() {
     } catch {
       // Browsers with blocked storage still allow the current-session toggle.
     }
+    // Signal that the server-rendered gallery is interactive after hydration.
+    // Browser automation must not dispatch actions against inert SSR markup.
+    document.documentElement.dataset.brepiaClientReady = "true";
+    return () => {
+      delete document.documentElement.dataset.brepiaClientReady;
+    };
   }, []);
   const updateExperimentalMode = useCallback((enabled: boolean) => {
     setExperimentalEnabled(enabled);
