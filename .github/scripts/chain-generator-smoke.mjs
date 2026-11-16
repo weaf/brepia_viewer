@@ -38,6 +38,14 @@ try {
     try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
+      // This page is server rendered. Wait for its client-side catalog effect
+      // to complete before clicking React-controlled Radix menus.
+      await page.waitForFunction(() => {
+        const backup = [...document.querySelectorAll("button")].find(button =>
+          button.textContent?.includes("Project backup"));
+        return backup instanceof HTMLButtonElement && !backup.disabled;
+      }, null, {timeout:60000});
+
       const openExperimental = async () => {
         const trigger = page.getByRole("button",{name:"Experimental menu"});
         for (let attempt = 0; attempt < 10; attempt++) {
