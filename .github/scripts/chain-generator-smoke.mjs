@@ -48,7 +48,7 @@ try {
     await context.route("https://raw.githubusercontent.com/Noty-design/Parametric-designs/main/link/**", route => route.fulfill({
       status:200,
       contentType:"text/plain",
-      body:"/* [Body] */\\nsize=10; // [5:1:20]\\ncube([size,size,size]);\\n",
+      body:"cube([10,10,10]); // deterministic fixture for gallery preview",
     }));
     const page = await context.newPage();
     page.setDefaultTimeout(25000);
