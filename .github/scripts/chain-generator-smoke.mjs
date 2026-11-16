@@ -38,6 +38,7 @@ try {
     try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
+      await page.waitForFunction(() => document.documentElement.dataset.brepiaClientReady === "true", null, {timeout:60000});
       // Use a deterministic local fixture to prove client hydration and avoid
       // blocking UI acceptance on GitHub's external model-catalog request.
       await page.waitForLoadState("load");
