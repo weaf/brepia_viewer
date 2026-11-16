@@ -38,30 +38,24 @@ try {
     try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
-      // This page is server rendered. Wait for its client-side catalog effect
-      // to complete before clicking React-controlled Radix menus.
-      await page.waitForFunction(() => {
-        const backup = [...document.querySelectorAll("button")].find(button =>
-          button.textContent?.includes("Project backup"));
-        return backup instanceof HTMLButtonElement && !backup.disabled;
-      }, null, {timeout:60000});
-
+      // Use a deterministic local fixture to prove client hydration and avoid
+      // blocking UI acceptance on GitHub's external model-catalog request.
+      await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
+        name:"chain-acceptance.scad",
+        mimeType:"text/plain",
+        buffer:Buffer.from("cube([4,4,4]);\n"),
+      });
+      await page.getByText("Source and parameters",{exact:true}).waitFor({timeout:45000});
       const openExperimental = async () => {
         const trigger = page.getByRole("button",{name:"Experimental menu"});
-        for (let attempt = 0; attempt < 10; attempt++) {
-          if (await trigger.getAttribute("data-state") === "open") return;
-          await trigger.click({force:true});
-          await page.waitForTimeout(350);
-          if (await trigger.getAttribute("data-state") === "open") return;
-        }
-        console.log("EXPERIMENTAL_DIAG",device.name,await trigger.getAttribute("data-state"),await page.locator('[role="menu"]').allTextContents(),"errors",errors);
-        throw new Error("Experimental menu did not open after hydration retries.");
+        await trigger.click({force:true});
+        await page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"}).waitFor({state:"visible"});
       };
       await openExperimental();
       const enable = page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"});
       if ((await enable.getAttribute("data-state")) !== "checked") await enable.click();
       await openExperimental();
-      await page.getByRole("menuitemcheckbox",{name:"Open parametric chain generator"}).click();
+      await page.getByRole("menuitem",{name:"Open parametric chain generator"}).click();
       const panel = page.getByTestId("chain-generator");
       await panel.waitFor({state:"visible"});
       await panel.getByLabel("Number of segments (1–150)").fill("25");
@@ -104,7 +98,7 @@ try {
       await page.getByText("Source and parameters",{exact:true}).waitFor({timeout:45000});
       await page.screenshot({path:path.join(output,device.name+"-chain-preview.png"),fullPage:true});
       await openExperimental();
-      await page.getByRole("menuitemcheckbox",{name:"Open parametric chain generator"}).click();
+      await page.getByRole("menuitem",{name:"Open parametric chain generator"}).click();
       await panel.waitFor({state:"visible"});
       assert.equal(await panel.getByLabel("Number of segments (1–150)").inputValue(),"25","Chain should survive Viewer preview");
       assert.equal(await panel.getByRole("group",{name:"Choose segment"}).getByRole("button",{name:"12",exact:true}).count(),1);
