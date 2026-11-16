@@ -124,6 +124,42 @@ try {
     const modelWorkspace=page.getByTestId('model-workspace');
     const parameterScroller=page.getByTestId('model-parameters-scroll');
     const previewPane=page.getByRole('region',{name:'3D model preview'});
+
+    // Changing a Customizer parameter must not refit a manually zoomed view.
+    // The initial new-model view may auto-fit, but wheel/pinch/orbit turns
+    // off subsequent Stage fitting until another model is opened.
+    const cameraFit=previewPane.locator('[data-camera-auto-fit]');
+    await cameraFit.waitFor({state:'visible',timeout:45000});
+    await page.getByTestId('off-component-inspector').waitFor({state:'visible',timeout:60000});
+    if(await cameraFit.getAttribute('data-camera-auto-fit')!=='true') {
+      violations.push(device.name+' fresh model did not start with auto-fit enabled');
+    }
+    const zoomCanvas=previewPane.locator('canvas').first();
+    await zoomCanvas.scrollIntoViewIfNeeded();
+    const zoomBounds=await zoomCanvas.boundingBox();
+    if(!zoomBounds) {
+      violations.push(device.name+' missing zoom canvas');
+    } else {
+      await page.mouse.move(zoomBounds.x+zoomBounds.width/2,zoomBounds.y+zoomBounds.height/2);
+      await page.mouse.wheel(0,-480);
+      await page.waitForFunction(() =>
+        document.querySelector('[data-camera-auto-fit]')?.getAttribute('data-camera-auto-fit')==='false',
+        null,{timeout:5000});
+      await zoomCanvas.screenshot({path:path.join(evidence,device.name+'-zoom-before-parameter.png')});
+      const widthParameter=page.locator('input[name="width"]');
+      await widthParameter.fill('14');
+      await widthParameter.press('Tab');
+      await page.waitForFunction(() =>
+        document.querySelector('input[name="width"]')?.value==='14',
+        null,{timeout:8000});
+      // Give OpenSCAD WASM time to compile the updated simple cube geometry.
+      await page.waitForTimeout(1800);
+      if(await cameraFit.getAttribute('data-camera-auto-fit')!=='false') {
+        violations.push(device.name+' parameter update re-enabled camera auto-fit after zoom');
+      }
+      await zoomCanvas.screenshot({path:path.join(evidence,device.name+'-zoom-after-parameter.png')});
+      findings.push({type:'parameter-camera-retention',device:device.name,autoFitAfterEdit:await cameraFit.getAttribute('data-camera-auto-fit')});
+    }
     const originalPreview=await previewPane.boundingBox();
     const lockButton=page.getByRole('button',{name:'Lock viewer and parameters layout'});
     await lockButton.click();
