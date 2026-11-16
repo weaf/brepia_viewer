@@ -290,7 +290,7 @@ function VisualMoveManipulator({
     onAxisChange(chosenAxis);
     onDraggingChange(true);
     onUserCameraMove();
-    event.target.setPointerCapture(event.pointerId);
+    (event.target as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture(event.pointerId);
   };
 
   const movePointer = (event: ThreeEvent<PointerEvent>) => {
@@ -326,9 +326,11 @@ function VisualMoveManipulator({
         if (dragRef.current?.pointerId !== event.pointerId) return;
         movePointer(event);
         endDrag(event.pointerId);
-        if (event.target.hasPointerCapture(event.pointerId)) {
-          event.target.releasePointerCapture(event.pointerId);
-        }
+        const capture = event.target as unknown as {
+          hasPointerCapture: (id: number) => boolean;
+          releasePointerCapture: (id: number) => void;
+        };
+        if (capture.hasPointerCapture(event.pointerId)) capture.releasePointerCapture(event.pointerId);
       }}
       onPointerCancel={(event) => endDrag(event.pointerId)}
       onLostPointerCapture={(event) => endDrag(event.pointerId)}
@@ -778,14 +780,22 @@ export function ThreeScene({
               setDraggingVisualMove(false);
               setMeasuring(false);
               setVisualMoveDelta([0, 0, 0]);
-              setVisualMoveKey(value => value + 1);
             }}
           >
             Visual move {visualMoving ? "on" : "preview"}
           </Button>
           {visualMoving && !isMobile && (
             <div className="space-y-1 px-2 pb-1 text-xs">
-              <p>Drag the axis handles to move the preview.</p>
+              <p>Drag the model or a colored axis marker.</p>
+              <div className="flex items-center gap-2">
+                <label htmlFor="desktop-move-axis">Axis</label>
+                <select id="desktop-move-axis" aria-label="Visual move axis"
+                  className="h-9 rounded border border-white/20 bg-black px-2"
+                  value={visualMoveAxis}
+                  onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}>
+                  <option value={0}>X</option><option value={1}>Y</option><option value={2}>Z</option>
+                </select>
+              </div>
               <p className="font-mono" data-testid="visual-move-offsets">
                 Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
               </p>
@@ -793,7 +803,7 @@ export function ThreeScene({
               <button type="button" className="min-h-10 rounded border border-white/20 px-3"
                 onClick={() => {
                   setVisualMoveDelta([0, 0, 0]);
-                   }}>Reset position</button>
+                }}>Reset position</button>
             </div>
           )}
         </div>
