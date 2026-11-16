@@ -24,6 +24,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-fund --no-audit
+      - run: npx playwright install ffmpeg
       - run: node --check .github/scripts/visual-move-drag-smoke.mjs
       - run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
       - run: node .github/scripts/visual-move-drag-smoke.mjs
