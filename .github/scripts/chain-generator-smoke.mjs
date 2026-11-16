@@ -125,22 +125,21 @@ try {
       assert.equal(await panel.getByRole("group",{name:"Choose segment"}).getByRole("button",{name:"12",exact:true}).count(),1);
       await page.screenshot({path:path.join(output,device.name+"-chain-return.png"),fullPage:true});
 
-      // Experimental also exposes Chain generator immediately, without a
-      // global enable checkbox, even after returning from the Links shortcut.
+      // Chain generator is now available only from Links, not Experimental.
       await panel.getByRole("button",{name:"Close",exact:true}).click();
       await page.getByRole("button",{name:"Experimental menu"}).click();
-      const experimentalAction = page.getByRole("menuitem",{name:"Open parametric chain generator"});
-      await experimentalAction.waitFor({state:"visible"});
-      if (await page.getByRole("menuitemcheckbox",{name:"Enable Experimental mode"}).count()) {
-        throw new Error("Experimental still requires a master enable action.");
-      }
+      await page.getByRole("menuitemcheckbox",{name:"Enable fast STL-only preview"}).waitFor({state:"visible"});
+      assert.equal(await page.getByRole("menuitem",{name:"Open parametric chain generator"}).count(),0,
+        "Chain generator must not appear in Experimental");
+      assert.equal(await page.getByRole("menuitemcheckbox",{name:"Enable visual move and diagnostics"}).count(),1);
       await page.screenshot({path:path.join(output,device.name+"-experimental-menu.png"),fullPage:true});
-      await experimentalAction.click();
+      await page.getByRole("button",{name:"Experimental menu"}).click();
+      await page.getByRole("button",{name:"Open chain generator",exact:true}).click();
       await panel.waitFor({state:"visible"});
       assert.equal(await panel.getByLabel("Number of segments (1–150)").inputValue(),"25",
-        "Opening from Experimental must preserve the existing chain.");
+        "Links shortcut must preserve chain state.");
 
-      assert.deepEqual(errors,[],"Client errors: "+errors.join("; "));
+       assert.deepEqual(errors,[],"Client errors: "+errors.join("; "));
       console.log("["+device.name+"] chain JSON/SCAD and Viewer preview passed");
     } catch (error) {
       const diagnostic = await page.evaluate(() => ({
