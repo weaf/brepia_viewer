@@ -85,6 +85,13 @@ try {
       await panel.getByRole("button",{name:"Open 3D preview in Viewer"}).click();
       await page.getByText("Source and parameters",{exact:true}).waitFor({timeout:45000});
       await page.screenshot({path:path.join(output,device.name+"-chain-preview.png"),fullPage:true});
+      await openExperimental();
+      await page.getByRole("menuitemcheckbox",{name:"Open parametric chain generator"}).click();
+      await panel.waitFor({state:"visible"});
+      assert.equal(await panel.getByLabel("Number of segments (1–150)").inputValue(),"25","Chain should survive Viewer preview");
+      assert.equal(await panel.getByRole("group",{name:"Choose segment"}).getByRole("button",{name:"12",exact:true}).count(),1);
+      await page.screenshot({path:path.join(output,device.name+"-chain-return.png"),fullPage:true});
+
       assert.deepEqual(errors,[],"Client errors: "+errors.join("; "));
       console.log("["+device.name+"] chain JSON/SCAD and Viewer preview passed");
     } catch (error) {
