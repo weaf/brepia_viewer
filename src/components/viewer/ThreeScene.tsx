@@ -196,6 +196,138 @@ function MobileMeasurementHandles({
   );
 }
 
+
+type VisualMoveOffset = [number, number, number];
+
+// The mobile preview keeps the model itself as the touch target. Projecting
+// the selected world-space axis onto the screen makes one pointer gesture
+// continuous, independent of raycast hits after the model has moved.
+function MobileVisualMove({
+  children,
+  offset,
+  axis,
+  handleLength,
+  onOffsetChange,
+  onDraggingChange,
+  onUserCameraMove,
+}: {
+  children: React.ReactNode;
+  offset: VisualMoveOffset;
+  axis: 0 | 1 | 2;
+  handleLength: number;
+  onOffsetChange: (offset: VisualMoveOffset) => void;
+  onDraggingChange: (dragging: boolean) => void;
+  onUserCameraMove: () => void;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
+  const controls = useThree((state) => state.controls);
+  const dragRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    initialOffset: VisualMoveOffset;
+    axisPixelsX: number;
+    axisPixelsY: number;
+    fallbackUnitsPerPixel: number;
+  } | null>(null);
+  const controlsRef = useRef<{ enabled?: boolean } | null>(null);
+
+  const endDrag = useCallback((pointerId: number) => {
+    if (dragRef.current?.pointerId !== pointerId) return;
+    dragRef.current = null;
+    if (controlsRef.current) controlsRef.current.enabled = true;
+    controlsRef.current = null;
+    onDraggingChange(false);
+  }, [onDraggingChange]);
+
+  useEffect(() => () => {
+    if (controlsRef.current) controlsRef.current.enabled = true;
+    controlsRef.current = null;
+    dragRef.current = null;
+  }, []);
+
+  const movePointer = (event: ThreeEvent<PointerEvent>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    const axisLengthSquared = drag.axisPixelsX ** 2 + drag.axisPixelsY ** 2;
+    // A view directly down an axis has no usable screen projection. In that
+    // orientation use vertical motion with a camera-dependent world-unit scale.
+    const displacement = axisLengthSquared >= 16
+      ? (dx * drag.axisPixelsX + dy * drag.axisPixelsY) / axisLengthSquared
+      : -dy * drag.fallbackUnitsPerPixel;
+    const next = [...drag.initialOffset] as VisualMoveOffset;
+    next[axis] += displacement;
+    onOffsetChange(next);
+  };
+
+  const direction = [axis === 0 ? handleLength : 0, axis === 1 ? handleLength : 0, axis === 2 ? handleLength : 0] as [number, number, number];
+  const axisColor = ["#ff6b6b", "#6ee7b7", "#60a5fa"][axis];
+
+  return (
+    <group
+      ref={groupRef}
+      position={offset}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
+        const model = groupRef.current;
+        if (!model) return;
+        event.stopPropagation();
+        event.preventDefault();
+        model.updateWorldMatrix(true, false);
+        const origin = model.localToWorld(new THREE.Vector3());
+        const unitAxis = new THREE.Vector3(
+          axis === 0 ? 1 : 0, axis === 1 ? 1 : 0, axis === 2 ? 1 : 0,
+        );
+        const end = model.localToWorld(unitAxis);
+        const screenOrigin = origin.clone().project(camera);
+        const screenEnd = end.project(camera);
+        const axisPixelsX = (screenEnd.x - screenOrigin.x) * size.width / 2;
+        const axisPixelsY = (screenOrigin.y - screenEnd.y) * size.height / 2;
+        const fallbackUnitsPerPixel = camera instanceof THREE.OrthographicCamera
+          ? Math.abs(camera.top - camera.bottom) / (camera.zoom * size.height)
+          : camera instanceof THREE.PerspectiveCamera
+            ? 2 * origin.distanceTo(camera.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / size.height
+            : 1 / size.height;
+        dragRef.current = {
+          pointerId: event.pointerId, x: event.clientX, y: event.clientY,
+          initialOffset: [...offset] as VisualMoveOffset,
+          axisPixelsX, axisPixelsY, fallbackUnitsPerPixel,
+        };
+        const activeControls = controls as { enabled?: boolean } | null;
+        controlsRef.current = activeControls;
+        if (activeControls) activeControls.enabled = false;
+        onDraggingChange(true);
+        onUserCameraMove();
+        event.target.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={movePointer}
+      onPointerUp={(event) => {
+        if (dragRef.current?.pointerId !== event.pointerId) return;
+        movePointer(event);
+        endDrag(event.pointerId);
+        if (event.target.hasPointerCapture(event.pointerId)) {
+          event.target.releasePointerCapture(event.pointerId);
+        }
+      }}
+      onPointerCancel={(event) => endDrag(event.pointerId)}
+      onLostPointerCapture={(event) => endDrag(event.pointerId)}
+    >
+      {children}
+      <Line points={[[0, 0, 0], direction]} color={axisColor} lineWidth={3} raycast={() => {}} />
+      <mesh position={direction} >
+        <sphereGeometry args={[Math.max(0.6, handleLength * 0.075), 16, 12]} />
+        <meshBasicMaterial color={axisColor} depthTest={false} transparent opacity={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
 export function ThreeScene({
   geometry,
   color,
@@ -216,7 +348,8 @@ export function ThreeScene({
   const shouldAutoFitCamera = !measuring && !visualMoving && !cameraManuallyAdjusted;
   const [visualMoveKey, setVisualMoveKey] = useState(0);
   const [visualMoveAxis, setVisualMoveAxis] = useState<0 | 1 | 2>(0);
-  const [visualMoveDelta, setVisualMoveDelta] = useState<[number, number, number]>([0, 0, 0]);
+  const [visualMoveDelta, setVisualMoveDelta] = useState<VisualMoveOffset>([0, 0, 0]);
+  const [draggingVisualMove, setDraggingVisualMove] = useState(false);
   const [measurementMode, setMeasurementMode] = useState<"distance" | "angle">("distance");
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("mm");
   const [snapping, setSnapping] = useState(true);
@@ -285,6 +418,13 @@ export function ThreeScene({
   useEffect(() => {
     setMeasurementPoints([]);
     setSnapNotice(null);
+  }, [geometry, coloredGroup]);
+
+  const visualMoveHandleLength = useMemo(() => {
+    const box = coloredGroup
+      ? new THREE.Box3().setFromObject(coloredGroup)
+      : geometry ? new THREE.Box3().setFromBufferAttribute(geometry.getAttribute("position") as THREE.BufferAttribute) : null;
+    return box && !box.isEmpty() ? Math.max(2, box.getSize(new THREE.Vector3()).length() * 0.4) : 5;
   }, [geometry, coloredGroup]);
 
   const geometryCenterOffset = useMemo(() => {
@@ -460,7 +600,7 @@ export function ThreeScene({
           />
         }
       >
-        <Canvas className="block h-full w-full">
+        <Canvas className="block h-full w-full" style={isMobile && visualMoving ? { touchAction: "none" } : undefined}>
           <color attach="background" args={[viewerBackgroundColor]} />
           {isOrthographic ? (
             <OrthographicCamera
@@ -491,7 +631,14 @@ export function ThreeScene({
             <directionalLight position={[0, 5, 0]} intensity={0.2} />
             <directionalLight position={[-5, -5, -5]} intensity={0.6} />
             {visualMoving && visualEditAllowed && modelElement ? (
-              isMobile ? <group position={visualMoveDelta}>{modelElement}</group> : <TransformControls
+              isMobile ? <MobileVisualMove
+                offset={visualMoveDelta}
+                axis={visualMoveAxis}
+                handleLength={visualMoveHandleLength}
+                onOffsetChange={setVisualMoveDelta}
+                onDraggingChange={setDraggingVisualMove}
+                onUserCameraMove={preserveCamera}
+              >{modelElement}</MobileVisualMove> : <TransformControls
                 key={visualMoveKey}
                 mode="translate"
                 showX showY showZ
@@ -586,7 +733,7 @@ export function ThreeScene({
           followCamera={false}
           infiniteGrid={true}
         /> */}
-          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement} onUserCameraMove={preserveCamera} />
+          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement && !draggingVisualMove} onUserCameraMove={preserveCamera} />
           {showViewGizmo && (
             <ViewGizmo
               onViewChange={preserveCamera}
@@ -608,6 +755,7 @@ export function ThreeScene({
             aria-pressed={visualMoving}
             onClick={() => {
               setVisualMoving(current => !current);
+              setDraggingVisualMove(false);
               setMeasuring(false);
               setVisualMoveDelta([0, 0, 0]);
               setVisualMoveKey(value => value + 1);
