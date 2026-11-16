@@ -25,7 +25,7 @@ try {
   }
   if (!available) throw new Error("HTTP server unavailable: " + serverError);
   const html = await (await fetch(origin)).text();
-  if (/\\/brepia_viewer\\/assets\\//.test(html)) {
+  if (html.includes("/brepia_viewer/assets/")) {
     throw new Error("Wrong static asset base: test server serves / but build expects /brepia_viewer/. Set STATIC_VIEWER_BASE=/.");
   }
   browser = await chromium.launch({channel:"chrome",headless:true,args:["--disable-dev-shm-usage","--enable-unsafe-swiftshader"]});
