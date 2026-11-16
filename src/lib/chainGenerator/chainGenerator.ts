@@ -101,7 +101,7 @@ export function validateChain(value: unknown): ChainConfig {
   if (Object.keys(value.overrides).length > 150) throw new Error("Too many overrides.");
   const count = value.count as number;
   const defaults = parseSegment(value.defaults, false) as ChainSegment;
-  const overrides: ChainConfig["overrides"] = Object.create(null);
+  const overrides: ChainConfig["overrides"] = {};
   for (const [key, raw] of Object.entries(value.overrides)) {
     if (!/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= count) throw new Error("Invalid segment number.");
     overrides[key] = parseSegment(raw, true);
