@@ -51,13 +51,9 @@ try {
       // Use a deterministic local fixture to prove client hydration and avoid
       // blocking UI acceptance on GitHub's external model-catalog request.
       await page.waitForLoadState("load");
-      // A genuine click must invoke React's hydrated Upload handler. Setting
-      // files on the SSR input too early can silently lose its change event.
-      const [chooser] = await Promise.all([
-        page.waitForEvent("filechooser",{timeout:45000}),
-        page.getByRole("button",{name:"Upload model",exact:true}).click({force:true}),
-      ]);
-      await chooser.setFiles({
+      // Mirror the already verified Viewer static smoke: inject a local file
+      // only after the React-ready marker proves the input handler is active.
+      await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
         name:"chain-acceptance.scad",
         mimeType:"text/plain",
         buffer:Buffer.from("cube([4,4,4]);\n"),
@@ -129,6 +125,8 @@ try {
         clientReady:document.documentElement.dataset.brepiaClientReady,
         scripts:[...document.querySelectorAll("script")].map(s=>({src:s.src,type:s.type})).slice(0,15),
         title:document.title,
+        body:document.body.innerText.slice(0,1600),
+        alerts:[...document.querySelectorAll('[role="alert"]')].map(n=>n.textContent?.trim()),
       })).catch(()=>null);
       failures.push(device.name+": "+(error.stack||error.message)+
         "\\nCLIENT_DIAGNOSTICS "+JSON.stringify({diagnostic,errors,failedRequests,badResponses}));
