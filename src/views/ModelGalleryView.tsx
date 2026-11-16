@@ -1809,6 +1809,11 @@ export function ModelGalleryView() {
                           thumbnailUrl={thumbnails[previewId]?.revision === item.representative.sha ? thumbnails[previewId]?.url : undefined}
                           disabled={isOpeningModel}
                           onOpen={openBuiltIn}
+                          onOpenChainGenerator={
+                            item.repositoryId === "parametric-designs" && /^links?$/i.test(item.folder)
+                              ? () => setChainVisible(true)
+                              : undefined
+                          }
                         />
                       );
                     }

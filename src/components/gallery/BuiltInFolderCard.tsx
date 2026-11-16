@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Code2, Folder } from "lucide-react";
+import { Code2, Folder, Link2 } from "lucide-react";
 import type { BuiltInModel } from "@/services/localModelLibrary";
 import { builtInModelRecordId } from "@/services/localModelLibrary";
 import type { BuiltInGalleryCard } from "@/lib/builtInGalleryGroups";
@@ -12,12 +12,14 @@ export function BuiltInFolderCard({
   thumbnailUrl,
   disabled,
   onOpen,
+  onOpenChainGenerator,
 }: {
   card: FolderCard;
   repositoryLabel: string;
   thumbnailUrl?: string;
   disabled: boolean;
   onOpen: (entry: BuiltInModel) => void | Promise<void>;
+  onOpenChainGenerator?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -77,6 +79,23 @@ export function BuiltInFolderCard({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      {onOpenChainGenerator && (
+        <div className="border-t border-adam-neutral-700 px-3 py-3">
+          <button
+            type="button"
+            aria-label="Open chain generator"
+            onClick={onOpenChainGenerator}
+            className="flex min-h-11 w-full items-center gap-3 rounded-md border border-adam-neutral-600 bg-adam-neutral-800/70 px-3 py-2 text-left text-adam-text-primary transition-colors hover:border-adam-blue hover:bg-adam-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-adam-blue"
+          >
+            <Link2 className="h-5 w-5 shrink-0 text-adam-neutral-200" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Chain generator</span>
+              <span className="block text-[11px] text-adam-neutral-400">Experimental · Build a custom linked model</span>
+            </span>
+            <span className="shrink-0 text-xs text-adam-neutral-200">Open →</span>
+          </button>
         </div>
       )}
     </article>
