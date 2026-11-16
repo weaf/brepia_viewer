@@ -50,6 +50,9 @@ jobs:
       - name: Verify Saved Variants JSON on desktop and mobile
         run: node .github/scripts/saved-variants-smoke.mjs
 
+      - name: Verify experimental chain JSON, SCAD, desktop and mobile UI
+        run: node .github/scripts/chain-generator-smoke.mjs
+
       - name: Retain test results and screenshots
         if: always()
         uses: actions/upload-artifact@v7
