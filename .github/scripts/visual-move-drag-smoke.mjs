@@ -78,7 +78,30 @@ try {
   assert.ok(after && !after.includes("X 0.0 / Y 0.0 / Z 0.0"),
     "Touch drag must update preview translation: " + after + ", during=" + during);
   await panel.getByRole("button", { name: "Reset position" }).click();
-  assert.match(await offsets.textContent(), /X 0\.0 \/ Y 0\.0 \/ Z 0\.0/, "Reset should zero translation");
+  assert.match(await offsets.textContent(), /X 0\\.0 \\/ Y 0\\.0 \\/ Z 0\\.0/, "Reset should zero translation");
+  const repeatedDrags = [];
+  for (const axisIndex of [1, 2, 0]) {
+    await panel.getByRole("combobox", { name: "Visual move axis" }).selectOption(String(axisIndex));
+    await send("touchStart", centerX, centerY);
+    for (let step = 1; step <= 12; step++) {
+      await send("touchMove", centerX + step * 6, centerY - step * 6);
+      await pause(45);
+    }
+    await send("touchEnd", centerX + 72, centerY - 72);
+    const valueText = await offsets.textContent();
+    const values = valueText?.match(/Scene X (-?\\d+\\.\\d+) \\/ Y (-?\\d+\\.\\d+) \\/ Z (-?\\d+\\.\\d+)/);
+    assert.ok(values && Math.abs(Number(values[axisIndex + 1])) >= 0.1,
+      "Drag must move selected axis " + axisIndex + ": " + valueText);
+    for (let other = 0; other < 3; other++) {
+      if (other !== axisIndex) assert.ok(Math.abs(Number(values[other + 1])) < 0.1,
+        "Dragging one axis must not move another: " + valueText);
+    }
+    repeatedDrags.push({ axisIndex, offsets: valueText });
+    await panel.getByRole("button", { name: "Reset position" }).click();
+  }
+  assert.equal(await preview.locator("[data-camera-auto-fit]").getAttribute("data-camera-auto-fit"), "false",
+    "Moving the preview must not re-enable camera auto-fitting");
+  console.log("VISUAL_MOVE_AXES_PASS", JSON.stringify(repeatedDrags));
   assert.deepEqual(errors, [], "Unexpected JS errors");
   await canvas.screenshot({ path: path.join(evidence, "after-reset.png") });
   console.log("VISUAL_MOVE_TOUCH_PASS " + JSON.stringify({ during, after }));
