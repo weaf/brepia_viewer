@@ -23,7 +23,7 @@ export function ExperimentalMenu({
   onOpenChain: () => void;
 }) {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
