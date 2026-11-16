@@ -43,7 +43,8 @@ try {
   await page.getByRole("button", { name: "Experimental menu" }).click();
   await page.getByRole("menuitemcheckbox", { name: "Enable visual move and diagnostics" }).click();
   const moveToggle = page.getByRole("button", { name: "Preview visual movement" });
-  await moveToggle.click();
+  console.log("MOVE_TOGGLE_BEFORE", await moveToggle.getAttribute("aria-pressed"));
+  if (await moveToggle.getAttribute("aria-pressed") !== "true") await moveToggle.click();
   console.log("MOVE_TOGGLE_STATE", await moveToggle.getAttribute("aria-pressed"),
     "viewport", await page.evaluate(() => [window.innerWidth, window.innerHeight]),
     "scene", await page.getByTestId("visual-move-preview").innerText());
