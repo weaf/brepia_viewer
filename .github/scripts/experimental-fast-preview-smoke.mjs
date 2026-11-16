@@ -69,8 +69,9 @@ try {
       // External GitHub catalog rate-limit toasts may overlay this trigger in CI.
       // Real unforced taps are separately verified in the Saved Variants browser test.
       await openExperimental();
-      const chainAction = page.getByRole('menuitem', { name: 'Open parametric chain generator' });
-      await chainAction.waitFor({ state:'visible' });
+      if (await page.getByRole('menuitem', { name: 'Open parametric chain generator' }).count() !== 0) {
+        throw new Error('Duplicate chain generator action remains in Experimental');
+      }
       const visualTools = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
       if ((await visualTools.getAttribute('data-state')) !== 'unchecked') throw new Error('Visual move should default off');
       const fastToggle = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
