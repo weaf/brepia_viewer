@@ -112,6 +112,9 @@ try {
       await panel.getByLabel("Layout").selectOption("single");
       await panel.getByRole("button",{name:"Open 3D preview in Viewer"}).click();
       await page.getByText("Source and parameters",{exact:true}).waitFor({timeout:45000});
+      // The source editor alone is not a successful 3D preview.
+      await page.getByRole("region",{name:"3D model preview"}).locator("canvas").waitFor({state:"visible",timeout:60000});
+      await page.getByTestId("off-component-inspector").waitFor({state:"visible",timeout:120000});
       await page.screenshot({path:path.join(output,device.name+"-chain-preview.png"),fullPage:true});
       await openExperimental();
       await page.getByRole("menuitem",{name:"Open parametric chain generator"}).click();
