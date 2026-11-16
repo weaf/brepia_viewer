@@ -35,6 +35,13 @@ try {
       isMobile:device.mobile,hasTouch:device.mobile,
       acceptDownloads:true,serviceWorkers:"block",
     });
+    // Mock only the unrelated public catalog. Chain SCAD generation itself
+    // still runs locally and must not depend on network requests.
+    await context.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route => route.fulfill({
+      status:200,
+      contentType:"application/json",
+      body:JSON.stringify({truncated:false,tree:[{path:"acceptance.scad",type:"blob",size:80,sha:"fixture"}]}),
+    }));
     const page = await context.newPage();
     page.setDefaultTimeout(25000);
     const errors = [];
@@ -48,17 +55,8 @@ try {
       await page.goto(origin,{waitUntil:"domcontentloaded"});
       await page.getByText("Model gallery",{exact:true}).waitFor({timeout:35000});
       await page.waitForFunction(() => document.documentElement.dataset.brepiaClientReady === "true", null, {timeout:60000});
-      // Use a deterministic local fixture to prove client hydration and avoid
-      // blocking UI acceptance on GitHub's external model-catalog request.
-      await page.waitForLoadState("load");
-      // Mirror the already verified Viewer static smoke: inject a local file
-      // only after the React-ready marker proves the input handler is active.
-      await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
-        name:"chain-acceptance.scad",
-        mimeType:"text/plain",
-        buffer:Buffer.from("/* [Shape] */\nwidth = 10; // [5:1:25]\ncube([width,width,width]);\n"),
-      });
-      await page.getByText("Source and parameters",{exact:true}).waitFor({timeout:45000});
+      // The generator is available directly in the existing model gallery.
+      // Do not upload a preliminary model or introduce an overlapping toast.
       const openExperimental = async () => {
         const trigger = page.getByRole("button",{name:"Experimental menu"});
         await trigger.click({force:true});
