@@ -40,7 +40,7 @@ try {
     await context.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route => route.fulfill({
       status:200,
       contentType:"application/json",
-      body:JSON.stringify({truncated:false,tree:[{path:"acceptance.scad",type:"blob",size:80,sha:"fixture"}]}),
+      body:JSON.stringify({truncated:false,tree:[]}),
     }));
     const page = await context.newPage();
     page.setDefaultTimeout(25000);
