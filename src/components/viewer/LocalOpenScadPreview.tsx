@@ -21,6 +21,7 @@ import { extractFeatureEdgeTopology, type FeatureEdge } from "@/lib/featureEdgeT
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { buildGeometryFromPreparedStl, type PreparedStlGeometry, type StlWorkerTimings } from "@/utils/preparedStlGeometry";
 import type { PreparedOffMesh } from "@/utils/preparedOffMesh";
+import type { PreparedOffPartsResult } from "@/utils/preparedOffParts";
 import { exportStlAsThreeMf } from "@/utils/threeMfExport";
 import { exportColoredOffAsOrcaThreeMf } from "@/utils/orcaThreeMfExport";
 import { exportColoredOffAsOrcaPartsThreeMf } from "@/utils/orcaSplitSafeThreeMf";
@@ -76,6 +77,14 @@ export function LocalOpenScadPreview({
     attachMs: number;
   } | null>(null);
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
+  const [partGroup, setPartGroup] = useState<Group | null>(null);
+  const [partStatus, setPartStatus] = useState<PreparedOffPartsResult["status"] | null>(null);
+  const disposePreviewParts = (group: Group) => {
+    const parts = group.userData.parts as Group[] | undefined;
+    if (parts) parts.forEach(part => disposeColoredGroup(part));
+    else disposeColoredGroup(group);
+  };
+  const mountedPartsRef = useRef<Group | null>(null);
   const [featureEdges, setFeatureEdges] = useState<FeatureEdge[]>([]);
   const [offInspection, setOffInspection] = useState<OffColorInspection | null>(null);
   const [meshTimings, setMeshTimings] = useState<{
@@ -245,6 +254,10 @@ export function LocalOpenScadPreview({
       if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
       mountedGroupRef.current = null;
       setColoredGroup(null);
+      if (mountedPartsRef.current) disposePreviewParts(mountedPartsRef.current);
+      mountedPartsRef.current = null;
+      setPartGroup(null);
+      setPartStatus(null);
       setFeatureEdges([]);
       setOffInspection(null);
       return;
@@ -255,6 +268,7 @@ export function LocalOpenScadPreview({
       group: Group | null,
       inspection: OffColorInspection,
       snapEdges: FeatureEdge[],
+      parts: PreparedOffPartsResult | null = null,
     ) => {
       if (cancelled) {
         if (group) disposeColoredGroup(group);
@@ -263,6 +277,18 @@ export function LocalOpenScadPreview({
       if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
       mountedGroupRef.current = group;
       setColoredGroup(group);
+      if (mountedPartsRef.current) disposePreviewParts(mountedPartsRef.current);
+      const nextParts = new Group();
+      for (const part of parts?.parts ?? []) {
+        const object = buildColoredGroupFromPreparedOff(part.mesh, 0x00a6ff);
+        if (!object) continue;
+        object.userData = { index: part.index, center: part.center, triangleCount: part.triangleCount, closed: part.closed };
+        nextParts.add(object);
+      }
+      nextParts.userData.parts = [...nextParts.children];
+      mountedPartsRef.current = nextParts;
+      setPartGroup(nextParts.userData.parts.length > 1 ? nextParts : null);
+      setPartStatus(parts?.status ?? null);
       setOffInspection(inspection);
       setFeatureEdges(snapEdges.length <= 15_000 ? snapEdges : []);
     };
@@ -280,12 +306,13 @@ export function LocalOpenScadPreview({
       inspection: OffColorInspection,
       snapEdges: FeatureEdge[],
       timings?: { totalMs: number; bufferMs: number },
+      parts: PreparedOffPartsResult | null = null,
     ) => {
       if (cancelled) return;
       const started = performance.now();
       const group = buildColoredGroupFromPreparedOff(prepared, 0x00a6ff);
       const uiAttachMs = performance.now() - started;
-      applyGroup(group, inspection, snapEdges);
+      applyGroup(group, inspection, snapEdges, parts);
       if (!cancelled && timings) {
         setMeshTimings({
           workerTotalMs: timings.totalMs,
@@ -323,6 +350,7 @@ export function LocalOpenScadPreview({
           worker.onmessage = (event: MessageEvent<{
             ok: boolean;
             prepared?: PreparedOffMesh;
+            partAnalysis?: PreparedOffPartsResult;
             inspection?: OffColorInspection;
             edges?: FeatureEdge[];
             timings?: { totalMs: number; bufferMs: number };
@@ -338,7 +366,7 @@ export function LocalOpenScadPreview({
               return;
             }
             try {
-              applyPreparedAnalysis(data.prepared, data.inspection, data.edges, data.timings);
+              applyPreparedAnalysis(data.prepared, data.inspection, data.edges, data.timings, data.partAnalysis);
             } catch (cause) {
               reportAnalysisError(cause);
             }
@@ -360,7 +388,7 @@ export function LocalOpenScadPreview({
             analysisWorker = null;
             reportAnalysisError(new Error("OFF worker returned unreadable geometry data."));
           };
-          worker.postMessage({ text, prepareBuffers: true });
+          worker.postMessage({ text, prepareBuffers: true, prepareParts: true });
         } catch {
           analyzeOnMainThread(text);
         }
@@ -372,6 +400,10 @@ export function LocalOpenScadPreview({
       mountedGroupRef.current = null;
       // Leave the already compiled STL visible instead of showing stale colors.
       setColoredGroup(null);
+      if (mountedPartsRef.current) disposePreviewParts(mountedPartsRef.current);
+      mountedPartsRef.current = null;
+      setPartGroup(null);
+      setPartStatus(null);
       setFeatureEdges([]);
       setOffInspection(null);
       setMeshTimings(null);
@@ -386,6 +418,7 @@ export function LocalOpenScadPreview({
   useEffect(
     () => () => {
       if (mountedGroupRef.current) disposeColoredGroup(mountedGroupRef.current);
+      if (mountedPartsRef.current) disposePreviewParts(mountedPartsRef.current);
       mountedGeometryRef.current?.dispose();
     },
     [],
@@ -458,6 +491,8 @@ export function LocalOpenScadPreview({
           <ThreeScene
             geometry={geometry}
             coloredGroup={fastStlOnly ? null : coloredGroup}
+            partGroup={fastStlOnly ? null : partGroup}
+            partStatus={partStatus}
             featureEdges={fastStlOnly ? [] : featureEdges}
             visualEditAllowed={visualEditAllowed}
             color="#00A6FF"

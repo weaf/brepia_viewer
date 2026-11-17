@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdir} from 'node:fs/promises';
+import path from 'node:path';
+import {setTimeout as pause} from 'node:timers/promises';
+import {chromium} from '@playwright/test';
+const origin='http://127.0.0.1:4199/';
+const proof=path.resolve('.output/partmove-acceptance');
+await mkdir(proof,{recursive:true});
+const server=spawn('python3',['-m','http.server','4199','--bind','127.0.0.1','--directory',path.resolve('.output/public')],{stdio:'ignore'});
+let browser;
+try {
+  let ready=false;
+  for(let i=0;i<90;i++){try{if((await fetch(origin)).ok){ready=true;break;}}catch { /* Server is still starting. */ }await pause(300);}
+  assert.ok(ready,'static browser server did not start');
+  browser=await chromium.launch({channel:'chrome',headless:true,args:['--disable-dev-shm-usage','--enable-unsafe-swiftshader']});
+  for(const device of [{name:'desktop',width:1440,height:900,mobile:false},{name:'mobile',width:390,height:844,mobile:true}]){
+    const context=await browser.newContext({viewport:{width:device.width,height:device.height},isMobile:device.mobile,hasTouch:device.mobile,serviceWorkers:'block'});
+    const page=await context.newPage();
+    const errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    try {
+      await context.route('https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({truncated:false,tree:[]})}));
+      await page.goto(origin,{waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>document.documentElement.dataset.brepiaClientReady==='true',null,{timeout:65000});
+      const scad='translate([-20,0,0]) cube([10,10,10]);\ntranslate([20,0,0]) cube([10,10,10]);\n';
+      await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({name:'partmove-two-boxes.scad',mimeType:'text/plain',buffer:Buffer.from(scad)});
+      await page.getByTestId('off-component-inspector').waitFor({state:'visible',timeout:120000});
+      await page.getByRole('button',{name:'Cancel preview'}).waitFor({state:'hidden',timeout:120000});
+      await pause(2000); // allow Stage first-camera fit before toggling Move
+      await page.getByRole('button',{name:'Experimental menu'}).click();
+      await page.getByRole('menuitemcheckbox',{name:'Enable visual move and diagnostics'}).click();
+      const toggle=page.getByRole('button',{name:'Preview visual movement'});
+      await toggle.waitFor({state:'visible'});
+      if(await toggle.getAttribute('aria-pressed')!=='true')await toggle.click();
+      await page.locator('canvas').first().screenshot({path:path.join(proof,device.name+'-whole-camera.png')});
+      await page.getByRole('combobox',{name:'Move mode'}).selectOption('part');
+      await page.locator('canvas').first().screenshot({path:path.join(proof,device.name+'-part-camera.png')});
+      const controls=page.getByTestId('part-move-controls');
+      await controls.waitFor({state:'visible'});
+      const selector=controls.getByRole('combobox',{name:'Select model part'});
+      assert.equal(await selector.locator('option').count(),3,device.name+': should identify 2 components');
+      await selector.selectOption('0');
+      // Verify true 3D raycast selection, not only selecting through the fallback menu.
+      const hitCanvas=page.locator('canvas').first();
+      await hitCanvas.waitFor({state:'visible',timeout:15000});
+      const hitBox=await hitCanvas.boundingBox();
+      assert.ok(hitBox,'No 3D canvas for direct component picking');
+      await hitCanvas.screenshot({path:path.join(proof,device.name+'-before-direct-click.png')});
+      console.log('HIT_CANVAS_BOUNDS',JSON.stringify(hitBox));
+      let directlyPicked=false;
+      for(const fy of [0.4,0.5,0.6,0.3,0.7]){
+        for(const fx of [0.25,0.35,0.45,0.55,0.65,0.75]){
+          const x=hitBox.x+hitBox.width*fx,y=hitBox.y+hitBox.height*fy;
+          if(device.mobile)await page.touchscreen.tap(x,y);
+          else await page.mouse.click(x,y);
+          if((await selector.inputValue())==='1'){directlyPicked=true;break;}
+        }
+        if(directlyPicked)break;
+      }
+      assert.ok(directlyPicked,device.name+': direct 3D raycast selection failed');
+      console.log('PART_MOVE_DIRECT_RAYCAST_'+device.name.toUpperCase()+'_PASS');
+      await selector.selectOption('0');
+      await page.screenshot({path:path.join(proof,device.name+'-selected-part.png'),fullPage:true});
+      const offsets=page.getByTestId('visual-move-offsets').first();
+      assert.match(await offsets.textContent(),/X 0\.0 \/ Y 0\.0 \/ Z 0\.0/);
+      if(device.mobile){
+        const precision=page.getByTestId('visual-move-mobile-controls');
+        await precision.getByRole('button',{name:'Show precision slider'}).click();
+        const slider=precision.getByRole('slider',{name:'Move model along X axis'});
+        await slider.fill('15');
+        assert.match(await offsets.textContent(),/X 15\.0/);
+      } else {
+        const canvas=page.locator('canvas').first();
+        await canvas.waitFor({state:'visible',timeout:15000});
+        const b=await canvas.boundingBox();
+        assert.ok(b&&b.width>200&&b.height>200);
+      }
+      await selector.selectOption('1');
+      assert.match(await offsets.textContent(),/X 0\.0 \/ Y 0\.0 \/ Z 0\.0/,'second part should keep independent transform');
+      await selector.selectOption('0');
+      if(device.mobile) assert.match(await offsets.textContent(),/X 15\.0/,'first part transform must persist');
+      await controls.getByRole('button',{name:'Reset Selected Part'}).click();
+      assert.match(await offsets.textContent(),/X 0\.0/);
+      await controls.getByRole('button',{name:'Reset All Parts'}).click();
+      await page.screenshot({path:path.join(proof,device.name+'-reset.png'),fullPage:true});
+      await page.getByRole('combobox',{name:'Move mode'}).selectOption('whole');
+      assert.equal(await toggle.getAttribute('aria-pressed'),'true');
+      assert.deepEqual(errors,[],'page JS errors');
+      console.log('PART_MOVE_BROWSER_'+device.name.toUpperCase()+'_PASS');
+    } finally {await context.close();}
+  }
+}finally{if(browser)await browser.close();server.kill('SIGTERM');}

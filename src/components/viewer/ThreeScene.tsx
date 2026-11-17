@@ -33,6 +33,8 @@ interface ThreeSceneProps {
   isMobile?: boolean;
   backgroundColor?: string;
   coloredGroup?: THREE.Group | null;
+  partGroup?: THREE.Group | null;
+  partStatus?: 'available' | 'single-component' | 'too-complex' | 'too-many-parts' | null;
   featureEdges?: readonly FeatureEdge[];
   /** Experimental source-proven, preview-only transform; never exported. */
   visualEditAllowed?: boolean;
@@ -204,6 +206,7 @@ function MobileMeasurementHandles({
 function VisualMoveManipulator({
   children,
   offset,
+  basePosition = [0,0,0],
   axis,
   handleLength,
   isMobile,
@@ -215,6 +218,7 @@ function VisualMoveManipulator({
 }: {
   children: React.ReactNode;
   offset: VisualMoveOffset;
+  basePosition?: [number, number, number];
   axis: 0 | 1 | 2;
   handleLength: number;
   isMobile: boolean;
@@ -401,7 +405,7 @@ function VisualMoveManipulator({
   );
 
   return (
-    <group ref={groupRef} position={scadToViewerOffset(offset)}
+    <group ref={groupRef} position={new THREE.Vector3(...basePosition).add(new THREE.Vector3(...scadToViewerOffset(offset))).toArray()}
       onPointerDown={(event) => startDrag(event, axis)}
       onPointerCancel={(event) => endDrag(event.pointerId)}
       onLostPointerCapture={(event) => endDrag(event.pointerId)}
@@ -437,6 +441,8 @@ export function ThreeScene({
   isMobile = false,
   backgroundColor = DEFAULT_VIEWER_BACKGROUND_COLOR,
   coloredGroup,
+  partGroup = null,
+  partStatus = null,
   featureEdges = [],
   visualEditAllowed = false,
 }: ThreeSceneProps) {
@@ -444,6 +450,9 @@ export function ThreeScene({
   const [uprightLocked, setUprightLocked] = useState(true);
   const [measuring, setMeasuring] = useState(false);
   const [visualMoving, setVisualMoving] = useState(false);
+  const [visualMoveMode, setVisualMoveMode] = useState<'whole' | 'part'>('whole');
+  const [selectedPart, setSelectedPart] = useState<number | null>(null);
+  const [partOffsets, setPartOffsets] = useState<Record<number, VisualMoveOffset>>({});
   // Stage may fit a newly opened model, but never override a user's
   // zoom/orientation when a parameter triggers another OpenSCAD render.
   const [cameraManuallyAdjusted, setCameraManuallyAdjusted] = useState(false);
@@ -493,7 +502,10 @@ export function ThreeScene({
     // A new render invalidates any preview-only transform.
     setVisualMoving(false);
     setVisualMoveDelta([0, 0, 0]);
-  }, [geometry, coloredGroup]);
+    setVisualMoveMode('whole');
+    setSelectedPart(null);
+    setPartOffsets({});
+  }, [geometry, coloredGroup, partGroup]);
 
   const viewerBackgroundColor = useMemo(
     () => lightnessToGrayHex(backgroundLightness),
@@ -684,6 +696,77 @@ export function ThreeScene({
     </group>
   ) : null, [coloredGroup, groupCenterOffset, geometry, geometryCenterOffset, color, chooseMeasurementPoint]);
 
+  const partObjects = useMemo(() => (partGroup?.userData.parts ?? []) as THREE.Group[], [partGroup]);
+  // Highlight only the selected preview component; no source or export mutation.
+  useEffect(() => {
+    partObjects.forEach((part, index) => part.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach(material => {
+        if (!(material instanceof THREE.MeshStandardMaterial)) return;
+        material.emissive.setHex(index === selectedPart && visualMoveMode === 'part' ? 0x0066ff : 0x000000);
+        material.emissiveIntensity = index === selectedPart && visualMoveMode === 'part' ? 0.55 : 0;
+      });
+    }));
+  }, [partObjects, selectedPart, visualMoveMode]);
+
+  // A Three.Object3D is reparented when mounted as a primitive. Freeze its
+  // component references separately from the mutable Group.children array.
+  const availablePartCount = partObjects.length;
+  const selectedPartOffset = selectedPart === null ? [0,0,0] as VisualMoveOffset
+    : (partOffsets[selectedPart] ?? [0,0,0] as VisualMoveOffset);
+  const setSelectedPartOffset = (offset: VisualMoveOffset) => {
+    if (selectedPart === null) return;
+    setPartOffsets(current => ({ ...current, [selectedPart]: offset }));
+  };
+  const resetSelectedPart = () => {
+    if (selectedPart === null) return;
+    setPartOffsets(current => ({ ...current, [selectedPart]: [0,0,0] }));
+  };
+  // Both meshes and offsets are temporary. Never write to the source or exports.
+  const partModelElement = partGroup && groupCenterOffset && availablePartCount > 1 ? (
+    <group ref={renderedModelRef}>
+      {partObjects.map((part, index) => {
+        const offset = partOffsets[index] ?? [0,0,0] as VisualMoveOffset;
+        const center = part.userData.center as [number, number, number];
+        const worldCenter = scadToViewerOffset([
+          center[0] + groupCenterOffset.x,
+          center[1] + groupCenterOffset.y,
+          center[2] + groupCenterOffset.z,
+        ]);
+        // Centre the selected gizmo on the component, not the entire model.
+        // The extra inverse translation leaves the source-space mesh untouched.
+        const partVisual = (
+          <group rotation={[-Math.PI / 2, 0, 0]}>
+            <primitive object={part} position={groupCenterOffset.toArray()}
+              onClick={(event: ThreeEvent<MouseEvent>) => {
+                if (event.delta > 4) return;
+                event.stopPropagation();
+                setSelectedPart(index);
+              }}
+            />
+          </group>
+        );
+        return index === selectedPart ? (
+          <VisualMoveManipulator key={index} axis={visualMoveAxis} offset={selectedPartOffset}
+            basePosition={worldCenter} isMobile={isMobile}
+            handleLength={Math.max(2, visualMoveHandleLength * 0.35)}
+            onAxisChange={setVisualMoveAxis} onOffsetChange={setSelectedPartOffset}
+            onDraggingChange={setDraggingVisualMove} onPinchingChange={setPinchingVisualMove}
+            onUserCameraMove={preserveCamera}>
+            <group position={worldCenter.map(value => -value) as [number,number,number]}>
+              {partVisual}
+            </group>
+          </VisualMoveManipulator>
+        ) : (
+          <group key={index} position={scadToViewerOffset(offset)}>
+            {partVisual}
+          </group>
+        );
+      })}
+    </group>
+  ) : null;
+
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden">
       <div
@@ -735,7 +818,9 @@ export function ThreeScene({
             <directionalLight position={[-5, 5, -5]} intensity={0.2} />
             <directionalLight position={[0, 5, 0]} intensity={0.2} />
             <directionalLight position={[-5, -5, -5]} intensity={0.6} />
-            {visualMoving && visualEditAllowed && modelElement ? (
+            {visualMoving && visualEditAllowed && visualMoveMode === 'part' && partModelElement
+              ? partModelElement
+              : visualMoving && visualEditAllowed && modelElement ? (
               <VisualMoveManipulator
                 offset={visualMoveDelta}
                 axis={visualMoveAxis}
@@ -858,6 +943,41 @@ export function ThreeScene({
           >
             Visual move {visualMoving ? "on" : "preview"}
           </Button>
+          {visualMoving && Boolean(partModelElement) && (
+            <div className="space-y-1 px-2 pb-1 text-xs">
+              <label className="flex items-center gap-2" htmlFor="visual-move-mode">
+                Move
+                <select id="visual-move-mode" aria-label="Move mode"
+                  className="h-9 rounded border border-white/20 bg-black px-2" value={visualMoveMode}
+                  onChange={event => { setVisualMoveMode(event.target.value as 'whole' | 'part'); setDraggingVisualMove(false); }}>
+                  <option value="whole">Whole Model</option>
+                  <option value="part" disabled={!partModelElement}>Selected Part</option>
+                </select>
+              </label>
+              {visualMoveMode === 'part' && (
+                <div className="space-y-1" data-testid="part-move-controls">
+                  <label htmlFor="part-move-selector">Part</label>
+                  <select id="part-move-selector" aria-label="Select model part" className="h-9 max-w-full rounded border border-white/20 bg-black px-2"
+                    value={selectedPart ?? ''} onChange={event => setSelectedPart(Number(event.target.value))}>
+                    <option value="" disabled>Select in 3D or choose here</option>
+                    {partObjects.map((part, index) => (
+                      <option key={index} value={index}>Part {index + 1} ({part.userData.triangleCount} triangles)</option>
+                    ))}
+                  </select>
+                  <p>{selectedPart === null ? 'Tap a part to select it, then drag a handle.' : 'Selected part ' + (selectedPart + 1)}</p>
+                  <div className="flex flex-wrap gap-1">
+                    <button type="button" className="min-h-9 rounded border border-white/20 px-2"
+                      onClick={resetSelectedPart} disabled={selectedPart === null}>Reset Selected Part</button>
+                    <button type="button" className="min-h-9 rounded border border-white/20 px-2"
+                      onClick={() => setPartOffsets({})}>Reset All Parts</button>
+                  </div>
+                </div>
+              )}
+              {visualMoveMode === 'whole' && !partModelElement && partStatus && (
+                <p role="status">Individual parts unavailable ({partStatus}).</p>
+              )}
+            </div>
+          )}
           {visualMoving && !isMobile && (
             <div className="space-y-1 px-2 pb-1 text-xs">
               <p>Drag the model or a colored axis marker.</p>
@@ -871,12 +991,13 @@ export function ThreeScene({
                 </select>
               </div>
               <p className="font-mono" data-testid="visual-move-offsets">
-                Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
+                Scene X {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[0].toFixed(1)} / Y {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[1].toFixed(1)} / Z {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[2].toFixed(1)}
               </p>
               <p className="text-amber-200">Preview only. Source code and exports are unchanged.</p>
               <button type="button" className="min-h-10 rounded border border-white/20 px-3"
                 onClick={() => {
-                  setVisualMoveDelta([0, 0, 0]);
+                  if (visualMoveMode === 'part') resetSelectedPart();
+                  else setVisualMoveDelta([0, 0, 0]);
                 }}>Reset position</button>
             </div>
           )}
@@ -990,11 +1111,11 @@ export function ThreeScene({
                <option value={0}>X</option><option value={1}>Y</option><option value={2}>Z</option>
              </select>
              <span className="min-w-0 flex-1 truncate font-mono" data-testid="visual-move-offsets">
-               Scene X {visualMoveDelta[0].toFixed(1)} / Y {visualMoveDelta[1].toFixed(1)} / Z {visualMoveDelta[2].toFixed(1)}
+               Scene X {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[0].toFixed(1)} / Y {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[1].toFixed(1)} / Z {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[2].toFixed(1)}
              </span>
              <button type="button" aria-label="Reset position" title="Reset position"
                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
-               onClick={() => setVisualMoveDelta([0, 0, 0])}><Undo2 className="h-4 w-4" /></button>
+               onClick={() => { if (visualMoveMode === 'part') resetSelectedPart(); else setVisualMoveDelta([0,0,0]); }}><Undo2 className="h-4 w-4" /></button>
              <button type="button"
                aria-label={mobilePrecisionExpanded ? "Hide precision slider" : "Show precision slider"}
                aria-expanded={mobilePrecisionExpanded}
@@ -1008,15 +1129,17 @@ export function ThreeScene({
                <input
                  type="range" min={-50} max={50} step={0.1}
                  aria-label={"Move model along " + ["X", "Y", "Z"][visualMoveAxis] + " axis"}
-                 value={Math.max(-50, Math.min(50, visualMoveDelta[visualMoveAxis]))}
+                 value={Math.max(-50, Math.min(50, (visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[visualMoveAxis]))}
                  onChange={(event) => {
                    const number = Number(event.currentTarget.value);
-                   setVisualMoveDelta(current => current.map((value, index) =>
-                     index === visualMoveAxis ? number : value) as VisualMoveOffset);
+                    const current = visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta;
+                    const next = current.map((value, index) => index === visualMoveAxis ? number : value) as VisualMoveOffset;
+                    if (visualMoveMode === 'part') setSelectedPartOffset(next);
+                    else setVisualMoveDelta(next);
                  }}
                  className="h-9 min-w-0 flex-1 touch-pan-x accent-cyan-400"
                />
-               <span className="shrink-0 font-mono tabular-nums">{visualMoveDelta[visualMoveAxis].toFixed(1)}</span>
+               <span className="shrink-0 font-mono tabular-nums">{(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[visualMoveAxis].toFixed(1)}</span>
              </div>
            )}
          </div>
