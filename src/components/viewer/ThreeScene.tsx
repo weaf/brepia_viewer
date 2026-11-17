@@ -22,6 +22,7 @@ import { inclinationFromHorizontal, inclinationGuides, formatDistanceFromModelUn
 import { pickFeatureSnap } from "@/lib/featureSnap";
 import type { FeatureEdge } from "@/lib/featureEdgeTopology";
 import { resolveViewerBackgroundLightness } from "@/lib/viewerBackground";
+import { scadAxisToViewerDirection, scadToViewerOffset, type VisualMoveOffset } from "@/lib/visualMoveAxes";
 
 const DEFAULT_VIEWER_BACKGROUND_COLOR = "#3B3B3B";
 const VIEWER_BACKGROUND_STORAGE_KEY = "brepia.viewer.backgroundLightness";
@@ -196,7 +197,6 @@ function MobileMeasurementHandles({
 }
 
 
-type VisualMoveOffset = [number, number, number];
 
 // Both desktop and mobile use the same captured R3F pointer gesture.
 // A click on an arrow selects its axis and immediately starts the drag;
@@ -367,11 +367,7 @@ function VisualMoveManipulator({
     event.nativeEvent.preventDefault();
     model.updateWorldMatrix(true, false);
     const origin = model.localToWorld(new THREE.Vector3());
-    const direction = new THREE.Vector3(
-      chosenAxis === 0 ? 1 : 0,
-      chosenAxis === 1 ? 1 : 0,
-      chosenAxis === 2 ? 1 : 0,
-    );
+    const direction = new THREE.Vector3(...scadAxisToViewerDirection(chosenAxis));
     const screenOrigin = origin.clone().project(camera);
     const screenEnd = origin.clone().add(direction).project(camera);
     const axisPixelsX = (screenEnd.x - screenOrigin.x) * size.width / 2;
@@ -400,12 +396,12 @@ function VisualMoveManipulator({
   };
 
   const arrowColors = ["#ff5959", "#43e6a2", "#4887ff"];
-  const axisDirections: VisualMoveOffset[] = [
-    [handleLength, 0, 0], [0, handleLength, 0], [0, 0, handleLength],
-  ];
+  const axisDirections: VisualMoveOffset[] = ([0, 1, 2] as const).map((axisIndex) =>
+    scadAxisToViewerDirection(axisIndex).map((coordinate) => coordinate * handleLength) as VisualMoveOffset,
+  );
 
   return (
-    <group ref={groupRef} position={offset}
+    <group ref={groupRef} position={scadToViewerOffset(offset)}
       onPointerDown={(event) => startDrag(event, axis)}
       onPointerCancel={(event) => endDrag(event.pointerId)}
       onLostPointerCapture={(event) => endDrag(event.pointerId)}
@@ -454,6 +450,7 @@ export function ThreeScene({
   const preserveCamera = useCallback(() => setCameraManuallyAdjusted(true), []);
   const shouldAutoFitCamera = !measuring && !visualMoving && !cameraManuallyAdjusted;
   const [visualMoveAxis, setVisualMoveAxis] = useState<0 | 1 | 2>(0);
+  // UI and saved preview delta use OpenSCAD XYZ (Z-up), not Three.js XYZ (Y-up).
   const [visualMoveDelta, setVisualMoveDelta] = useState<VisualMoveOffset>([0, 0, 0]);
   const [draggingVisualMove, setDraggingVisualMove] = useState(false);
   const [pinchingVisualMove, setPinchingVisualMove] = useState(false);
@@ -866,7 +863,7 @@ export function ThreeScene({
               <p>Drag the model or a colored axis marker.</p>
               <div className="flex items-center gap-2">
                 <label htmlFor="desktop-move-axis">Axis</label>
-                <select id="desktop-move-axis" aria-label="Visual move axis"
+                <select id="desktop-move-axis" aria-label="Visual move axis" title="OpenSCAD axes: Z is vertical"
                   className="h-9 rounded border border-white/20 bg-black px-2"
                   value={visualMoveAxis}
                   onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}>
@@ -986,7 +983,7 @@ export function ThreeScene({
            data-testid="visual-move-mobile-controls">
            <div className="flex h-10 items-center gap-2">
              <label htmlFor="visual-move-axis" className="sr-only">Move axis</label>
-             <select id="visual-move-axis" aria-label="Visual move axis"
+             <select id="visual-move-axis" aria-label="Visual move axis" title="OpenSCAD axes: Z is vertical"
                value={visualMoveAxis}
                onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}
                className="h-9 shrink-0 rounded-md border border-white/20 bg-adam-background-1 px-2">
