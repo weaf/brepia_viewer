@@ -113,6 +113,57 @@ try {
   assert.deepEqual(errors, [], "Unexpected JS errors");
   await canvas.screenshot({ path: path.join(evidence, "after-reset.png") });
   console.log("VISUAL_MOVE_TOUCH_PASS " + JSON.stringify({ during, after }));
+  // Regression: the Move toggle must not obscure the top half of the model.
+  const movePill = await page.getByTestId("visual-move-preview").boundingBox();
+  assert.ok(movePill && movePill.height <= 56 &&
+    movePill.y > box.y + box.height * 0.45,
+    "Move toggle must be a small pill near the bottom of the canvas: " +
+    JSON.stringify({ movePill, box }));
+  await panel.getByRole("button", { name: "Reset position" }).click();
+  const zoomBefore = Number(await canvas.getAttribute("data-move-camera-zoom"));
+  assert.ok(zoomBefore > 0, "Expected camera zoom diagnostic");
+  await canvas.screenshot({ path: path.join(evidence, "mobile-before-pinch.png") });
+  // Pinch while Move is active and a drag could be started beneath a finger.
+  const pinch = (type, radius) => cdp.send("Input.dispatchTouchEvent", {
+    type,
+    touchPoints: type === "touchEnd" ? [] : [
+      { x: centerX - radius, y: centerY, id: 11 },
+      { x: centerX + radius, y: centerY, id: 12 },
+    ],
+  });
+  await pinch("touchStart", 28);
+  for (let radius = 32; radius <= 56; radius += 4) {
+    await pinch("touchMove", radius);
+    await pause(80);
+  }
+  await pinch("touchEnd", 56);
+  await pause(200);
+  const zoomAfter = Number(await canvas.getAttribute("data-move-camera-zoom"));
+  assert.ok(zoomAfter > zoomBefore * 1.25,
+    "Two-finger pinch must change camera zoom while Move is on: " +
+    JSON.stringify({ zoomBefore, zoomAfter }));
+  assert.match(await offsets.textContent(), /X 0\.0 \/ Y 0\.0 \/ Z 0\.0/,
+    "Pinch must not move model");
+  await canvas.screenshot({ path: path.join(evidence, "mobile-after-pinch.png") });
+  // Two distinct drag sessions after the pinch must each move the model.
+  await panel.getByRole("combobox", { name: "Visual move axis" }).selectOption("0");
+  const dragPositions = [];
+  for (let gesture = 0; gesture < 2; gesture++) {
+    await send("touchStart", centerX, centerY);
+    for (let step = 1; step <= 8; step++) {
+      await send("touchMove", centerX + step * 4, centerY + step);
+      await pause(55);
+    }
+    await send("touchEnd", centerX + 32, centerY + 8);
+    dragPositions.push((await offsets.textContent()) ?? "");
+  }
+  const dragX = dragPositions.map(value =>
+    Number(value.match(/Scene X (-?\d+\.\d+)/)?.[1] ?? "NaN"));
+  assert.ok(dragX.every(Number.isFinite) && dragX[1] > dragX[0] + 0.2,
+    "Consecutive touches must each update model position after a pinch: " +
+    JSON.stringify(dragPositions));
+  console.log("VISUAL_MOVE_MOBILE_PINCH_PASS " +
+    JSON.stringify({ zoomBefore, zoomAfter, dragPositions }));
   await context.close();
   const desktop = await browser.newContext({
     viewport: { width: 1440, height: 900 },
