@@ -843,7 +843,7 @@ export function ThreeScene({
       </Suspense>
 
       {visualEditAllowed && (
-        <div className={cn("absolute left-2 z-20 flex max-w-[min(90vw,330px)] flex-col rounded-lg border border-white/15 bg-black/85 text-white shadow-lg", isMobile ? "bottom-[4.25rem] p-0.5" : "top-14 gap-1.5 p-1.5")}
+        <div className={cn("absolute left-2 z-20 flex max-w-[min(90vw,330px)] flex-col rounded-lg border border-white/15 bg-black/85 text-white shadow-lg", isMobile ? "bottom-12 p-0.5" : "top-14 gap-1.5 p-1.5")}
           data-testid="visual-move-preview">
           <Button
             type="button" size="sm"
