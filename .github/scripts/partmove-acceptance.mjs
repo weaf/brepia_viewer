@@ -49,17 +49,43 @@ try {
       await hitCanvas.screenshot({path:path.join(proof,device.name+'-before-direct-click.png')});
       console.log('HIT_CANVAS_BOUNDS',JSON.stringify(hitBox));
       let directlyPicked=false;
+      let selectedScreenPoint=null;
       for(const fy of [0.4,0.5,0.6,0.3,0.7]){
         for(const fx of [0.25,0.35,0.45,0.55,0.65,0.75]){
           const x=hitBox.x+hitBox.width*fx,y=hitBox.y+hitBox.height*fy;
           if(device.mobile)await page.touchscreen.tap(x,y);
           else await page.mouse.click(x,y);
-          if((await selector.inputValue())==='1'){directlyPicked=true;break;}
+          if((await selector.inputValue())==='1'){directlyPicked=true;selectedScreenPoint={x,y};break;}
         }
         if(directlyPicked)break;
       }
       assert.ok(directlyPicked,device.name+': direct 3D raycast selection failed');
       console.log('PART_MOVE_DIRECT_RAYCAST_'+device.name.toUpperCase()+'_PASS');
+      await pause(650); // allow selected-part R3F geometry and gizmo to mount
+      assert.ok(selectedScreenPoint,'Cannot start drag without selected hit point');
+      if(device.mobile){
+        const cdp=await context.newCDPSession(page);
+        const emit=(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{
+          type,touchPoints:type==='touchEnd'?[]:[{x,y,id:88}],
+        });
+        await emit('touchStart',selectedScreenPoint.x,selectedScreenPoint.y);
+        for(let step=1;step<=10;step++) {
+          await emit('touchMove',selectedScreenPoint.x+step*7,selectedScreenPoint.y-step*3);
+          await pause(50);
+        }
+        await emit('touchEnd',selectedScreenPoint.x+70,selectedScreenPoint.y-30);
+      } else {
+        await page.mouse.move(selectedScreenPoint.x,selectedScreenPoint.y);
+        await page.mouse.down();
+        await page.mouse.move(selectedScreenPoint.x+95,selectedScreenPoint.y-40,{steps:12});
+        await page.mouse.up();
+      }
+      await pause(200);
+      const moved=(await page.getByTestId('visual-move-offsets').first().textContent())||'';
+      assert.ok(!moved.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
+        device.name+': selected part did not move from true mouse/touch drag: '+moved);
+      console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
+      await controls.getByRole('button',{name:'Reset Selected Part'}).click();
       await selector.selectOption('0');
       await page.screenshot({path:path.join(proof,device.name+'-selected-part.png'),fullPage:true});
       const offsets=page.getByTestId('visual-move-offsets').first();
