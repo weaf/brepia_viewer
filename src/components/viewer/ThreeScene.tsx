@@ -715,10 +715,12 @@ export function ThreeScene({
   const availablePartCount = partObjects.length;
   const selectedPartOffset = selectedPart === null ? [0,0,0] as VisualMoveOffset
     : (partOffsets[selectedPart] ?? [0,0,0] as VisualMoveOffset);
-  const setSelectedPartOffset = (offset: VisualMoveOffset) => {
+  // Stable during a drag: otherwise VisualMoveManipulator cleans up its
+  // native pointer listeners whenever parent state changes.
+  const setSelectedPartOffset = useCallback((offset: VisualMoveOffset) => {
     if (selectedPart === null) return;
     setPartOffsets(current => ({ ...current, [selectedPart]: offset }));
-  };
+  }, [selectedPart]);
   const resetSelectedPart = () => {
     if (selectedPart === null) return;
     setPartOffsets(current => ({ ...current, [selectedPart]: [0,0,0] }));
