@@ -210,6 +210,7 @@ function VisualMoveManipulator({
   onAxisChange,
   onOffsetChange,
   onDraggingChange,
+  onPinchingChange,
   onUserCameraMove,
 }: {
   children: React.ReactNode;
@@ -220,14 +221,23 @@ function VisualMoveManipulator({
   onAxisChange: (axis: 0 | 1 | 2) => void;
   onOffsetChange: (offset: VisualMoveOffset) => void;
   onDraggingChange: (dragging: boolean) => void;
+  onPinchingChange: (pinching: boolean) => void;
   onUserCameraMove: () => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
   const controls = useThree((state) => state.controls);
+  const gl = useThree((state) => state.gl);
+  const invalidate = useThree((state) => state.invalidate);
+  type Capture = {
+    setPointerCapture: (id: number) => void;
+    hasPointerCapture: (id: number) => boolean;
+    releasePointerCapture: (id: number) => void;
+  };
   const dragRef = useRef<{
     pointerId: number;
+    capture: Capture;
     axis: 0 | 1 | 2;
     x: number;
     y: number;
@@ -237,10 +247,17 @@ function VisualMoveManipulator({
     fallbackUnitsPerPixel: number;
   } | null>(null);
   const controlsRef = useRef<{ controls: { enabled: boolean }; wasEnabled: boolean } | null>(null);
+  const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const pinchControlsRef = useRef<{ enabled: boolean; wasEnabled: boolean } | null>(null);
 
   const endDrag = useCallback((pointerId: number) => {
-    if (dragRef.current?.pointerId !== pointerId) return;
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== pointerId) return;
     dragRef.current = null;
+    if (drag.capture.hasPointerCapture(pointerId)) {
+      drag.capture.releasePointerCapture(pointerId);
+    }
     if (controlsRef.current) {
       controlsRef.current.controls.enabled = controlsRef.current.wasEnabled;
       controlsRef.current = null;
@@ -248,14 +265,102 @@ function VisualMoveManipulator({
     onDraggingChange(false);
   }, [onDraggingChange]);
 
-  useEffect(() => () => {
-    if (controlsRef.current) controlsRef.current.controls.enabled = controlsRef.current.wasEnabled;
-    controlsRef.current = null;
-    dragRef.current = null;
-  }, []);
+  // Native pointer listeners survive React re-renders and raycast changes when
+  // the model moves away from the original touch point. The first finger drags
+  // the model; a second touch cancels that drag and switches to camera pinch zoom.
+  useEffect(() => {
+    const canvas = gl.domElement;
+    canvas.dataset.moveCameraZoom = String(camera.zoom);
+    const touches = touchPointsRef.current;
+    const distanceBetweenTouches = () => {
+      const [a, b] = [...touches.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+    const onDown = (event: PointerEvent) => {
+      if (!isMobile || event.pointerType !== "touch") return;
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touches.size === 2) {
+        if (dragRef.current) endDrag(dragRef.current.pointerId);
+        const active = controls as { enabled: boolean } | null;
+        if (active) {
+          pinchControlsRef.current = { enabled: active.enabled, wasEnabled: active.enabled };
+          active.enabled = false;
+        }
+        pinchRef.current = {
+          distance: Math.max(1, distanceBetweenTouches()),
+          zoom: camera.zoom,
+        };
+        onPinchingChange(true);
+        onUserCameraMove();
+      }
+    };
+    const onMove = (event: PointerEvent) => {
+      if (isMobile && event.pointerType === "touch" && touches.has(event.pointerId)) {
+        touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
+      const pinch = pinchRef.current;
+      if (isMobile && pinch && touches.size >= 2) {
+        if (event.cancelable) event.preventDefault();
+        camera.zoom = THREE.MathUtils.clamp(
+          pinch.zoom * distanceBetweenTouches() / pinch.distance,
+          0.01,
+          1000,
+        );
+        camera.updateProjectionMatrix();
+        canvas.dataset.moveCameraZoom = String(camera.zoom);
+        invalidate();
+        return;
+      }
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (event.cancelable) event.preventDefault();
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      const axisLengthSquared = drag.axisPixelsX ** 2 + drag.axisPixelsY ** 2;
+      const displacement = axisLengthSquared >= 16
+        ? (dx * drag.axisPixelsX + dy * drag.axisPixelsY) / axisLengthSquared
+        : -dy * drag.fallbackUnitsPerPixel;
+      const next = [...drag.initialOffset] as VisualMoveOffset;
+      // A mobile finger has less travel than a mouse; use a predictable,
+      // continuous gain rather than rounding or repeated step increments.
+      next[drag.axis] += displacement * (isMobile ? 2 : 1);
+      onOffsetChange(next);
+    };
+    const onEnd = (event: PointerEvent) => {
+      if (dragRef.current?.pointerId === event.pointerId) endDrag(event.pointerId);
+      touches.delete(event.pointerId);
+      // Ignore the remaining finger until it lifts: no surprise second drag.
+      if (pinchRef.current && touches.size === 0) {
+        pinchRef.current = null;
+        if (pinchControlsRef.current) {
+          pinchControlsRef.current.enabled = pinchControlsRef.current.wasEnabled;
+          pinchControlsRef.current = null;
+        }
+        onPinchingChange(false);
+      }
+    };
+    canvas.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointermove", onMove, { capture: true, passive: false });
+    window.addEventListener("pointerup", onEnd, true);
+    window.addEventListener("pointercancel", onEnd, true);
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onEnd, true);
+      window.removeEventListener("pointercancel", onEnd, true);
+      if (dragRef.current) endDrag(dragRef.current.pointerId);
+      if (pinchControlsRef.current) {
+        pinchControlsRef.current.enabled = pinchControlsRef.current.wasEnabled;
+        pinchControlsRef.current = null;
+      }
+      touches.clear();
+      pinchRef.current = null;
+    };
+  }, [camera, controls, endDrag, gl, invalidate, isMobile, onOffsetChange, onPinchingChange, onUserCameraMove]);
 
   const startDrag = (event: ThreeEvent<PointerEvent>, chosenAxis: 0 | 1 | 2) => {
-    if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
+    if (event.button !== 0 || !event.isPrimary ||
+        dragRef.current || pinchRef.current || touchPointsRef.current.size > 1) return;
     const model = groupRef.current;
     if (!model) return;
     event.stopPropagation();
@@ -276,8 +381,9 @@ function VisualMoveManipulator({
       : camera instanceof THREE.PerspectiveCamera
         ? 2 * origin.distanceTo(camera.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / size.height
         : 1 / size.height;
+    const capture = event.target as unknown as Capture;
     dragRef.current = {
-      pointerId: event.pointerId, axis: chosenAxis,
+      pointerId: event.pointerId, capture, axis: chosenAxis,
       x: event.clientX, y: event.clientY,
       initialOffset: [...offset] as VisualMoveOffset,
       axisPixelsX, axisPixelsY, fallbackUnitsPerPixel,
@@ -290,25 +396,7 @@ function VisualMoveManipulator({
     onAxisChange(chosenAxis);
     onDraggingChange(true);
     onUserCameraMove();
-    (event.target as unknown as { setPointerCapture: (id: number) => void }).setPointerCapture(event.pointerId);
-  };
-
-  const movePointer = (event: ThreeEvent<PointerEvent>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.stopPropagation();
-    event.nativeEvent.preventDefault();
-    const dx = event.clientX - drag.x;
-    const dy = event.clientY - drag.y;
-    const axisLengthSquared = drag.axisPixelsX ** 2 + drag.axisPixelsY ** 2;
-    // Looking directly along the selected axis: use vertical movement,
-    // scaled to the current camera, instead of dividing by a near-zero projection.
-    const displacement = axisLengthSquared >= 16
-      ? (dx * drag.axisPixelsX + dy * drag.axisPixelsY) / axisLengthSquared
-      : -dy * drag.fallbackUnitsPerPixel;
-    const next = [...drag.initialOffset] as VisualMoveOffset;
-    next[drag.axis] += displacement;
-    onOffsetChange(next);
+    capture.setPointerCapture(event.pointerId);
   };
 
   const arrowColors = ["#ff5959", "#43e6a2", "#4887ff"];
@@ -317,21 +405,8 @@ function VisualMoveManipulator({
   ];
 
   return (
-    <group
-      ref={groupRef}
-      position={offset}
+    <group ref={groupRef} position={offset}
       onPointerDown={(event) => startDrag(event, axis)}
-      onPointerMove={movePointer}
-      onPointerUp={(event) => {
-        if (dragRef.current?.pointerId !== event.pointerId) return;
-        movePointer(event);
-        endDrag(event.pointerId);
-        const capture = event.target as unknown as {
-          hasPointerCapture: (id: number) => boolean;
-          releasePointerCapture: (id: number) => void;
-        };
-        if (capture.hasPointerCapture(event.pointerId)) capture.releasePointerCapture(event.pointerId);
-      }}
       onPointerCancel={(event) => endDrag(event.pointerId)}
       onLostPointerCapture={(event) => endDrag(event.pointerId)}
     >
@@ -344,8 +419,7 @@ function VisualMoveManipulator({
           <group key={i}>
             <Line points={[[0, 0, 0], direction]} color={arrowColors[i]}
               lineWidth={selected ? 4 : 2.5} raycast={() => {}} />
-            <mesh
-              position={direction}
+            <mesh position={direction}
               onPointerDown={(event) => startDrag(event, axisIndex)}
               onPointerOver={() => { if (!isMobile) document.body.style.cursor = "grab"; }}
               onPointerOut={() => { if (!isMobile) document.body.style.cursor = ""; }}
@@ -382,6 +456,7 @@ export function ThreeScene({
   const [visualMoveAxis, setVisualMoveAxis] = useState<0 | 1 | 2>(0);
   const [visualMoveDelta, setVisualMoveDelta] = useState<VisualMoveOffset>([0, 0, 0]);
   const [draggingVisualMove, setDraggingVisualMove] = useState(false);
+  const [pinchingVisualMove, setPinchingVisualMove] = useState(false);
   const [mobilePrecisionExpanded, setMobilePrecisionExpanded] = useState(false);
   const [measurementMode, setMeasurementMode] = useState<"distance" | "angle">("distance");
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("mm");
@@ -672,6 +747,7 @@ export function ThreeScene({
                 onAxisChange={setVisualMoveAxis}
                 onOffsetChange={setVisualMoveDelta}
                 onDraggingChange={setDraggingVisualMove}
+                onPinchingChange={setPinchingVisualMove}
                 onUserCameraMove={preserveCamera}
               >{modelElement}</VisualMoveManipulator>
             ) : modelElement}
@@ -755,7 +831,7 @@ export function ThreeScene({
           followCamera={false}
           infiniteGrid={true}
         /> */}
-          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement && !draggingVisualMove} onUserCameraMove={preserveCamera} />
+          <ViewerControls uprightLocked={uprightLocked} enabled={!draggingMeasurement && !draggingVisualMove && !pinchingVisualMove} onUserCameraMove={preserveCamera} />
           {showViewGizmo && (
             <ViewGizmo
               onViewChange={preserveCamera}
@@ -767,17 +843,18 @@ export function ThreeScene({
       </Suspense>
 
       {visualEditAllowed && (
-        <div className="absolute left-2 top-14 z-20 flex max-w-[min(90vw,330px)] flex-col gap-1.5 rounded-lg border border-white/15 bg-black/75 p-1.5 text-white shadow-lg"
+        <div className={cn("absolute left-2 z-20 flex max-w-[min(90vw,330px)] flex-col rounded-lg border border-white/15 bg-black/85 text-white shadow-lg", isMobile ? "bottom-[4.25rem] p-0.5" : "top-14 gap-1.5 p-1.5")}
           data-testid="visual-move-preview">
           <Button
             type="button" size="sm"
             variant={visualMoving ? "secondary" : "ghost"}
-            className="h-11 justify-start gap-2 px-3 text-xs"
+            className={cn("justify-start gap-1.5 text-xs", isMobile ? "h-9 px-2" : "h-11 px-3")}
             aria-label="Preview visual movement"
             aria-pressed={visualMoving}
             onClick={() => {
               setVisualMoving(current => !current);
               setDraggingVisualMove(false);
+              setPinchingVisualMove(false);
               setMeasuring(false);
               setVisualMoveDelta([0, 0, 0]);
             }}
