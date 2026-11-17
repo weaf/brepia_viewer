@@ -926,7 +926,7 @@ export function ThreeScene({
         </Canvas>
       </Suspense>
 
-      {visualEditAllowed && (
+      {visualEditAllowed && (!isMobile || !visualMoving || !partModelElement) && (
         <div className={cn("absolute left-2 z-20 flex max-w-[min(90vw,330px)] flex-col rounded-lg border border-white/15 bg-black/85 text-white shadow-lg", isMobile ? "bottom-12 p-0.5" : "top-14 gap-1.5 p-1.5")}
           data-testid="visual-move-preview">
           <Button
@@ -945,7 +945,7 @@ export function ThreeScene({
           >
             Visual move {visualMoving ? "on" : "preview"}
           </Button>
-          {visualMoving && Boolean(partModelElement) && (
+          {visualMoving && Boolean(partModelElement) && !isMobile && (
             <div className="space-y-1 px-2 pb-1 text-xs">
               <label className="flex items-center gap-2" htmlFor="visual-move-mode">
                 Move
@@ -1103,8 +1103,57 @@ export function ThreeScene({
       </div>
        {visualEditAllowed && visualMoving && isMobile && (
          <div className="relative z-10 flex w-full shrink-0 flex-col border-t border-white/15 bg-adam-background-1/95 px-2 py-1 text-xs text-adam-text-primary"
-           data-testid="visual-move-mobile-controls">
-           <div className="flex h-10 items-center gap-2">
+            data-testid="visual-move-mobile-controls">
+            {partModelElement && (
+              <div className="flex h-9 min-w-0 items-center gap-2" data-testid="part-move-mode-mobile">
+                <button type="button" aria-label="Preview visual movement" aria-pressed={visualMoving}
+                  className="h-9 shrink-0 rounded-md border border-white/20 px-2"
+                  onClick={() => {
+                    setVisualMoving(false);
+                    setDraggingVisualMove(false);
+                    setPinchingVisualMove(false);
+                    setVisualMoveDelta([0, 0, 0]);
+                  }}>Move on</button>
+                <select id="visual-move-mode-mobile" aria-label="Move mode"
+                  className="h-9 min-w-0 max-w-36 rounded-md border border-white/20 bg-adam-background-1 px-2"
+                  value={visualMoveMode}
+                  onChange={event => {
+                    setVisualMoveMode(event.target.value as 'whole' | 'part');
+                    setDraggingVisualMove(false);
+                  }}>
+                  <option value="whole">Whole Model</option>
+                  <option value="part">Selected Part</option>
+                </select>
+                {visualMoveMode === 'part' && (
+                  <span className="min-w-0 flex-1 truncate text-xs text-adam-text-primary">
+                    {selectedPart === null ? 'Tap part in 3D' : 'Part ' + (selectedPart + 1)}
+                  </span>
+                )}
+              </div>
+            )}
+            {partModelElement && visualMoveMode === 'part' && (
+              <div className="flex h-10 min-w-0 items-center gap-2" data-testid="part-move-controls">
+                <label className="sr-only" htmlFor="part-move-selector-mobile">Part</label>
+                <select id="part-move-selector-mobile" aria-label="Select model part"
+                  className="h-9 min-w-0 flex-1 rounded-md border border-white/20 bg-adam-background-1 px-2"
+                  value={selectedPart ?? ''}
+                  onChange={event => setSelectedPart(Number(event.target.value))}>
+                  <option value="" disabled>Choose part</option>
+                  {partObjects.map((part, index) => (
+                    <option key={index} value={index}>Part {index + 1} ({part.userData.triangleCount} triangles)</option>
+                  ))}
+                </select>
+                <button type="button" aria-label="Reset Selected Part" title="Reset selected part"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
+                  onClick={resetSelectedPart} disabled={selectedPart === null}>
+                  <Undo2 className="h-4 w-4" />
+                </button>
+                <button type="button" aria-label="Reset All Parts" title="Reset all parts"
+                  className="h-9 shrink-0 rounded-md border border-white/20 px-2"
+                  onClick={() => setPartOffsets({})}>All</button>
+              </div>
+            )}
+            <div className="flex h-10 items-center gap-2">
              <label htmlFor="visual-move-axis" className="sr-only">Move axis</label>
              <select id="visual-move-axis" aria-label="Visual move axis" title="OpenSCAD axes: Z is vertical"
                value={visualMoveAxis}
