@@ -192,10 +192,18 @@ try {
     await desktopPage.getByRole("menuitemcheckbox",
       { name: "Enable visual move and diagnostics" }).click();
     const desktopMoveToggle = desktopPage.getByRole("button", { name: "Preview visual movement" });
-    if (await desktopMoveToggle.getAttribute("aria-pressed") !== "true") {
-      await desktopMoveToggle.click();
+    // An OpenSCAD compile completing immediately after load can reset Move.
+    // Wait for a stable active state before beginning drag acceptance checks.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (await desktopMoveToggle.getAttribute("aria-pressed") !== "true") {
+        await desktopMoveToggle.click();
+      }
+      await pause(650);
+      if (await desktopMoveToggle.getAttribute("aria-pressed") === "true") break;
     }
-    assert.equal(await desktopMoveToggle.getAttribute("aria-pressed"), "true");
+    const desktopActive = await desktopMoveToggle.getAttribute("aria-pressed");
+    console.log("VISUAL_MOVE_DESKTOP_READY", desktopActive);
+    assert.equal(desktopActive, "true", "Move must stay active after the model compiles");
     const desktopCanvas = desktopPage.getByRole("region",
       { name: "3D model preview" }).locator("canvas").first();
     await desktopCanvas.waitFor({ state: "visible" });
