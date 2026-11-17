@@ -85,7 +85,7 @@ try {
       assert.ok(!moved.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
         device.name+': selected part did not move from true mouse/touch drag: '+moved);
       console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
-      await controls.getByRole('button',{name:'Reset Selected Part'}).click();
+      await page.getByRole('button',{name:'Reset Selected Part'}).click();
       await selector.selectOption('0');
       await page.screenshot({path:path.join(proof,device.name+'-selected-part.png'),fullPage:true});
       const offsets=page.getByTestId('visual-move-offsets').first();
@@ -106,7 +106,7 @@ try {
       assert.match(await offsets.textContent(),/X 0\.0 \/ Y 0\.0 \/ Z 0\.0/,'second part should keep independent transform');
       await selector.selectOption('0');
       if(device.mobile) assert.match(await offsets.textContent(),/X 15\.0/,'first part transform must persist');
-      await controls.getByRole('button',{name:'Reset Selected Part'}).click();
+      await page.getByRole('button',{name:'Reset Selected Part'}).click();
       assert.match(await offsets.textContent(),/X 0\.0/);
       await controls.getByRole('button',{name:'Reset All Parts'}).click();
       await page.screenshot({path:path.join(proof,device.name+'-reset.png'),fullPage:true});
