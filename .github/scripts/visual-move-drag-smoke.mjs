@@ -208,7 +208,8 @@ try {
     const desktopOffsets = desktopPage.getByTestId("visual-move-offsets");
     const desktopAxes = [];
     await desktopCanvas.screenshot({ path: path.join(evidence, "desktop-initial.png") });
-    for (const [axisId, dx, dy] of [[0, 160, 60], [1, 80, -140], [2, -150, -100]]) {
+    // Drag approximately along each projected OpenSCAD axis (Z is vertical).
+    for (const [axisId, dx, dy] of [[0, 160, 60], [1, -160, -80], [2, 0, -150]]) {
       await desktopPage.getByRole("combobox", { name: "Visual move axis" })
         .selectOption(String(axisId));
       await desktopPage.mouse.move(px, py);
@@ -227,6 +228,7 @@ try {
       await desktopPage.mouse.up();
       const result = await desktopOffsets.textContent();
       const match = result?.match(/Scene X (-?\d+\.\d+) \/ Y (-?\d+\.\d+) \/ Z (-?\d+\.\d+)/);
+      console.log("VISUAL_MOVE_DESKTOP_AXIS", JSON.stringify({ axisId, dx, dy, result, samples }));
       assert.ok(match && Math.abs(Number(match[axisId + 1])) > 0.2,
         "Desktop drag did not translate along axis " + axisId + ": " + result);
       assert.ok(new Set(samples).size >= 2,
