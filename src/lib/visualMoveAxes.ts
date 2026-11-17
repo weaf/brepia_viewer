@@ -7,7 +7,7 @@
 export type VisualMoveAxis = 0 | 1 | 2;
 export type VisualMoveOffset = [number, number, number];
 
-export function scadToViewerOffset([x, y, z]: readonly number[]): VisualMoveOffset {
+export function scadToViewerOffset([x, y, z]: Readonly<VisualMoveOffset>): VisualMoveOffset {
   return [x, z, -y];
 }
 
