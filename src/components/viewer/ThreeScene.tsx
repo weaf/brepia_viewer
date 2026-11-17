@@ -1105,17 +1105,20 @@ export function ThreeScene({
          <div className="relative z-10 flex w-full shrink-0 flex-col border-t border-white/15 bg-adam-background-1/95 px-2 py-1 text-xs text-adam-text-primary"
             data-testid="visual-move-mobile-controls">
             {partModelElement && (
-              <div className="flex h-9 min-w-0 items-center gap-2" data-testid="part-move-mode-mobile">
+              <div className="flex h-10 min-w-0 items-center gap-1"
+                data-testid={visualMoveMode === 'part' ? 'part-move-controls' : 'part-move-mode-mobile'}>
                 <button type="button" aria-label="Preview visual movement" aria-pressed={visualMoving}
-                  className="h-9 shrink-0 rounded-md border border-white/20 px-2"
+                  title="Turn off visual move"
+                  className="h-9 w-10 shrink-0 rounded-md border border-white/20"
                   onClick={() => {
                     setVisualMoving(false);
                     setDraggingVisualMove(false);
                     setPinchingVisualMove(false);
                     setVisualMoveDelta([0, 0, 0]);
-                  }}>Move on</button>
+                  }}>Off</button>
+                <label className="sr-only" htmlFor="visual-move-mode-mobile">Move mode</label>
                 <select id="visual-move-mode-mobile" aria-label="Move mode"
-                  className="h-9 min-w-0 max-w-36 rounded-md border border-white/20 bg-adam-background-1 px-2"
+                  className="h-9 w-28 shrink-0 rounded-md border border-white/20 bg-adam-background-1 px-1"
                   value={visualMoveMode}
                   onChange={event => {
                     setVisualMoveMode(event.target.value as 'whole' | 'part');
@@ -1125,32 +1128,22 @@ export function ThreeScene({
                   <option value="part">Selected Part</option>
                 </select>
                 {visualMoveMode === 'part' && (
-                  <span className="min-w-0 flex-1 truncate text-xs text-adam-text-primary">
-                    {selectedPart === null ? 'Tap part in 3D' : 'Part ' + (selectedPart + 1)}
-                  </span>
+                  <>
+                    <label className="sr-only" htmlFor="part-move-selector-mobile">Part</label>
+                    <select id="part-move-selector-mobile" aria-label="Select model part"
+                      className="h-9 min-w-0 flex-1 rounded-md border border-white/20 bg-adam-background-1 px-1"
+                      value={selectedPart ?? ''}
+                      onChange={event => setSelectedPart(Number(event.target.value))}>
+                      <option value="" disabled>Choose part</option>
+                      {partObjects.map((part, index) => (
+                        <option key={index} value={index}>Part {index + 1} ({part.userData.triangleCount} triangles)</option>
+                      ))}
+                    </select>
+                    <button type="button" aria-label="Reset All Parts" title="Reset all parts"
+                      className="h-9 w-9 shrink-0 rounded-md border border-white/20"
+                      onClick={() => setPartOffsets({})}>All</button>
+                  </>
                 )}
-              </div>
-            )}
-            {partModelElement && visualMoveMode === 'part' && (
-              <div className="flex h-10 min-w-0 items-center gap-2" data-testid="part-move-controls">
-                <label className="sr-only" htmlFor="part-move-selector-mobile">Part</label>
-                <select id="part-move-selector-mobile" aria-label="Select model part"
-                  className="h-9 min-w-0 flex-1 rounded-md border border-white/20 bg-adam-background-1 px-2"
-                  value={selectedPart ?? ''}
-                  onChange={event => setSelectedPart(Number(event.target.value))}>
-                  <option value="" disabled>Choose part</option>
-                  {partObjects.map((part, index) => (
-                    <option key={index} value={index}>Part {index + 1} ({part.userData.triangleCount} triangles)</option>
-                  ))}
-                </select>
-                <button type="button" aria-label="Reset Selected Part" title="Reset selected part"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
-                  onClick={resetSelectedPart} disabled={selectedPart === null}>
-                  <Undo2 className="h-4 w-4" />
-                </button>
-                <button type="button" aria-label="Reset All Parts" title="Reset all parts"
-                  className="h-9 shrink-0 rounded-md border border-white/20 px-2"
-                  onClick={() => setPartOffsets({})}>All</button>
               </div>
             )}
             <div className="flex h-10 items-center gap-2">
@@ -1164,7 +1157,9 @@ export function ThreeScene({
              <span className="min-w-0 flex-1 truncate font-mono" data-testid="visual-move-offsets">
                Scene X {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[0].toFixed(1)} / Y {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[1].toFixed(1)} / Z {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[2].toFixed(1)}
              </span>
-             <button type="button" aria-label="Reset position" title="Reset position"
+             <button type="button"
+               aria-label={visualMoveMode === 'part' ? 'Reset Selected Part' : 'Reset position'}
+               title={visualMoveMode === 'part' ? 'Reset selected part' : 'Reset position'}
                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
                onClick={() => { if (visualMoveMode === 'part') resetSelectedPart(); else setVisualMoveDelta([0,0,0]); }}><Undo2 className="h-4 w-4" /></button>
              <button type="button"
