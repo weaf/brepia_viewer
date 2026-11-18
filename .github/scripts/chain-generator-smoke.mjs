@@ -131,7 +131,7 @@ try {
       await page.getByRole("menuitemcheckbox",{name:"Enable fast STL-only preview"}).waitFor({state:"visible"});
       assert.equal(await page.getByRole("menuitem",{name:"Open parametric chain generator"}).count(),0,
         "Chain generator must not appear in Experimental");
-      assert.equal(await page.getByRole("menuitemcheckbox",{name:"Enable visual move and diagnostics"}).count(),1);
+      assert.equal(await page.getByRole("menuitemcheckbox",{name:"Enable visual move and diagnostics"}).count(),0, "Move must be in the standard toolbar");
       await page.screenshot({path:path.join(output,device.name+"-experimental-menu.png"),fullPage:true});
       await page.getByRole("button",{name:"Experimental menu"}).click();
       await page.getByRole("button",{name:"Open chain generator",exact:true}).click();
