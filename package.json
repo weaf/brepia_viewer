@@ -44,7 +44,6 @@
     "@shikijs/langs": "^3.23.0",
     "@shikijs/themes": "^3.23.0",
     "@tanstack/react-router": "^1.169.2",
-    "@tanstack/react-start": "^1.167.65",
     "@types/three": "^0.160.0",
     "@zip.js/zip.js": "^2.7.63",
     "class-variance-authority": "^0.7.0",
@@ -79,6 +78,7 @@
     "typescript": "5.8.3",
     "typescript-eslint": "^8.68.0",
     "vite": "^8.0.11",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "@tanstack/react-start": "^1.167.65"
   }
 }

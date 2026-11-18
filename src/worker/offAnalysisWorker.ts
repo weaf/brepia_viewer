@@ -1,11 +1,12 @@
 import { parseColoredOff } from '../utils/offParser';
+import { prepareOffParts } from '../utils/preparedOffParts';
 import { inspectParsedColoredOff } from '../utils/offColorInspector';
 import { extractFeatureEdgeTopology } from '../lib/featureEdgeTopology';
 import { prepareColoredOffMesh, transferableOffMeshBuffers } from '../utils/preparedOffMesh';
 
 // Experimental OFF analysis stays isolated from main-thread Three.js objects.
 // Old responses are still supported for worker regression tests and fallback.
-self.onmessage = (event: MessageEvent<{ text: string; prepareBuffers?: boolean }>) => {
+self.onmessage = (event: MessageEvent<{ text: string; prepareBuffers?: boolean; prepareParts?: boolean }>) => {
   try {
     const start = performance.now();
     const parsed = parseColoredOff(event.data.text);
@@ -18,11 +19,13 @@ self.onmessage = (event: MessageEvent<{ text: string; prepareBuffers?: boolean }
 
     if (event.data.prepareBuffers) {
       const prepared = prepareColoredOffMesh(parsed);
+      const partAnalysis = event.data.prepareParts ? prepareOffParts(parsed) : null;
       const preparedAt = performance.now();
       self.postMessage(
         {
           ok: true,
           prepared,
+          partAnalysis,
           inspection,
           edges,
           timings: {
@@ -32,7 +35,10 @@ self.onmessage = (event: MessageEvent<{ text: string; prepareBuffers?: boolean }
             totalMs: preparedAt - start,
           },
         },
-        transferableOffMeshBuffers(prepared),
+        [
+          ...transferableOffMeshBuffers(prepared),
+          ...(partAnalysis?.parts.flatMap(part => transferableOffMeshBuffers(part.mesh)) ?? []),
+        ],
       );
       return;
     }

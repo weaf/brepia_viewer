@@ -218,8 +218,13 @@ try {
     await desktopCanvas.screenshot({ path: path.join(evidence, "desktop-initial.png") });
     // Drag approximately along each projected OpenSCAD axis (Z is vertical).
     for (const [axisId, dx, dy] of [[0, 160, 60], [1, -160, -80], [2, 0, -150]]) {
-      await desktopPage.getByRole("combobox", { name: "Visual move axis" })
-        .selectOption(String(axisId));
+      const axisSelector = desktopPage.getByRole("combobox", { name: "Visual move axis" });
+      await axisSelector.selectOption(String(axisId));
+      // DOM controls update before the nested R3F Canvas pointer handlers.
+      // Give the 3D scene a frame to reconcile before starting the gesture.
+      await pause(350);
+      assert.equal(await axisSelector.inputValue(), String(axisId),
+        "Desktop axis selection must be stable before gesture");
       await desktopPage.mouse.move(px, py);
       await desktopPage.mouse.down();
       const samples = [];
