@@ -12,7 +12,7 @@ import {
 import type { DxfExporter } from "@/utils/downloadUtils";
 import { createDXFProjectionCode } from "@/utils/dxfUtils";
 import { type EnabledOpenScadExportFormat } from "@/lib/openScadExportFormats";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, Expand, Shrink } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BufferGeometry, Group } from "three";
 import { parseColoredOff } from "@/utils/offParser";
@@ -70,6 +70,15 @@ export function LocalOpenScadPreview({
     isError,
   } = useOpenSCAD();
   const isMobile = useIsMobile();
+  const [viewerExpanded, setViewerExpanded] = useState(false);
+  useEffect(() => {
+    if (!viewerExpanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewerExpanded(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [viewerExpanded]);
   const failure = isError ? describeOpenScadFailure(error) : null;
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [stlTimings, setStlTimings] = useState<{
@@ -480,12 +489,22 @@ export function LocalOpenScadPreview({
   const fastStlOnly = experimentalFastPreview;
   return (
     <section
-      className={`relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrained ? "min-h-0" : "min-h-[22rem]"}`}
+      className={viewerExpanded
+        ? "fixed inset-0 z-[100] flex h-[100dvh] w-screen flex-col overflow-hidden bg-adam-neutral-800"
+        : `relative flex h-full flex-col overflow-hidden rounded-xl border border-adam-neutral-700 bg-adam-neutral-800 ${constrained ? "min-h-0" : "min-h-[22rem]"}`}
       aria-label="3D model preview"
     >
-      <div className="absolute left-3 top-3 z-10 rounded-md border border-white/10 bg-black/45 px-2.5 py-1.5 font-mono text-[10px] text-white/75">
+      <div className="absolute left-3 top-3 z-10 max-w-[calc(100%-5rem)] truncate rounded-md border border-white/10 bg-black/45 px-2.5 py-1.5 font-mono text-[10px] text-white/75">
         {entrypoint.path}
       </div>
+      <button type="button"
+        className="absolute right-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/75 text-white"
+        aria-label={viewerExpanded ? "Exit expanded viewer" : "Expand 3D viewer"}
+        aria-pressed={viewerExpanded}
+        title={viewerExpanded ? "Restore viewer" : "Expand viewer"}
+        onClick={() => setViewerExpanded(value => !value)}>
+        {viewerExpanded ? <Shrink className="h-5 w-5" /> : <Expand className="h-5 w-5" />}
+      </button>
       {(geometry || (!fastStlOnly && coloredGroup)) && (
         <div className="min-h-0 flex-1">
           <ThreeScene
@@ -500,7 +519,7 @@ export function LocalOpenScadPreview({
           />
         </div>
       )}
-      {offInspection && !fastStlOnly && (
+      {!viewerExpanded && offInspection && !fastStlOnly && (
         <details className="z-10 shrink-0 border-t border-white/15 bg-adam-neutral-800 text-adam-text-primary" data-testid="off-component-inspector">
           <summary className="flex min-h-10 cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-xs font-medium">
             Parts & colors
@@ -547,7 +566,7 @@ export function LocalOpenScadPreview({
           Orca Color export builds full color data on demand.
         </p>
       )}
-      {(experimentalEnabled || experimentalFastPreview) && !isCompiling && output instanceof Blob && (
+      {!viewerExpanded && experimentalFastPreview && !isCompiling && output instanceof Blob && (
         <PreviewDiagnostics
           durationMs={previewCompileDurationMs}
           roundTripMs={previewRoundTripMs}

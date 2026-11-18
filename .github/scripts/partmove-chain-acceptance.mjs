@@ -38,8 +38,6 @@ try {
   await sleep(2000);
   const inspection=(await page.getByTestId('off-component-inspector').textContent())||'';
   console.log('CHAIN_INSPECTION',inspection.slice(0,500));
-  await page.getByRole('button',{name:'Experimental menu'}).click();
-  await page.getByRole('menuitemcheckbox',{name:'Enable visual move and diagnostics'}).click();
   const toggle=page.getByRole('button',{name:'Preview visual movement'});
   const mode=page.getByRole('combobox',{name:'Move mode'});
   for(let attempt=0;attempt<6;attempt++){

@@ -28,13 +28,24 @@ try {
       await page.getByTestId('off-component-inspector').waitFor({state:'visible',timeout:120000});
       await page.getByRole('button',{name:'Cancel preview'}).waitFor({state:'hidden',timeout:120000});
       await pause(2000); // allow Stage first-camera fit before toggling Move
-      await page.getByRole('button',{name:'Experimental menu'}).click();
-      await page.getByRole('menuitemcheckbox',{name:'Enable visual move and diagnostics'}).click();
       const toggle=page.getByRole('button',{name:'Preview visual movement'});
       await toggle.waitFor({state:'visible'});
       if(await toggle.getAttribute('aria-pressed')!=='true')await toggle.click();
       await page.locator('canvas').first().screenshot({path:path.join(proof,device.name+'-whole-camera.png')});
       await page.getByRole('combobox',{name:'Move mode'}).selectOption('part');
+      if (device.mobile) {
+        const canvasBefore = await page.locator('canvas').first().boundingBox();
+        const expand = page.getByRole('button', {name:'Expand 3D viewer'});
+        await expand.click();
+        const canvasExpanded = await page.locator('canvas').first().boundingBox();
+        assert.ok(canvasBefore && canvasExpanded && canvasExpanded.height > canvasBefore.height + 140,
+          'Mobile expanded viewer did not increase visible 3D height');
+        for (const label of ['Y','Z','X']) {
+          await page.getByRole('button', {name:'Move along ' + label + ' axis'}).click();
+        }
+        assert.equal(await page.getByRole('button', {name:'Move along X axis'}).getAttribute('aria-pressed'), 'true');
+        await page.getByRole('button',{name:'Exit expanded viewer'}).click();
+      }
       await page.locator('canvas').first().screenshot({path:path.join(proof,device.name+'-part-camera.png')});
       const controls=page.getByTestId('part-move-controls');
       await controls.waitFor({state:'visible'});
