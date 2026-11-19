@@ -45,6 +45,13 @@ try {
         }
         assert.equal(await page.getByRole('button', {name:'Move along X axis'}).getAttribute('aria-pressed'), 'true');
         await page.getByRole('button',{name:'Exit expanded viewer'}).click();
+        const axisButtons = await page.getByRole('group', {name:'Move axis'}).boundingBox();
+        const mobileControls = await page.getByTestId('visual-move-mobile-controls').boundingBox();
+        assert.ok(axisButtons && axisButtons.width > axisButtons.height * 2,
+          'Mobile X/Y/Z axis buttons must be arranged horizontally, not as a tall overlay');
+        assert.ok(mobileControls && axisButtons.y + axisButtons.height < mobileControls.y,
+          'Mobile axis buttons must not cover part-selection controls');
+        await page.screenshot({path:path.join(proof,device.name+'-axis-layout.png'),fullPage:true});
       }
       await page.locator('canvas').first().screenshot({path:path.join(proof,device.name+'-part-camera.png')});
       const controls=page.getByTestId('part-move-controls');

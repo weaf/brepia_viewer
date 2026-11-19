@@ -990,7 +990,7 @@ export function ThreeScene({
         </div>
       )}
       {visualMoving && isMobile && (
-        <div className="absolute right-2 top-16 z-20 flex flex-col gap-1.5" role="group" aria-label="Move axis">
+        <div className="absolute right-2 top-16 z-20 flex flex-row gap-1.5" role="group" aria-label="Move axis">
           {(["X", "Y", "Z"] as const).map((label, index) => (
             <button key={label} type="button"
               aria-label={"Move along " + label + " axis"}
