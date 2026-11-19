@@ -40,14 +40,12 @@ try {
   });
   await page.getByTestId("off-component-inspector").waitFor({ state: "visible", timeout: 90000 });
   await page.getByRole("button", { name: "Cancel preview" }).waitFor({ state: "hidden", timeout: 90000 });
-  await page.getByRole("button", { name: "Experimental menu" }).click();
-  await page.getByRole("menuitemcheckbox", { name: "Enable visual move and diagnostics" }).click();
   const moveToggle = page.getByRole("button", { name: "Preview visual movement" });
   console.log("MOVE_TOGGLE_BEFORE", await moveToggle.getAttribute("aria-pressed"));
   if (await moveToggle.getAttribute("aria-pressed") !== "true") await moveToggle.click();
   console.log("MOVE_TOGGLE_STATE", await moveToggle.getAttribute("aria-pressed"),
     "viewport", await page.evaluate(() => [window.innerWidth, window.innerHeight]),
-    "scene", await page.getByTestId("visual-move-preview").innerText());
+    "scene", await page.getByTestId("visual-move-mobile-controls").innerText());
   const panel = page.getByTestId("visual-move-mobile-controls");
   await panel.waitFor({ timeout: 10000 }).catch(async error => {
     await page.screenshot({ path: path.join(evidence, "move-panel-missing.png"), fullPage: true });
@@ -65,6 +63,7 @@ try {
   const offsets = page.getByTestId("visual-move-offsets");
   const preview = page.getByRole("region", { name: "3D model preview" });
   const canvas = preview.locator("canvas").first();
+  await canvas.waitFor({ state: "visible", timeout: 45000 });
   const box = await canvas.boundingBox();
   assert.ok(box && box.width > 100 && box.height > 100, "Missing canvas");
   const centerX = Math.round(box.x + box.width / 2);
@@ -89,7 +88,7 @@ try {
   assert.match(await offsets.textContent(), /X 0\.0 \/ Y 0\.0 \/ Z 0\.0/, "Reset should zero translation");
   const repeatedDrags = [];
   for (const axisIndex of [1, 2, 0]) {
-    await panel.getByRole("combobox", { name: "Visual move axis" }).selectOption(String(axisIndex));
+    await page.getByRole("button", { name: "Move along " + ["X","Y","Z"][axisIndex] + " axis" }).click();
     await send("touchStart", centerX, centerY);
     for (let step = 1; step <= 12; step++) {
       await send("touchMove", centerX + step * 6, centerY - step * 6);
@@ -114,11 +113,10 @@ try {
   await canvas.screenshot({ path: path.join(evidence, "after-reset.png") });
   console.log("VISUAL_MOVE_TOUCH_PASS " + JSON.stringify({ during, after }));
   // Regression: the Move toggle must not obscure the top half of the model.
-  const movePill = await page.getByTestId("visual-move-preview").boundingBox();
-  assert.ok(movePill && movePill.height <= 56 &&
-    movePill.y > box.y + box.height * 0.45,
-    "Move toggle must be a small pill near the bottom of the canvas: " +
-    JSON.stringify({ movePill, box }));
+  const movePill = await page.getByTestId("viewer-move-toolbar-button").boundingBox();
+  assert.ok(movePill && movePill.height <= 40 && movePill.y > box.y + box.height * 0.45,
+    "Move toolbar icon should stay compact at the bottom of 3D canvas");
+
   await panel.getByRole("button", { name: "Reset position" }).click();
   const zoomBefore = Number(await canvas.getAttribute("data-move-camera-zoom"));
   assert.ok(zoomBefore > 0, "Expected camera zoom diagnostic");
@@ -146,7 +144,7 @@ try {
     "Pinch must not move model");
   await canvas.screenshot({ path: path.join(evidence, "mobile-after-pinch.png") });
   // Two distinct drag sessions after the pinch must each move the model.
-  await panel.getByRole("combobox", { name: "Visual move axis" }).selectOption("0");
+  await page.getByRole("button", { name: "Move along X axis" }).click();
   const dragPositions = [];
   for (let gesture = 0; gesture < 2; gesture++) {
     await send("touchStart", centerX, centerY);
@@ -188,9 +186,6 @@ try {
     await desktopPage.getByTestId("off-component-inspector").waitFor({ state: "visible", timeout: 90000 });
     await desktopPage.getByRole("button", { name: "Cancel preview" })
       .waitFor({ state: "hidden", timeout: 90000 });
-    await desktopPage.getByRole("button", { name: "Experimental menu" }).click();
-    await desktopPage.getByRole("menuitemcheckbox",
-      { name: "Enable visual move and diagnostics" }).click();
     const desktopMoveToggle = desktopPage.getByRole("button", { name: "Preview visual movement" });
     // An OpenSCAD compile completing immediately after load can reset Move.
     // Wait for a stable active state before beginning drag acceptance checks.

@@ -72,8 +72,9 @@ try {
       if (await page.getByRole('menuitem', { name: 'Open parametric chain generator' }).count() !== 0) {
         throw new Error('Duplicate chain generator action remains in Experimental');
       }
-      const visualTools = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
-      if ((await visualTools.getAttribute('data-state')) !== 'unchecked') throw new Error('Visual move should default off');
+      if (await page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' }).count()) {
+        throw new Error('Move unexpectedly remains in Experimental');
+      }
       const fastToggle = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       await fastToggle.waitFor();
       if ((await fastToggle.getAttribute('data-state')) !== 'unchecked') throw new Error('Fast preview unexpectedly enabled');
@@ -168,21 +169,18 @@ try {
       }
       await page.screenshot({ path: path.join(evidence, device.name + '-restored-colors.png') });
 
-      // The other toggle is independent: visual move appears on its own,
-      // and Fast STL stays off throughout this action.
-      await openExperimental();
-      const visualToggle = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
-      if (await visualToggle.getAttribute('data-state') !== 'unchecked') throw new Error('Visual mode unexpectedly enabled');
-      await visualToggle.click();
-      await page.getByTestId('visual-move-preview').waitFor({ state: 'visible' });
-      await openExperimental();
-      const visualOn = page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' });
-      if (await visualOn.getAttribute('data-state') !== 'checked') throw new Error('Visual mode did not activate on first click');
-      if (await page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' }).getAttribute('data-state') !== 'unchecked') {
-        throw new Error('Visual mode incorrectly enabled fast preview');
-      }
-      await visualOn.click();
-      await page.getByTestId('visual-move-preview').waitFor({ state: 'hidden' });
+       // Move is a standard viewer tool; Fast remains a separate experiment.
+       const move = page.getByRole('button', { name: 'Preview visual movement' });
+       await move.waitFor({ state: 'visible' });
+       await move.click();
+       if (await move.getAttribute('aria-pressed') !== 'true') throw new Error('Move toolbar did not activate');
+       await openExperimental();
+       if (await page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' }).getAttribute('data-state') !== 'unchecked') {
+         throw new Error('Move unexpectedly activated fast preview');
+       }
+       await page.keyboard.press('Escape');
+       await move.click();
+       if (await move.getAttribute('aria-pressed') !== 'false') throw new Error('Move toolbar did not deactivate');
       if (errors.length) throw new Error('Browser errors: ' + errors.join('; '));
       reports.push({ device: device.name, status: 'PASS', canvas: await geometryCanvas.count(),
         orca3mfBytes: (await readFile(file)).byteLength });

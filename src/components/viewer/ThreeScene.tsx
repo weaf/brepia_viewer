@@ -11,7 +11,7 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, ChevronDown, ChevronUp, Lock, Moon, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
+import { Box, ChevronDown, ChevronUp, Lock, Moon, Move3D, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
 import { OrthographicPerspectiveToggle } from "@/components/viewer/OrthographicPerspectiveToggle";
 import { ViewGizmo } from "@/components/viewer/ViewGizmo";
 import { Button } from "@/components/ui/button";
@@ -926,25 +926,9 @@ export function ThreeScene({
         </Canvas>
       </Suspense>
 
-      {visualEditAllowed && (!isMobile || !visualMoving || !partModelElement) && (
+      {visualEditAllowed && visualMoving && !isMobile && (
         <div className={cn("absolute left-2 z-20 flex max-w-[min(90vw,330px)] flex-col rounded-lg border border-white/15 bg-black/85 text-white shadow-lg", isMobile ? "bottom-12 p-0.5" : "top-14 gap-1.5 p-1.5")}
           data-testid="visual-move-preview">
-          <Button
-            type="button" size="sm"
-            variant={visualMoving ? "secondary" : "ghost"}
-            className={cn("justify-start gap-1.5 text-xs", isMobile ? "h-9 px-2" : "h-11 px-3")}
-            aria-label="Preview visual movement"
-            aria-pressed={visualMoving}
-            onClick={() => {
-              setVisualMoving(current => !current);
-              setDraggingVisualMove(false);
-              setPinchingVisualMove(false);
-              setMeasuring(false);
-              setVisualMoveDelta([0, 0, 0]);
-            }}
-          >
-            Visual move {visualMoving ? "on" : "preview"}
-          </Button>
           {visualMoving && Boolean(partModelElement) && !isMobile && (
             <div className="space-y-1 px-2 pb-1 text-xs">
               <label className="flex items-center gap-2" htmlFor="visual-move-mode">
@@ -1005,6 +989,22 @@ export function ThreeScene({
           )}
         </div>
       )}
+      {visualMoving && isMobile && (
+        <div className="absolute right-2 top-16 z-20 flex flex-col gap-1.5" role="group" aria-label="Move axis">
+          {(["X", "Y", "Z"] as const).map((label, index) => (
+            <button key={label} type="button"
+              aria-label={"Move along " + label + " axis"}
+              aria-pressed={visualMoveAxis === index}
+              onClick={() => setVisualMoveAxis(index as 0 | 1 | 2)}
+              className={cn("flex h-9 w-9 items-center justify-center rounded-lg border text-xs font-bold shadow",
+                visualMoveAxis === index
+                  ? ["border-red-300 bg-red-600 text-white", "border-emerald-300 bg-emerald-600 text-white", "border-blue-300 bg-blue-600 text-white"][index]
+                  : "border-white/30 bg-black/70 text-white")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className={cn(
           "absolute bottom-2 left-2 z-10 flex w-20 items-center gap-0.5 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 px-1 py-1 backdrop-blur-sm sm:w-44 sm:gap-2 sm:px-2",
@@ -1034,6 +1034,24 @@ export function ThreeScene({
         )}
       >
         <div className="flex items-center gap-2">
+          {visualEditAllowed && (
+            <Button type="button" size="icon"
+              variant={visualMoving ? "secondary" : "ghost"}
+              className="h-8 w-8 rounded-full border border-adam-neutral-700/70 bg-adam-background-1/85 text-adam-text-primary backdrop-blur-sm"
+              aria-label="Preview visual movement"
+              title="Move model or selected part"
+              aria-pressed={visualMoving}
+              data-testid="viewer-move-toolbar-button"
+              onClick={() => {
+                setVisualMoving(value => !value);
+                setDraggingVisualMove(false);
+                setPinchingVisualMove(false);
+                setMeasuring(false);
+                setVisualMoveDelta([0, 0, 0]);
+              }}>
+              <Move3D className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             type="button"
             size="icon"
@@ -1107,15 +1125,6 @@ export function ThreeScene({
             {partModelElement && (
               <div className="flex h-10 min-w-0 items-center gap-1"
                 data-testid={visualMoveMode === 'part' ? 'part-move-controls' : 'part-move-mode-mobile'}>
-                <button type="button" aria-label="Preview visual movement" aria-pressed={visualMoving}
-                  title="Turn off visual move"
-                  className="h-9 w-10 shrink-0 rounded-md border border-white/20"
-                  onClick={() => {
-                    setVisualMoving(false);
-                    setDraggingVisualMove(false);
-                    setPinchingVisualMove(false);
-                    setVisualMoveDelta([0, 0, 0]);
-                  }}>Off</button>
                 <label className="sr-only" htmlFor="visual-move-mode-mobile">Move mode</label>
                 <select id="visual-move-mode-mobile" aria-label="Move mode"
                   className="h-9 w-28 shrink-0 rounded-md border border-white/20 bg-adam-background-1 px-1"
@@ -1147,13 +1156,7 @@ export function ThreeScene({
               </div>
             )}
             <div className="flex h-10 items-center gap-2">
-             <label htmlFor="visual-move-axis" className="sr-only">Move axis</label>
-             <select id="visual-move-axis" aria-label="Visual move axis" title="OpenSCAD axes: Z is vertical"
-               value={visualMoveAxis}
-               onChange={(event) => setVisualMoveAxis(Number(event.currentTarget.value) as 0 | 1 | 2)}
-               className="h-9 shrink-0 rounded-md border border-white/20 bg-adam-background-1 px-2">
-               <option value={0}>X</option><option value={1}>Y</option><option value={2}>Z</option>
-             </select>
+              <span className="shrink-0 rounded border border-white/20 px-2 py-1 font-semibold">{["X", "Y", "Z"][visualMoveAxis]}</span>
              <span className="min-w-0 flex-1 truncate font-mono" data-testid="visual-move-offsets">
                Scene X {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[0].toFixed(1)} / Y {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[1].toFixed(1)} / Z {(visualMoveMode === 'part' ? selectedPartOffset : visualMoveDelta)[2].toFixed(1)}
              </span>

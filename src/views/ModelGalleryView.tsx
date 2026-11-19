@@ -5,7 +5,6 @@ import { buildBuiltInGalleryCards } from "@/lib/builtInGalleryGroups";
 import { ExperimentalMenu } from "@/components/ExperimentalMenu";
 import { ChainGeneratorPanel } from "@/components/experimental/ChainGeneratorPanel";
 import { createChain } from "@/lib/chainGenerator/chainGenerator";
-import { EXPERIMENTAL_MODE_STORAGE_KEY, readExperimentalMode } from "@/lib/experimentalMode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProjectFilesEditor } from "@/components/parameter/ProjectFilesEditor";
@@ -177,8 +176,6 @@ export function ModelGalleryView() {
   const [urlImportProgress, setUrlImportProgress] = useState<string | null>(null);
   const [isBackupBusy, setIsBackupBusy] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
-  // Visual move is a standalone, saved opt-in; other experiments remain independent.
-  const [visualToolsEnabled, setVisualToolsEnabled] = useState(false);
   // Fast STL preview remains session-only and does not enable visual movement.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
   const [chainVisible, setChainVisible] = useState(false);
@@ -186,27 +183,12 @@ export function ModelGalleryView() {
   // Same pattern as Scroll lock: panel starts collapsed, presets stay saved per model.
   const [savedVariantsVisible, setSavedVariantsVisible] = useState(false);
   useEffect(() => {
-    try {
-      setVisualToolsEnabled(
-        readExperimentalMode(window.localStorage.getItem(EXPERIMENTAL_MODE_STORAGE_KEY)),
-      );
-    } catch {
-      // Browsers with blocked storage still allow the current-session toggle.
-    }
     // Signal that the server-rendered gallery is interactive after hydration.
     // Browser automation must not dispatch actions against inert SSR markup.
     document.documentElement.dataset.brepiaClientReady = "true";
     return () => {
       delete document.documentElement.dataset.brepiaClientReady;
     };
-  }, []);
-  const updateVisualTools = useCallback((enabled: boolean) => {
-    setVisualToolsEnabled(enabled);
-    try {
-      window.localStorage.setItem(EXPERIMENTAL_MODE_STORAGE_KEY, String(enabled));
-    } catch {
-      // Session-only when storage is blocked.
-    }
   }, []);
 
   const [thumbnails, setThumbnails] = useState<
@@ -1108,8 +1090,6 @@ export function ModelGalleryView() {
           <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
             <RepositoryLink compact />
             <ExperimentalMenu
-              visualToolsEnabled={visualToolsEnabled}
-              onVisualToolsChange={updateVisualTools}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
             />
@@ -1261,7 +1241,7 @@ export function ModelGalleryView() {
             key={activeRecord.id}
             project={activeRecord.project}
             assets={activeRecord.assetBlobs}
-            experimentalEnabled={visualToolsEnabled}
+            experimentalEnabled={true}
             experimentalFastPreview={fastPreviewEnabled}
             onExportStateChange={handlePreviewExportStateChange}
           />
@@ -1393,8 +1373,6 @@ export function ModelGalleryView() {
           <div className="flex flex-wrap items-center gap-2">
             <RepositoryLink />
             <ExperimentalMenu
-              visualToolsEnabled={visualToolsEnabled}
-              onVisualToolsChange={updateVisualTools}
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
             />
