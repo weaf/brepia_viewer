@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 - 2026-11-19 (Part Move, mobile fullscreen and OpenSCAD tools)
+
+- Select and move individual model parts directly in 3D using touch or mouse. Switch between Selected Part and Whole Model, choose X/Y/Z and reset positions.
+- Expand the 3D viewer on mobile. Move now has its own toolbar icon and compact, horizontal X/Y/Z buttons.
+- Create parametric chains with individual segment settings; preview or export SCAD, and import/export chain JSON.
+- Save named parameter variants and import/export OpenSCAD Customizer JSON presets.
+- Import public OpenSCAD files, folders and GitHub repositories from URL; browse models grouped by folder.
+- Measure distances and angles, with snapping on 3D geometry.
+- Better OpenSCAD editor navigation, parameter handling and preserved camera zoom.
+- Additional preview diagnostics and optional Fast STL preview under Experimental.
+
+Move changes the 3D preview only; it does not rewrite the SCAD source or change model exports.
+
 ## 0.4.0 - 2026-11-08 (Orca Color 3MF and Viewer improvements)
 
 - Add **Export → Orca Color → Single Object / Parts** with full RGB model colors and Orca-compatible color and filament metadata.
