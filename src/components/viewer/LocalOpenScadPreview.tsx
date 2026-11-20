@@ -1,5 +1,6 @@
 import { ActivityIndicator } from "@/components/brand";
 import { ThreeScene } from "@/components/viewer/ThreeScene";
+import { SourceMovePanel, type SelectedSourceMove } from "@/components/viewer/SourceMovePanel";
 import { describeOpenScadFailure } from "@/lib/openScadFeedback";
 import { PreviewDiagnostics } from "@/components/viewer/PreviewDiagnostics";
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
@@ -46,6 +47,8 @@ export function LocalOpenScadPreview({
   constrained = false,
   experimentalEnabled = false,
   experimentalFastPreview = false,
+  sourceMoveEnabled = false,
+  onApplySourceMove,
 }: {
   project: OpenScadProject;
   assets: Record<string, Blob>;
@@ -53,9 +56,12 @@ export function LocalOpenScadPreview({
   constrained?: boolean;
   experimentalEnabled?: boolean;
   experimentalFastPreview?: boolean;
+  sourceMoveEnabled?: boolean;
+  onApplySourceMove?: (path: string, content: string) => Promise<void>;
 }) {
   const {
     compileProject,
+    previewProjectColored,
     cancelPreview,
     isPreviewCancelled,
     previewCompileDurationMs,
@@ -88,6 +94,11 @@ export function LocalOpenScadPreview({
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
   const [partGroup, setPartGroup] = useState<Group | null>(null);
   const [partStatus, setPartStatus] = useState<PreparedOffPartsResult["status"] | null>(null);
+  const [sourceMoveSelected, setSourceMoveSelected] = useState<SelectedSourceMove | null>(null);
+  const reportPartMove = useCallback((next: SelectedSourceMove | null) => {
+    setSourceMoveSelected(previous => previous?.partIndex === next?.partIndex &&
+      previous?.offset.every((v,i) => v === next?.offset[i]) ? previous : next);
+  }, []);
   const disposePreviewParts = (group: Group) => {
     const parts = group.userData.parts as Group[] | undefined;
     if (parts) parts.forEach(part => disposeColoredGroup(part));
@@ -514,10 +525,20 @@ export function LocalOpenScadPreview({
             partStatus={partStatus}
             featureEdges={fastStlOnly ? [] : featureEdges}
             visualEditAllowed={visualEditAllowed}
+            onPartMoveChange={reportPartMove}
             color="#00A6FF"
             isMobile={isMobile}
           />
         </div>
+      )}
+      {!viewerExpanded && sourceMoveEnabled && !fastStlOnly && onApplySourceMove && (
+        <SourceMovePanel
+          project={project} offOutput={offOutput} selected={sourceMoveSelected}
+          partCount={(partGroup?.userData.parts as Group[] | undefined)?.length ?? 0}
+          isCompiling={isCompiling}
+          previewProjectColored={previewProjectColored}
+          onApplySourceMove={onApplySourceMove}
+        />
       )}
       {!viewerExpanded && offInspection && !fastStlOnly && (
         <details className="z-10 shrink-0 border-t border-white/15 bg-adam-neutral-800 text-adam-text-primary" data-testid="off-component-inspector">
