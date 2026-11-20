@@ -178,6 +178,9 @@ export function ModelGalleryView() {
   const [layoutLocked, setLayoutLocked] = useState(false);
   // Fast STL preview remains session-only and does not enable visual movement.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
+  // Independent opt-in: verified code writeback. Fast STL remains separate.
+  // Independent opt-in: verified code writeback. Fast STL remains separate.
+  const [sourceMoveEnabled, setSourceMoveEnabled] = useState(false);
   const [chainVisible, setChainVisible] = useState(false);
   const [chainConfig, setChainConfig] = useState(() => createChain(5));
   // Same pattern as Scroll lock: panel starts collapsed, presets stay saved per model.
@@ -1092,6 +1095,8 @@ export function ModelGalleryView() {
             <ExperimentalMenu
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
+              sourceMoveEnabled={sourceMoveEnabled}
+              onSourceMoveChange={setSourceMoveEnabled}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1243,6 +1248,8 @@ export function ModelGalleryView() {
             assets={activeRecord.assetBlobs}
             experimentalEnabled={true}
             experimentalFastPreview={fastPreviewEnabled}
+            sourceMoveEnabled={sourceMoveEnabled}
+            onApplySourceMove={saveProjectFile}
             onExportStateChange={handlePreviewExportStateChange}
           />
           <aside className={cn(
@@ -1375,6 +1382,8 @@ export function ModelGalleryView() {
             <ExperimentalMenu
               fastPreviewEnabled={fastPreviewEnabled}
               onFastPreviewChange={setFastPreviewEnabled}
+              sourceMoveEnabled={sourceMoveEnabled}
+              onSourceMoveChange={setSourceMoveEnabled}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

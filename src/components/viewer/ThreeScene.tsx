@@ -36,8 +36,9 @@ interface ThreeSceneProps {
   partGroup?: THREE.Group | null;
   partStatus?: 'available' | 'single-component' | 'too-complex' | 'too-many-parts' | null;
   featureEdges?: readonly FeatureEdge[];
-  /** Experimental source-proven, preview-only transform; never exported. */
+  /** Preview-only transform until a separately verified code change is applied. */
   visualEditAllowed?: boolean;
+  onPartMoveChange?: (value: { partIndex: number; offset: VisualMoveOffset } | null) => void;
 }
 
 function ViewerControls({ uprightLocked, enabled, onUserCameraMove }: { uprightLocked: boolean; enabled: boolean; onUserCameraMove: () => void }) {
@@ -445,6 +446,7 @@ export function ThreeScene({
   partStatus = null,
   featureEdges = [],
   visualEditAllowed = false,
+  onPartMoveChange,
 }: ThreeSceneProps) {
   const [isOrthographic, setIsOrthographic] = useState(true);
   const [uprightLocked, setUprightLocked] = useState(true);
@@ -725,6 +727,13 @@ export function ThreeScene({
     if (selectedPart === null) return;
     setPartOffsets(current => ({ ...current, [selectedPart]: [0,0,0] }));
   };
+  const [sourceMoveX, sourceMoveY, sourceMoveZ] = selectedPartOffset;
+  useEffect(() => {
+    onPartMoveChange?.(visualEditAllowed && visualMoving && visualMoveMode === 'part' && selectedPart !== null
+      ? {partIndex:selectedPart,offset:[sourceMoveX,sourceMoveY,sourceMoveZ]}
+      : null);
+  }, [onPartMoveChange, visualEditAllowed, visualMoving, visualMoveMode, selectedPart,
+      sourceMoveX,sourceMoveY,sourceMoveZ]);
   // Both meshes and offsets are temporary. Never write to the source or exports.
   const partModelElement = partGroup && groupCenterOffset && availablePartCount > 1 ? (
     <group ref={renderedModelRef}>
