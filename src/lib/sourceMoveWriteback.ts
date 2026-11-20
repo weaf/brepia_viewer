@@ -3,6 +3,7 @@ import { connectedClosedShells } from "@/utils/orcaSplitSafeThreeMf";
 import {
   discoverScadModuleCalls,
   excludeScadSourceCall,
+  maskScadNonCode,
   type SourceMoveCall,
   type SourceMoveMatch,
   matchSourceProbeToPart,
@@ -12,10 +13,12 @@ export type SourceMoveVector = readonly [number, number, number];
 export type SourceMoveCandidate = { call: SourceMoveCall; instanceIndex?: number };
 export type SourceMoveProgress = { done: number; total: number; label: string };
 export type SourceMoveSearch = {
-  status: "matched" | "not-found" | "ambiguous" | "too-complex";
+  status: "matched" | "not-found" | "ambiguous" | "too-complex" | "budget-exhausted" | "probe-failed";
   candidate?: SourceMoveCandidate;
   tested: number;
   total: number;
+  failed: number;
+  error?: string;
 };
 
 const MAX_PROBES = 12;
@@ -23,19 +26,84 @@ const MAX_INSTANCES = 10;
 const MAX_FACES = 250_000;
 const ROUND = 100; // OFF output has limited decimal precision.
 
-/** A bounded, generic list. Reused source modules and inactive loops must be probed. */
+/**
+ * Distinguish calls in the entrypoint's main render flow from calls inside
+ * module definitions. OpenSCAD modules can contain many helper calls, none of
+ * which may be active in a given configuration. This is a probe priority, not
+ * proof of ownership: only OFF comparison can establish a match.
+ */
+function moduleBodyRanges(source: string): Array<readonly [number, number]> {
+  const clean = maskScadNonCode(source);
+  const ranges: Array<readonly [number, number]> = [];
+  for (const match of clean.matchAll(/\bmodule\s+[A-Za-z_]\w*\s*\(/g)) {
+    const openParen = clean.indexOf("(", match.index);
+    let cursor = openParen;
+    let parens = 0;
+    for (; cursor < clean.length; cursor += 1) {
+      if (clean[cursor] === "(") parens += 1;
+      else if (clean[cursor] === ")") {
+        parens -= 1;
+        if (parens === 0) { cursor += 1; break; }
+      }
+    }
+    if (parens !== 0) continue;
+    while (cursor < clean.length && /\s/.test(clean[cursor])) cursor += 1;
+    // Braced module bodies can be classified safely. For unbraced module
+    // definitions, retain the existing conservative geometry-based fallback.
+    if (clean[cursor] !== "{") continue;
+    const bodyStart = cursor;
+    let braces = 0;
+    for (; cursor < clean.length; cursor += 1) {
+      if (clean[cursor] === "{") braces += 1;
+      else if (clean[cursor] === "}") {
+        braces -= 1;
+        if (braces === 0) {
+          ranges.push([bodyStart, cursor]);
+          break;
+        }
+      }
+    }
+  }
+  return ranges;
+}
+
+/** Fairly distribute loop instances instead of using the whole probe budget on one site. */
+function expandCalls(calls: readonly SourceMoveCall[], partCount: number): SourceMoveCandidate[] {
+  const limits = calls.map(call => call.loopVariable ? Math.min(MAX_INSTANCES, partCount) : 1);
+  const entries: SourceMoveCandidate[] = [];
+  for (let instance = 0; instance < Math.max(0, ...limits); instance += 1) {
+    calls.forEach((call, index) => {
+      if (instance < limits[index]) {
+        entries.push(call.loopVariable ? { call, instanceIndex: instance } : { call });
+      }
+    });
+  }
+  return entries;
+}
+
+/**
+ * Try entrypoint-level calls first, then individual loop instances, then
+ * nested helpers. Every candidate is still independently checked against
+ * the complete OFF mesh. Never associate a part based on name or order alone.
+ */
 export function sourceMoveCandidates(source: string, partCount: number): SourceMoveCandidate[] {
   const discovery = discoverScadModuleCalls(source);
   if (discovery.status !== "available") return [];
-  const entries: SourceMoveCandidate[] = [];
-  for (const call of [...discovery.calls].reverse()) {
-    if (call.loopVariable) {
-      for (let i = 0; i < Math.min(MAX_INSTANCES, partCount); i += 1) {
-        entries.push({ call, instanceIndex: i });
-      }
-    } else entries.push({ call });
+  const moduleRanges = moduleBodyRanges(source);
+  const topLevel: SourceMoveCall[] = [];
+  const nestedLoops: SourceMoveCall[] = [];
+  const nestedCalls: SourceMoveCall[] = [];
+  for (const call of discovery.calls) {
+    const insideModule = moduleRanges.some(([start, end]) => call.start > start && call.start < end);
+    if (!insideModule) topLevel.push(call);
+    else if (call.loopVariable) nestedLoops.push(call);
+    else nestedCalls.push(call);
   }
-  return entries;
+  return [
+    ...expandCalls(topLevel, partCount),
+    ...expandCalls(nestedLoops, partCount),
+    ...expandCalls(nestedCalls, partCount),
+  ];
 }
 
 /**
@@ -54,12 +122,14 @@ export async function findSourceMoveCandidate({
   onProgress?: (progress: SourceMoveProgress) => void;
 }): Promise<SourceMoveSearch> {
   if (baseline.faces.length === 0 || baseline.faces.length > MAX_FACES) {
-    return { status: "too-complex", tested: 0, total: 0 };
+    return { status: "too-complex", tested: 0, total: 0, failed: 0 };
   }
   const all = sourceMoveCandidates(source, partCount);
-  if (all.length === 0) return { status: "not-found", tested: 0, total: 0 };
+  if (all.length === 0) return { status: "not-found", tested: 0, total: 0, failed: 0 };
   const toCheck = all.slice(0, MAX_PROBES);
   let tested = 0;
+  let failed = 0;
+  let firstError: string | undefined;
   for (const candidate of toCheck) {
     if (signal?.aborted) throw new DOMException("Source analysis cancelled", "AbortError");
     onProgress?.({
@@ -75,19 +145,24 @@ export async function findSourceMoveCandidate({
         // The complete post-apply OFF comparison is the decisive correctness
         // gate; do not spend minutes recompiling other candidate calls.
         tested += 1;
-        onProgress?.({done:tested,total:toCheck.length,label:"Verified"});
-        return {status:"matched",candidate,tested,total:all.length};
+        onProgress?.({done:tested,total:toCheck.length,label:"Source candidate matched"});
+        return {status:"matched",candidate,tested,total:all.length,failed};
       }
     } catch (cause) {
       if (signal?.aborted) throw new DOMException("Source analysis cancelled", "AbortError");
       // A model may be invalid under this temporary exclusion. Other probes
       // remain meaningful; never infer a mapping from a failed compilation.
+      failed += 1;
+      if (firstError === undefined) firstError = cause instanceof Error ? cause.message : String(cause);
       console.info("[Source Move] Source probe skipped:", candidate.call.id, cause);
     }
     tested += 1;
   }
   onProgress?.({ done: tested, total: toCheck.length, label: "Done" });
-  return { status: "not-found", tested, total: all.length };
+  return {
+    status: tested === failed ? "probe-failed" : all.length > tested ? "budget-exhausted" : "not-found",
+    tested, total: all.length, failed, error: firstError,
+  };
 }
 
 function numericCoordinate(value: number): string {
