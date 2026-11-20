@@ -75,7 +75,7 @@ export function SourceMovePanel({
         source, baseline, targetPart, partCount,
         compile: compileSource, signal: abort.signal,
         onProgress: ({done,total,label}) => {
-          if (generation.current === request) setProgress(done + "/" + total + ": " + label);
+          if (generation.current === request) setProgress(done + "/" + total + " source probes: " + label);
         },
       });
       if (!selectionStillCurrent(request,targetPart)) return;
@@ -88,8 +88,15 @@ export function SourceMovePanel({
           ? "Several source calls match. Source editing disabled for this part."
           : result.status === "too-complex"
             ? "Model too complex for source matching. Preview Move remains available."
-            : "No safe source match among " + result.tested + "/" + result.total +
-              " checked candidates. Preview Move still works.");
+            : result.status === "budget-exhausted"
+              ? "Search limit reached after " + result.tested + "/" + result.total +
+                " candidates. No verified match; code unchanged."
+              : result.status === "probe-failed"
+                ? "All " + result.failed + " source probes failed to compile" +
+                  (result.error ? ": " + result.error : ".") + " Code unchanged."
+                : "No verified match after " + result.tested + " candidates" +
+                  (result.failed ? " (" + result.failed + " probe failures)" : "") +
+                  ". Preview Move remains available.");
       }
     } catch (cause) {
       if (!abort.signal.aborted && generation.current === request) {
