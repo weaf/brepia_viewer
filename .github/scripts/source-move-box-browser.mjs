@@ -1,0 +1,116 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { setTimeout as pause } from "node:timers/promises";
+import { chromium } from "@playwright/test";
+
+const host = "http://127.0.0.1:4301/";
+const evidence = path.resolve(".output/source-move-box-browser");
+const file = process.env.SOURCE_MOVE_BOX_FILE;
+assert.ok(file, "Real Box SCAD fixture path was not supplied");
+const original = readFileSync(file, "utf8");
+const source = original.replace(
+  /^show_mounting_rails\s*=\s*true\s*;/m, "show_mounting_rails = false;",
+);
+assert.notEqual(source, original, "Expected to disable optional rails for two-part Box test");
+await mkdir(evidence, { recursive: true });
+const server = spawn("python3", [
+  "-m", "http.server", "4301", "--bind", "127.0.0.1",
+  "--directory", path.resolve(".output/public"),
+], { stdio: "ignore" });
+let browser;
+try {
+  let ready = false;
+  for (let i = 0; i < 100; i++) {
+    try { if ((await fetch(host)).ok) { ready = true; break; } }
+    catch { /* Try until static server is ready. */ }
+    await pause(250);
+  }
+  assert.ok(ready, "Brepia static test server unavailable");
+  browser = await chromium.launch({
+    channel: "chrome", headless: true,
+    args: ["--disable-dev-shm-usage", "--enable-unsafe-swiftshader"],
+  });
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true,
+    hasTouch: true, serviceWorkers: "block",
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(40000);
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await context.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route =>
+    route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ truncated: false, tree: [] }),
+    }),
+  );
+  try {
+    await page.goto(host, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() =>
+      document.documentElement.dataset.brepiaClientReady === "true",
+      null, { timeout: 65000 });
+    await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
+      name: "source-move-real-box.scad", mimeType: "text/plain",
+      buffer: Buffer.from(source),
+    });
+    await page.getByTestId("off-component-inspector").waitFor({
+      state: "visible", timeout: 240000,
+    });
+    await page.getByRole("button", { name: "Cancel preview" }).waitFor({
+      state: "hidden", timeout: 240000,
+    });
+    await page.getByRole("button", { name: "Experimental menu" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Enable source-aware Part Move" }).click();
+    const panel = page.getByTestId("source-move-panel");
+    await panel.waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Preview visual movement" }).click();
+    await page.getByRole("combobox", { name: "Move mode" }).selectOption("part");
+    const select = page.getByRole("combobox", { name: "Select model part" });
+    assert.equal(await select.locator("option").count(), 3, "Expected box and lid only");
+    await select.selectOption("1");
+    await page.getByRole("button", { name: "Show precision slider" }).click();
+    await page.getByRole("slider", { name: "Move model along X axis" }).fill("5");
+    await page.screenshot({ path: path.join(evidence, "before-identification.jpg"), type: "jpeg", quality: 70 });
+    await panel.getByRole("button", { name: "Identify source of selected part" }).click();
+    await panel.getByText(/Matched part 2 to generate_lid/).waitFor({ timeout: 600000 });
+    await page.screenshot({ path: path.join(evidence, "matched-lid.jpg"), type: "jpeg", quality: 70 });
+    await panel.getByRole("button", { name: "Apply Part Move to OpenSCAD code" }).click();
+    const editor = page.getByRole("button", { name: "Open source-move-real-box.scad" });
+    await editor.waitFor({ state: "visible", timeout: 600000 });
+    await page.getByRole("button", { name: "Cancel preview" }).waitFor({ state: "hidden", timeout: 600000 });
+    await editor.click();
+    const content = await page.locator(".cm-content").first().innerText();
+    assert.ok(content.includes("translate([5, 0, 0]) generate_lid();"),
+      "Code change not applied: " + content.slice(-600));
+    assert.ok(content.includes("generate_box();"), "Unrelated box source missing");
+    await page.screenshot({ path: path.join(evidence, "code-after-apply.jpg"), type: "jpeg", quality: 70 });
+    // Prove the local project was actually persisted, not just changed in
+    // CodeMirror's current in-memory document.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const openSaved = page.getByRole("button", { name: "Open source-move-real-box", exact: true });
+    await openSaved.waitFor({ timeout: 60000 });
+    await openSaved.click();
+    await page.getByText("Source and parameters", { exact: true }).waitFor({ timeout: 60000 });
+    const reopenEditor = page.getByRole("button", { name: "Open source-move-real-box.scad" });
+    await reopenEditor.click();
+    const persisted = await page.locator(".cm-content").first().innerText();
+    assert.ok(persisted.includes("translate([5, 0, 0]) generate_lid();"),
+      "Saved SCAD change disappeared after reload");
+    await page.screenshot({ path: path.join(evidence, "persisted-after-reload.jpg"), type: "jpeg", quality: 70 });
+    assert.deepEqual(errors, [], "Unexpected browser JavaScript exceptions");
+    console.log("SOURCE_MOVE_REAL_BOX_BROWSER_SAVE_PASS " + JSON.stringify({
+      device: "Chrome mobile 390x844",
+      selectedPart: 2,
+      module: "generate_lid",
+      delta: [5,0,0],
+      savedAfterReload: true,
+      evidence,
+    }));
+  } finally { await context.close(); }
+} finally {
+  await browser?.close();
+  server.kill("SIGTERM");
+}
