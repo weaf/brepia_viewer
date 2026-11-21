@@ -135,45 +135,31 @@ try {
     assert.ok(!oldStored.includes("translate([5, 0, 0]) generate_lid();"),
       "The move was already saved before Apply");
     await panel.getByRole("button", { name: "Apply Part Move to OpenSCAD code" }).click();
-    await panel.getByText(/Verification failed:|SCAD updated and verified\./).waitFor({timeout:180000});
-    const verificationMessage = await panel.innerText();
-    if (verificationMessage.includes("Verification failed:")) {
-      await page.screenshot({path:path.join(evidence, "verification-rejected.jpg"),type:"jpeg",quality:70});
-      console.error("SOURCE_MOVE_BROWSER_REJECTION", verificationMessage);
-      throw new Error("Viewer rejected Box move before persistence: " + verificationMessage);
+    // A successful project save replaces the panel props and can clear its
+    // success message. Observe the durable store as the actual success gate.
+    // Stop promptly when the fail-closed geometry check rejects the move.
+    let result = "timeout";
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      const actual = await readStoredSource();
+      if (actual.includes("translate([5, 0, 0]) generate_lid();")) {
+        result = "saved";
+        break;
+      }
+      const status = await panel.innerText().catch(() => "");
+      if (status.includes("Verification failed:") ||
+          status.includes("Could not verify source change.")) {
+        result = "rejected";
+        break;
+      }
+      await pause(750);
     }
-    try {
-      await page.waitForFunction(async () => {
-        const db = await new Promise((resolve, reject) => {
-          const request = indexedDB.open("brepia-local-models", 1);
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error);
-        });
-        try {
-          const tx = db.transaction(["cache", "models"], "readonly");
-          const cache = await new Promise((resolve, reject) => {
-            const req = tx.objectStore("cache").get("last-opened-local-model");
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          });
-          const model = await new Promise((resolve, reject) => {
-            const req = tx.objectStore("models").get(cache?.modelId);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-          });
-          return model?.project?.files?.some(f =>
-            f.content.includes("translate([5, 0, 0]) generate_lid();"));
-        } finally { db.close(); }
-      }, null, {timeout:360000, polling:1200});
-    } catch (error) {
-      await page.screenshot({ path: path.join(evidence, "apply-not-saved.jpg"), type: "jpeg", quality: 70 });
-      console.error("SOURCE_MOVE_BOX_APPLY_DIAGNOSTICS", JSON.stringify({
-        panel:await panel.innerText().catch(()=>null),
-        currentSourceHasTranslation:(await readStoredSource()).includes("translate([5, 0, 0]) generate_lid();"),
-        errors,
-      }));
-      throw error;
+    if (result !== "saved") {
+      await page.screenshot({path:path.join(evidence, "apply-not-saved.jpg"),type:"jpeg",quality:70});
+      const message = await panel.innerText().catch(() => "");
+      console.error("SOURCE_MOVE_BROWSER_REJECTION", JSON.stringify({result,message,errors}));
+      throw new Error("Real Box Source Move was not saved: " + message);
     }
+    await pause(1500); // Avoid treating a temporary transaction as a durable save.
     const saved = await readStoredSource();
     if (!saved.includes("translate([5, 0, 0]) generate_lid();")) {
       const snapshot = await page.evaluate(async () => {
