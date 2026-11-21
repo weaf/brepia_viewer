@@ -6,6 +6,7 @@ import {
   diagnoseSourceMoveTranslation,
   writeSourceMoveTranslation, type SourceMoveCandidate, type SourceMoveVector,
 } from "@/lib/sourceMoveWriteback";
+import { verifySourceMoveRetessellation } from "@/lib/sourceMoveSurfaceEquivalence";
 
 export type SelectedSourceMove = { partIndex: number; offset: SourceMoveVector };
 
@@ -139,7 +140,11 @@ export function SourceMovePanel({
       if (!selectionStillCurrent(request,targetPart)) return;
       if (!verifySourceMoveTranslation(baseline,modified,targetPart,originalOffset)) {
         const details = diagnoseSourceMoveTranslation(baseline, modified, targetPart, originalOffset);
-        console.info("[Source Move] SCAD verification rejected", details);
+        let retessellationReason: Record<string, string | number> | null = null;
+        verifySourceMoveRetessellation(baseline,modified,targetPart,originalOffset,value=>{
+          retessellationReason = value;
+        });
+        console.info("[Source Move] SCAD verification rejected", {...details,retessellationReason});
         setMessage("Verification failed: " + details.missingExpectedFaces +
           " expected faces missing and " + details.extraActualFaces +
           " unexpected faces (" + details.beforeFaces + " → " + details.afterFaces +
