@@ -43,6 +43,11 @@ jobs:
         run: node .github/scripts/source-move-box-browser.mjs
         env:
           SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+      - name: Verify real Box save and reload in desktop Chrome
+        run: node .github/scripts/source-move-box-browser.mjs
+        env:
+          SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+          SOURCE_MOVE_BROWSER_DEVICE: desktop
       - name: Retain real Box browser screenshots
         if: always()
         uses: actions/upload-artifact@v7
