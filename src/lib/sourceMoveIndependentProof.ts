@@ -1,6 +1,7 @@
 import type { ParsedOff } from "@/utils/offParser";
 import { connectedClosedShells } from "@/utils/orcaSplitSafeThreeMf";
 import { excludeScadSourceCall, maskScadNonCode } from "./sourceMoveProvenance";
+import { proveTranslatedShellsWithCsg } from "./sourceMoveCsgSolidProof";
 import {
   writeSourceMoveTranslation, type SourceMoveCandidate, type SourceMoveVector,
 } from "./sourceMoveWriteback";
@@ -162,7 +163,15 @@ export async function verifyIndependentSourceMove({
     if(originalShells.length!==1 || translatedShells.length!==1) return reject("root-shell-count-mismatch");
     const beforeFaces=faceCounts(standaloneBefore,originalShells[0].faceIndices,delta);
     const afterFaces=faceCounts(standaloneAfter,translatedShells[0].faceIndices,zero);
-    if(beforeFaces.size===0 || !identical(beforeFaces,afterFaces)) return reject("root-selected-geometry-mismatch");
+    if(beforeFaces.size===0 || !identical(beforeFaces,afterFaces)) {
+      // OpenSCAD may retessellate a closed solid when moved a fractional mm.
+      // Difference in BOTH directions must be geometrically empty. The
+      // unchanged, independently compiled rest is still checked below.
+      const csgEquivalent=await proveTranslatedShellsWithCsg(
+        baseline,moved,targetPart,delta,compile,onFailure,
+      );
+      if(!csgEquivalent) return reject("root-selected-solid-volume-mismatch");
+    }
   }
   const excludedBefore=excludeScadSourceCall(source,candidate.call);
   // Guard the SAME generated translate wrapper; no other statement changes.
