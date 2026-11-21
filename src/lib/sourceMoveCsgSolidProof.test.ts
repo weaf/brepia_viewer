@@ -42,10 +42,17 @@ describe("Source Move bidirectional solid equivalence",()=>{
   const marker=witness(158.5,110,110);
 
   it("requires BOTH directional CSG differences to contain only the distant witness",async()=>{
-    const compile=vi.fn(async()=>marker);
+    const compile=vi.fn()
+      .mockResolvedValueOnce(tetra(48.5))
+      .mockResolvedValueOnce(tetra(48.5))
+      .mockResolvedValueOnce(marker)
+      .mockResolvedValueOnce(marker);
     expect(await proveTranslatedShellsWithCsg(original,moved,1,[8.5,0,0],compile)).toBe(true);
-    expect(compile).toHaveBeenCalledTimes(2);
-    for(const args of compile.mock.calls) {
+    expect(compile).toHaveBeenCalledTimes(4);
+    for(const args of compile.mock.calls.slice(0,2)) {
+      expect(args[0]).toContain("!polyhedron(points=");
+    }
+    for(const args of compile.mock.calls.slice(2)) {
       expect(args[0]).toContain("!union()");
       expect(args[0]).toContain("difference()");
       expect(args[0]).toContain("polyhedron(points=");
@@ -55,6 +62,8 @@ describe("Source Move bidirectional solid equivalence",()=>{
 
   it("rejects a reverse CSG difference with an additional solid region",async()=>{
     const compile=vi.fn()
+      .mockResolvedValueOnce(tetra(48.5))
+      .mockResolvedValueOnce(tetra(48.5))
       .mockResolvedValueOnce(marker)
       .mockResolvedValueOnce(combine(marker,tetra(10)));
     const reasons:string[]=[];
