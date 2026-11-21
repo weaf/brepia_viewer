@@ -218,7 +218,7 @@ try {
               entrypoint:row.project?.entrypointPath,
               files:row.project?.files?.map(f => ({
                 path:f.path, chars:f.content.length,
-                moved:/translate\\(\\[\\s*-?\\d+(?:\\.\\d+)?\\s*,\\s*-?\\d+(?:\\.\\d+)?\\s*,\\s*-?\\d+(?:\\.\\d+)?\\s*\\]\\)\\s+generate_lid\\(\\);/.test(f.content),
+                moved:/translate\(\[\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]\)\s+generate_lid\(\);/.test(f.content),
                 lid:f.content.includes("generate_lid();"),
               })),
             })),
