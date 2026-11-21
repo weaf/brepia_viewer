@@ -194,7 +194,8 @@ export function verifySourceMoveRetessellation(
       added.length > MAX_CHANGED_TRIANGLES) return reject("residual-limit", {
         missing:missing.length,added:added.length,
       });
-  const expected = missing.map(index => polygon(original, index, true, delta));
+  const expected = missing.map(index =>
+    polygon(original, index, selectedFaces.has(index), delta));
   const actual = added.map(index => polygon(translated, index, false, delta));
   for (let i = 0; i < expected.length; i += 1) {
     let detail: Record<string, string | number> = {};
