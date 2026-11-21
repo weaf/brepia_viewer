@@ -210,6 +210,7 @@ try {
     await page.screenshot({ path: path.join(evidence, "persisted-after-reload.jpg"), type: "jpeg", quality: 70 });
 
     // A real exported SCAD, not just IndexedDB, must retain the code change.
+    await page.getByTestId("off-component-inspector").waitFor({state:"visible",timeout:240000});
     await page.getByRole("button",{name:"Cancel preview"}).waitFor({state:"hidden",timeout:240000});
     const exportButton=page.getByRole("button",{name:"Export model"});
     await exportButton.waitFor({state:"visible"});
