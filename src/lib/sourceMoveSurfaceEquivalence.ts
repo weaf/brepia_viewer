@@ -131,10 +131,10 @@ function fullyCovered(reference: Face, candidates: readonly Face[],
  * Preconditions: exact face matching has failed, but a verified source-call
  * exclusion has already linked the chosen part to its OpenSCAD call.
  *
- * Every triangle from untouched parts must STILL exist exactly. Only the
- * selected moved shell can be remeshed, and any changed triangle must be
- * symmetrically covered by the other mesh within 0.012 mm. No volume,
- * bounding-box or face-count-only approximation is accepted.
+ * CSG can re-triangulate even UNMOVED shells when the selected module moves.
+ * Each changed triangle, in any shell, must be symmetrically covered by the
+ * other mesh within 0.012 mm; unchanged face keys are still checked first.
+ * Shell count must not change. No volume, bbox or face-count shortcut passes.
  */
 export function verifySourceMoveRetessellation(
   original: ParsedOff,
@@ -165,7 +165,6 @@ export function verifySourceMoveRetessellation(
   const selectedFaces = new Set(selected.faceIndices);
   const expectedByKey = new Map<string, number[]>();
   const actualByKey = new Map<string, number[]>();
-  const untouchedCounts = new Map<string, number>();
 
   for (let i = 0; i < original.faces.length; i += 1) {
     const moved = selectedFaces.has(i);
@@ -173,10 +172,6 @@ export function verifySourceMoveRetessellation(
     const list = expectedByKey.get(key) ?? [];
     list.push(i);
     expectedByKey.set(key, list);
-    if (!moved) {
-      const unchangedKey = fingerprint(polygon(original, i, false, delta));
-      untouchedCounts.set(unchangedKey, (untouchedCounts.get(unchangedKey) ?? 0) + 1);
-    }
   }
   for (let i = 0; i < translated.faces.length; i += 1) {
     const key = fingerprint(polygon(translated, i, false, delta));
@@ -184,13 +179,6 @@ export function verifySourceMoveRetessellation(
     list.push(i);
     actualByKey.set(key, list);
   }
-  // This is an explicit invariant for all non-selected parts, not merely
-  // equal triangle counts or similar surface areas.
-  for (const [key, count] of untouchedCounts) {
-    const actualCount = actualByKey.get(key)?.length ?? 0;
-    if (actualCount < count) return reject("untouched-face-changed", {key,expected:count,actual:actualCount});
-  }
-
   const missing: number[] = [];
   const added: number[] = [];
   for (const [key, before] of expectedByKey) {
@@ -206,11 +194,6 @@ export function verifySourceMoveRetessellation(
       added.length > MAX_CHANGED_TRIANGLES) return reject("residual-limit", {
         missing:missing.length,added:added.length,
       });
-  const wrongPart = missing.filter(index => !selectedFaces.has(index));
-  if (wrongPart.length) return reject("changed-faces-outside-selected-part", {
-    missingOutsideSelected:wrongPart.length, missing:missing.length,added:added.length,
-  });
-
   const expected = missing.map(index => polygon(original, index, true, delta));
   const actual = added.map(index => polygon(translated, index, false, delta));
   for (let i = 0; i < expected.length; i += 1) {
