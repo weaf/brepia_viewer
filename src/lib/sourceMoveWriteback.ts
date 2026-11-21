@@ -235,6 +235,86 @@ export function verifySourceMoveTranslation(
   return true;
 }
 
+/**
+ * Failure-only diagnostics for a real OpenSCAD recompile. These numbers do
+ * not relax the fail-closed verification gate: the caller must still use
+ * verifySourceMoveTranslation before any persistent change.
+ */
+export function diagnoseSourceMoveTranslation(
+  original: ParsedOff,
+  translated: ParsedOff,
+  partIndex: number,
+  delta: SourceMoveVector,
+): {
+  beforeFaces: number;
+  afterFaces: number;
+  selectedShellFaces: number | null;
+  missingExpectedFaces: number;
+  extraActualFaces: number;
+  expectedDistinctFaces: number;
+  actualDistinctFaces: number;
+  firstMissingFace: string | null;
+  firstExtraFace: string | null;
+  matchingAtCoarserResolution: boolean;
+} {
+  const empty = {
+    beforeFaces: original.faces.length, afterFaces: translated.faces.length,
+    selectedShellFaces: null, missingExpectedFaces: 0, extraActualFaces: 0,
+    expectedDistinctFaces: 0, actualDistinctFaces: 0,
+    firstMissingFace: null, firstExtraFace: null,
+    matchingAtCoarserResolution: false,
+  };
+  if (original.faces.length > MAX_FACES || translated.faces.length > MAX_FACES) return empty;
+  const shell = connectedClosedShells(original)[partIndex];
+  if (!shell) return empty;
+  const selected = new Set(shell.faceIndices);
+  const expected = countFaces(original, selected, delta);
+  const actual = countFaces(translated);
+  let missing = 0;
+  let extra = 0;
+  let firstMissingFace: string | null = null;
+  let firstExtraFace: string | null = null;
+  for (const [key, count] of expected) {
+    const deficit = count - (actual.get(key) ?? 0);
+    if (deficit > 0) {
+      missing += deficit;
+      firstMissingFace ??= key;
+    }
+  }
+  for (const [key, count] of actual) {
+    const surplus = count - (expected.get(key) ?? 0);
+    if (surplus > 0) {
+      extra += surplus;
+      firstExtraFace ??= key;
+    }
+  }
+  // A coarse diagnostic is informative only; never use it to accept a save.
+  const coarse = (off: ParsedOff, afterMove: boolean) => {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < off.faces.length; i += 1) {
+      const moved = !afterMove && selected.has(i);
+      const key = off.faces[i].vertices.map(index => {
+        const v = off.vertices[index];
+        return v.map((value, axis) =>
+          Math.round((value + (moved ? delta[axis] : 0)) * 10),
+        ).join(",");
+      }).sort().join("|");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const coarseBefore = coarse(original, false);
+  const coarseAfter = coarse(translated, true);
+  const matchingAtCoarserResolution = coarseBefore.size === coarseAfter.size &&
+    [...coarseBefore].every(([key, count]) => coarseAfter.get(key) === count);
+  return {
+    ...empty, selectedShellFaces: shell.faceIndices.length,
+    missingExpectedFaces: missing, extraActualFaces: extra,
+    expectedDistinctFaces: expected.size, actualDistinctFaces: actual.size,
+    firstMissingFace, firstExtraFace, matchingAtCoarserResolution,
+  };
+}
+
 /** Reject silent matching to the wrong geometry when a caller reuses a stale selection. */
 export function candidateIsCurrent(source: string, candidate: SourceMoveCandidate): boolean {
   const found = discoverScadModuleCalls(source);
