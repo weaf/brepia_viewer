@@ -10,6 +10,7 @@ type Face = readonly [Vector3, Vector3, Vector3];
 const MAX_FACES_FOR_FALLBACK = 40_000;
 const MAX_CHANGED_TRIANGLES = 96;
 const MAX_SURFACE_DEVIATION_MM = 0.012;
+const MAX_MICRO_SLIVER_DISTANCE_MM = 0.022; // Box WASM: 0.0200 mm on a 0.00104 mm² sliver.
 const MIN_NORMAL_ALIGNMENT = 0.999;
 
 const subtract = (a: Vector3, b: Vector3): Vector3 =>
@@ -162,7 +163,7 @@ function nearbySliver(reference: Face, candidates: readonly Face[],
     ...nearPlanes.map(candidate => pointTriangleDistance(point,candidate))));
   const farthestSampleDistance = Math.max(...sampleDistances);
   const valid = nearPlanes.length > 0 &&
-    sampleDistances.every(distance => distance <= MAX_SURFACE_DEVIATION_MM);
+    sampleDistances.every(distance => distance <= MAX_MICRO_SLIVER_DISTANCE_MM);
   if (!valid) details?.({reason:"micro-distance",microArea3d:area3d,
     maxEdge,nearPlanes:nearPlanes.length,farthestSampleDistance});
   return valid;
