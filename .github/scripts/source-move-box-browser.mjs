@@ -7,7 +7,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 
 const host = "http://127.0.0.1:4301/";
-const evidence = path.resolve(".output/source-move-box-browser");
+const desktop = process.env.SOURCE_MOVE_BROWSER_DEVICE === "desktop";
+const evidence = path.resolve(".output/source-move-box-browser", desktop ? "desktop" : "mobile");
 const file = process.env.SOURCE_MOVE_BOX_FILE;
 assert.ok(file, "Real Box SCAD fixture path was not supplied");
 const original = readFileSync(file, "utf8");
@@ -34,8 +35,8 @@ try {
     args: ["--disable-dev-shm-usage", "--enable-unsafe-swiftshader"],
   });
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, isMobile: true,
-    hasTouch: true, serviceWorkers: "block",
+    viewport: desktop ? { width: 1365, height: 900 } : { width: 390, height: 844 },
+    isMobile: !desktop, hasTouch: !desktop, serviceWorkers: "block",
   });
   const page = await context.newPage();
   page.setDefaultTimeout(40000);
@@ -209,7 +210,7 @@ try {
     await page.screenshot({ path: path.join(evidence, "persisted-after-reload.jpg"), type: "jpeg", quality: 70 });
     assert.deepEqual(errors, [], "Unexpected browser JavaScript exceptions");
     console.log("SOURCE_MOVE_REAL_BOX_BROWSER_SAVE_PASS " + JSON.stringify({
-      device: "Chrome mobile 390x844",
+      device: desktop ? "Chrome desktop 1365x900" : "Chrome mobile 390x844",
       selectedPart: 2,
       module: "generate_lid",
       delta: [5,0,0],
