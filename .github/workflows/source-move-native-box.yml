@@ -11,8 +11,8 @@ permissions:
 
 jobs:
   native-box-proof:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -34,3 +34,16 @@ jobs:
         env:
           SOURCE_MOVE_NATIVE_BOX: "1"
           SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Verify real Box move, SCAD update and persistence in mobile Chrome
+        run: node .github/scripts/source-move-box-browser.mjs
+        env:
+          SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+      - name: Retain real Box browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-move-real-box
+          path: .output/source-move-box-browser/
+          if-no-files-found: warn
