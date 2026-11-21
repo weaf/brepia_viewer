@@ -149,6 +149,7 @@ export function SourceMovePanel({
           source, modified: preview.modified, candidate: matched,
           baseline, moved: modified, targetPart, delta: originalOffset,
           compile: compileSource,
+          onFailure: (reason) => console.info("[Source Move] independent proof rejected", reason),
         });
         if (!selectionStillCurrent(request,targetPart)) return;
         if (!independentlyVerified) {
