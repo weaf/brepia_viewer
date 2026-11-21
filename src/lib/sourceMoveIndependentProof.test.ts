@@ -88,40 +88,42 @@ describe("Source Move independent top-level proof",()=>{
     return remeshed;
   };
 
-  it("verifies entire scene is geometrically restored by inverse source transform",async()=>{
+  it("accepts an independently translated CLOSED shell despite different triangulation",async()=>{
     const compile=vi.fn()
-      .mockResolvedValueOnce(original)
       .mockResolvedValueOnce(tetra(-40))
       .mockResolvedValueOnce(tetra(-40));
     expect(await verifyIndependentSourceMove({
       source,modified,candidate,baseline:original,moved:remeshedMoved(),
       targetPart:1,delta,compile,
     })).toBe(true);
-    expect(compile).toHaveBeenCalledTimes(3);
-    expect(compile.mock.calls[0][0])
-      .toContain("translate([-5, 0, 0]) translate([5, 0, 0]) lid();");
-    expect(compile.mock.calls[1][0]).toContain("if (false) lid();");
-    expect(compile.mock.calls[2][0]).toContain("if (false) translate([5, 0, 0]) lid();");
+    expect(compile).toHaveBeenCalledTimes(2);
+    expect(compile.mock.calls[0][0]).toContain("if (false) lid();");
+    expect(compile.mock.calls[1][0])
+      .toContain("if (false) translate([5, 0, 0]) lid();");
   });
 
-  it("rejects a wrongly restored original part before any writeback",async()=>{
-    const deformedOriginal=combine(tetra(-40),tetra(40.1));
-    const compile=vi.fn().mockResolvedValueOnce(deformedOriginal);
+  it("rejects a selected shell deformed within the SAME bounding box",async()=>{
+    const wrong=remeshedMoved();
+    wrong.vertices[wrong.vertices.length-1][2]+=3;
+    const compile=vi.fn(async()=>tetra(-40));
     const reasons:string[]=[];
     expect(await verifyIndependentSourceMove({
-      source,modified,candidate,baseline:original,moved:remeshedMoved(),
+      source,modified,candidate,baseline:original,moved:wrong,
       targetPart:1,delta,compile,onFailure:reason=>reasons.push(reason),
     })).toBe(false);
-    expect(reasons).toContain("round-trip-scene-geometry-mismatch");
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(reasons).toContain("moved-shell-shape-invariant-mismatch");
+    expect(compile).not.toHaveBeenCalled();
   });
 
-  it("rejects a roundtrip that silently loses any original shell",async()=>{
-    const compile=vi.fn().mockResolvedValueOnce(tetra(-40));
+  it("rejects changes to a sibling even with a valid moved selected shell",async()=>{
+    const compile=vi.fn()
+      .mockResolvedValueOnce(tetra(-40))
+      .mockResolvedValueOnce(tetra(-39.9));
     expect(await verifyIndependentSourceMove({
       source,modified,candidate,baseline:original,moved:remeshedMoved(),
       targetPart:1,delta,compile,
     })).toBe(false);
+    expect(compile).toHaveBeenCalledTimes(2);
   });
 
   it("does not accept a changed unused part in isolated compilation",async()=>{
