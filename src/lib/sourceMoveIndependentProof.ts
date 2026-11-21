@@ -79,6 +79,42 @@ function singleExactMovedShell(
   return matches===1;
 }
 
+
+/** In-scene retessellation is permitted only if exactly one resulting shell
+ * occupies the translated original shell bounds, within OFF serialization
+ * precision. Bounds alone never prove the shape; isolated OFF comparison does.
+ */
+function singleLocatedMovedShell(
+  baseline: ParsedOff, moved: ParsedOff, targetPart: number, delta: SourceMoveVector,
+): boolean {
+  const before=connectedClosedShells(baseline);
+  const after=connectedClosedShells(moved);
+  if(before.length!==after.length || !before[targetPart]) return false;
+  const bounds=(off:ParsedOff, indices:readonly number[]):number[]=>{
+    const min=[Infinity,Infinity,Infinity], max=[-Infinity,-Infinity,-Infinity];
+    for(const index of indices) {
+      for(const vi of off.faces[index].vertices) {
+        const v=off.vertices[vi];
+        if(!v || v.some(n=>!Number.isFinite(n))) return [];
+        for(let axis=0;axis<3;axis++) {
+          min[axis]=Math.min(min[axis],v[axis]);
+          max[axis]=Math.max(max[axis],v[axis]);
+        }
+      }
+    }
+    return [...min,...max];
+  };
+  const selected=bounds(baseline,before[targetPart].faceIndices);
+  if(selected.length!==6) return false;
+  const target=selected.map((n,i)=>n+delta[i%3]);
+  let matches=0;
+  for(const shell of after) {
+    const actual=bounds(moved,shell.faceIndices);
+    if(actual.length===6 && actual.every((value,i)=>Math.abs(value-target[i])<=0.022)) matches++;
+  }
+  return matches===1;
+}
+
 /**
  * Extra source-structural + geometric proof used only when a complete
  * in-scene face comparison fails due to global retessellation.
@@ -108,7 +144,24 @@ export async function verifyIndependentSourceMove({
   if(!isIndependentTopLevelCall(source,candidate)) return false;
   if(delta.some(value=>!Number.isFinite(value))) return false;
   if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return false;
-  if(!singleExactMovedShell(baseline,moved,targetPart,delta)) return false;
+  if(!singleExactMovedShell(baseline,moved,targetPart,delta)) {
+    // When whole-scene Manifold retessellates the selected shell too, prove
+    // its original and translated geometry with OpenSCAD's root modifier.
+    // This renders just the one original call, irrespective of other bodies.
+    if(!singleLocatedMovedShell(baseline,moved,targetPart,delta)) return false;
+    const inserted=/^translate\(\[[^\]]+\]\)\s+/.exec(modified.slice(candidate.call.start));
+    if(!inserted) return false;
+    const originalOnly=source+"\n!"+candidate.call.callText+";\n";
+    const translatedOnly=source+"\n!"+inserted[0]+candidate.call.callText+";\n";
+    const standaloneBefore=await compile(originalOnly);
+    const standaloneAfter=await compile(translatedOnly);
+    const originalShells=connectedClosedShells(standaloneBefore);
+    const translatedShells=connectedClosedShells(standaloneAfter);
+    if(originalShells.length!==1 || translatedShells.length!==1) return false;
+    const beforeFaces=faceCounts(standaloneBefore,originalShells[0].faceIndices,delta);
+    const afterFaces=faceCounts(standaloneAfter,translatedShells[0].faceIndices,zero);
+    if(beforeFaces.size===0 || !identical(beforeFaces,afterFaces)) return false;
+  }
   const excludedBefore=excludeScadSourceCall(source,candidate.call);
   // Guard the SAME generated translate wrapper; no other statement changes.
   const excludedAfter=modified.slice(0,candidate.call.start)+"if (false) "+
