@@ -65,7 +65,7 @@ describe("Source Move from selected rendered shell to SCAD",()=>{
     const result=await findSourceMoveCandidate({source,baseline,targetPart:1,partCount:2,compile});
     expect(result.status).toBe("matched");
     expect(result.candidate?.call.name).toBe("lid");
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2); // main-flow body() is checked before lid().
   });
   it("prioritizes main render calls before many nested geometry helpers",()=>{
     const helpers=Array.from({length:20},(_,i)=>"module helper_"+i+"() { cube(1); }").join("\n");
