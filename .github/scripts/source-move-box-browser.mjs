@@ -243,6 +243,8 @@ try {
     assert.ok(Math.abs(savedMove.delta[0])>=0.1 && Math.abs(savedMove.delta[1])<0.001 && Math.abs(savedMove.delta[2])<0.001,
       "Source Move modified an unexpected axis: "+JSON.stringify(savedMove.delta));
     if(!desktop)assert.equal(savedMove.delta[0],5,"Mobile 5 mm move drifted");
+    else assert.ok(Math.abs(savedMove.delta[0]-Math.round(savedMove.delta[0]))>0.01,
+      "Desktop acceptance must exercise a fractional-mm move: "+savedMove.delta[0]);
     assert.ok(saved.includes("generate_box();"), "Unrelated box source missing from saved file");
     await page.screenshot({ path: path.join(evidence, "code-after-apply.jpg"), type: "jpeg", quality: 70 });
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -275,7 +277,7 @@ try {
       "Exported SCAD lost the unchanged box");
     console.log("SOURCE_MOVE_BOX_SCAD_EXPORT_PASS",JSON.stringify({
       device:desktop?"desktop":"mobile",name:download.suggestedFilename(),
-      codeChars:exportedCode.length,retainedTranslation:true,
+      codeChars:exportedCode.length,retainedTranslation:true,delta:savedMove.delta,
     }));
 
     assert.deepEqual(errors, [], "Unexpected browser JavaScript exceptions");
@@ -283,7 +285,7 @@ try {
       device: desktop ? "Chrome desktop 1365x900" : "Chrome mobile 390x844",
       selectedPart: 2,
       module: "generate_lid",
-      delta: [5,0,0],
+      delta: savedMove.delta,
       savedAfterReload: true,
       evidence,
     }));
