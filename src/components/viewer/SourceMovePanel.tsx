@@ -3,6 +3,7 @@ import { getOpenScadEntrypoint, replaceOpenScadProjectFileContent, type OpenScad
 import { parseColoredOff } from "@/utils/offParser";
 import {
   candidateIsCurrent, findSourceMoveCandidate, verifySourceMoveTranslation,
+  diagnoseSourceMoveTranslation,
   writeSourceMoveTranslation, type SourceMoveCandidate, type SourceMoveVector,
 } from "@/lib/sourceMoveWriteback";
 
@@ -137,7 +138,12 @@ export function SourceMovePanel({
       const modified = await compileSource(preview.modified);
       if (!selectionStillCurrent(request,targetPart)) return;
       if (!verifySourceMoveTranslation(baseline,modified,targetPart,originalOffset)) {
-        setMessage("Verification failed: source rendering does not match the 3D move. Nothing saved.");
+        const details = diagnoseSourceMoveTranslation(baseline, modified, targetPart, originalOffset);
+        console.info("[Source Move] SCAD verification rejected", details);
+        setMessage("Verification failed: " + details.missingExpectedFaces +
+          " expected faces missing and " + details.extraActualFaces +
+          " unexpected faces (" + details.beforeFaces + " → " + details.afterFaces +
+          " triangles). Nothing saved.");
         return;
       }
       const latestTarget = current.current.selected;
