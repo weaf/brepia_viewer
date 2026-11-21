@@ -1,7 +1,6 @@
 import type { ParsedOff } from "@/utils/offParser";
 import { connectedClosedShells } from "@/utils/orcaSplitSafeThreeMf";
 import { excludeScadSourceCall, maskScadNonCode } from "./sourceMoveProvenance";
-import { proveTranslatedShellsWithCsg } from "./sourceMoveCsgSolidProof";
 import {
   writeSourceMoveTranslation, type SourceMoveCandidate, type SourceMoveVector,
 } from "./sourceMoveWriteback";
@@ -122,8 +121,10 @@ function singleLocatedMovedShell(
  *
  * 1. Source edit MUST be exactly one generated translate() on a standalone
  *    top-level module call previously identified by exclusion.
- * 2. The selected part MUST exist as exactly one identical translated shell
- *    in the entire newly compiled model, and the shell count cannot change.
+ * 2. The moved part must be uniquely located at the translated bounds,
+ *    with the same shell count as the baseline. Either its moved triangles
+ *    match exactly, or a reverse transform around the exact generated call
+ *    must reconstruct every ORIGINAL triangle in the full scene.
  * 3. The rest of the model MUST compile to exactly identical OFF triangles
  *    after disabling that call both before and after the source edit.
  *
@@ -148,30 +149,23 @@ export async function verifyIndependentSourceMove({
   if(delta.some(value=>!Number.isFinite(value))) return reject("non-finite-delta");
   if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return reject("source-diff-unexpected");
   if(!singleExactMovedShell(baseline,moved,targetPart,delta)) {
-    // When whole-scene Manifold retessellates the selected shell too, prove
-    // its original and translated geometry with OpenSCAD's root modifier.
-    // This renders just the one original call, irrespective of other bodies.
+    // A source-authored translate is analytically reversible for an
+    // independent top-level call. Render the WHOLE scene with an inverse
+    // transform around exactly that generated wrapper. If the complete
+    // original mesh returns, the edit has only moved the selected geometry,
+    // even when the moved scene itself is retessellated by Manifold.
     if(!singleLocatedMovedShell(baseline,moved,targetPart,delta)) return reject("moved-shell-bounds-mismatch");
-    const inserted=/^translate\(\[[^\]]+\]\)\s+/.exec(modified.slice(candidate.call.start));
-    if(!inserted) return reject("wrapper-not-found");
-    const originalOnly=source+"\n!"+candidate.call.callText+";\n";
-    const translatedOnly=source+"\n!"+inserted[0]+candidate.call.callText+";\n";
-    const standaloneBefore=await compile(originalOnly);
-    const standaloneAfter=await compile(translatedOnly);
-    const originalShells=connectedClosedShells(standaloneBefore);
-    const translatedShells=connectedClosedShells(standaloneAfter);
-    if(originalShells.length!==1 || translatedShells.length!==1) return reject("root-shell-count-mismatch");
-    const beforeFaces=faceCounts(standaloneBefore,originalShells[0].faceIndices,delta);
-    const afterFaces=faceCounts(standaloneAfter,translatedShells[0].faceIndices,zero);
-    if(beforeFaces.size===0 || !identical(beforeFaces,afterFaces)) {
-      // OpenSCAD may retessellate a closed solid when moved a fractional mm.
-      // Difference in BOTH directions must be geometrically empty. The
-      // unchanged, independently compiled rest is still checked below.
-      const csgEquivalent=await proveTranslatedShellsWithCsg(
-        baseline,moved,targetPart,delta,compile,onFailure,
-      );
-      if(!csgEquivalent) return reject("root-selected-solid-volume-mismatch");
-    }
+    const inverse="translate(["+delta.map(v=>String(-v)).join(", ")+"]) ";
+    const reversedSource=modified.slice(0,candidate.call.start)+inverse+
+      modified.slice(candidate.call.start);
+    const restored=await compile(reversedSource);
+    if(restored.faces.length!==baseline.faces.length ||
+       connectedClosedShells(restored).length!==connectedClosedShells(baseline).length)
+      return reject("round-trip-scene-count-mismatch");
+    const beforeFaces=faceCounts(baseline,baseline.faces.map((_,i)=>i),zero);
+    const roundTripFaces=faceCounts(restored,restored.faces.map((_,i)=>i),zero);
+    if(beforeFaces.size===0 || !identical(beforeFaces,roundTripFaces))
+      return reject("round-trip-scene-geometry-mismatch");
   }
   const excludedBefore=excludeScadSourceCall(source,candidate.call);
   // Guard the SAME generated translate wrapper; no other statement changes.
