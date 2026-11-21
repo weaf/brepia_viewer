@@ -113,9 +113,10 @@ export async function verifyIndependentSourceMove({
   // Guard the SAME generated translate wrapper; no other statement changes.
   const excludedAfter=modified.slice(0,candidate.call.start)+"if (false) "+
     modified.slice(candidate.call.start);
-  const [remainingBefore,remainingAfter]=await Promise.all([
-    compile(excludedBefore),compile(excludedAfter),
-  ]);
+  // The OpenSCAD WASM worker is single-threaded. Do not overlap two project
+  // previews or let their temporary file contexts interfere.
+  const remainingBefore=await compile(excludedBefore);
+  const remainingAfter=await compile(excludedAfter);
   if(remainingBefore.faces.length===0 ||
      remainingBefore.faces.length!==remainingAfter.faces.length ||
      connectedClosedShells(remainingBefore).length!==connectedClosedShells(remainingAfter).length) return false;
