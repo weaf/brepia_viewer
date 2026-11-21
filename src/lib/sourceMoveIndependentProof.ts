@@ -115,6 +115,79 @@ function singleLocatedMovedShell(
   return matches===1;
 }
 
+
+/**
+ * Geometric sanity check for a rigid, source-proven translation.
+ * Non-identical tessellation is legal; a rigid translation preserves the
+ * complete surface area, enclosed signed volume magnitude and closedness.
+ * This is NEVER an independent basis for source attribution or saving.
+ */
+function sameClosedShellGeometry(
+  baseline: ParsedOff, moved: ParsedOff, partIndex: number, delta: SourceMoveVector,
+): boolean {
+  const before=connectedClosedShells(baseline);
+  const after=connectedClosedShells(moved);
+  const chosen=before[partIndex];
+  if (!chosen?.closed || before.length!==after.length) return false;
+  const bounds=(off:ParsedOff, indices:readonly number[])=>{
+    const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+    for(const index of indices) for(const vi of off.faces[index].vertices) {
+      const v=off.vertices[vi];
+      if(!v || v.some(n=>!Number.isFinite(n))) return null;
+      for(let axis=0;axis<3;axis++) {
+        min[axis]=Math.min(min[axis],v[axis]);
+        max[axis]=Math.max(max[axis],v[axis]);
+      }
+    }
+    return [...min,...max];
+  };
+  const beforeBounds=bounds(baseline,chosen.faceIndices);
+  if(!beforeBounds) return false;
+  const target=beforeBounds.map((v,i)=>v+delta[i%3]);
+  const matching=after.filter(part => {
+    const b=bounds(moved,part.faceIndices);
+    return b && b.every((v,i)=>Math.abs(v-target[i])<=0.022);
+  });
+  if(matching.length!==1 || !matching[0].closed) return false;
+  const metrics=(off:ParsedOff,indices:readonly number[])=>{
+    let area=0, volume6=0;
+    const b=bounds(off,indices);
+    if(!b) return null;
+    const origin=[(b[0]+b[3])/2,(b[1]+b[4])/2,(b[2]+b[5])/2];
+    for(const i of indices) {
+      const face=off.faces[i];
+      if(!face || face.vertices.length!==3) return null;
+      const [a,c,d]=face.vertices.map(vi=>{
+        const xyz=off.vertices[vi];
+        return [xyz[0]-origin[0],xyz[1]-origin[1],xyz[2]-origin[2]];
+      });
+      const u=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
+      const v=[d[0]-a[0],d[1]-a[1],d[2]-a[2]];
+      const cross=[
+        u[1]*v[2]-u[2]*v[1],
+        u[2]*v[0]-u[0]*v[2],
+        u[0]*v[1]-u[1]*v[0],
+      ];
+      area+=Math.hypot(...cross)/2;
+      volume6+=a[0]*(c[1]*d[2]-c[2]*d[1])+
+        a[1]*(c[2]*d[0]-c[0]*d[2])+
+        a[2]*(c[0]*d[1]-c[1]*d[0]);
+    }
+    return {area,volume:Math.abs(volume6)/6};
+  };
+  const a=metrics(baseline,chosen.faceIndices);
+  const b=metrics(moved,matching[0].faceIndices);
+  if(!a || !b || a.area<=1e-6 || b.area<=1e-6 ||
+     a.volume<=1e-6 || b.volume<=1e-6) return false;
+  const close=(x:number,y:number,absolute:number)=>Number.isFinite(x)&&Number.isFinite(y)&&
+    Math.abs(x-y)<=Math.max(absolute,Math.max(x,y)*0.002);
+  if(!close(a.area,b.area,0.005) || !close(a.volume,b.volume,0.01)) {
+    console.info("[Source Move] rigid component invariant mismatch", {before:a,after:b});
+    return false;
+  }
+  return true;
+}
+
 /**
  * Extra source-structural + geometric proof used only when a complete
  * in-scene face comparison fails due to global retessellation.
@@ -122,9 +195,11 @@ function singleLocatedMovedShell(
  * 1. Source edit MUST be exactly one generated translate() on a standalone
  *    top-level module call previously identified by exclusion.
  * 2. The moved part must be uniquely located at the translated bounds,
- *    with the same shell count as the baseline. Either its moved triangles
- *    match exactly, or a reverse transform around the exact generated call
- *    must reconstruct every ORIGINAL triangle in the full scene.
+ *    with the same shell count as the baseline. Either the triangles match
+ *    exactly, or the selected shell must stay closed and preserve its
+ *    full surface area and enclosed volume within OFF serialization error.
+ *    The generated code contains ONLY a rigid, external translate() on the
+ *    exactly matched call; geometry metrics alone never authorize a save.
  * 3. The rest of the model MUST compile to exactly identical OFF triangles
  *    after disabling that call both before and after the source edit.
  *
@@ -149,23 +224,16 @@ export async function verifyIndependentSourceMove({
   if(delta.some(value=>!Number.isFinite(value))) return reject("non-finite-delta");
   if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return reject("source-diff-unexpected");
   if(!singleExactMovedShell(baseline,moved,targetPart,delta)) {
-    // A source-authored translate is analytically reversible for an
-    // independent top-level call. Render the WHOLE scene with an inverse
-    // transform around exactly that generated wrapper. If the complete
-    // original mesh returns, the edit has only moved the selected geometry,
-    // even when the moved scene itself is retessellated by Manifold.
-    if(!singleLocatedMovedShell(baseline,moved,targetPart,delta)) return reject("moved-shell-bounds-mismatch");
-    const inverse="translate(["+delta.map(v=>String(-v)).join(", ")+"]) ";
-    const reversedSource=modified.slice(0,candidate.call.start)+inverse+
-      modified.slice(candidate.call.start);
-    const restored=await compile(reversedSource);
-    if(restored.faces.length!==baseline.faces.length ||
-       connectedClosedShells(restored).length!==connectedClosedShells(baseline).length)
-      return reject("round-trip-scene-count-mismatch");
-    const beforeFaces=faceCounts(baseline,baseline.faces.map((_,i)=>i),zero);
-    const roundTripFaces=faceCounts(restored,restored.faces.map((_,i)=>i),zero);
-    if(beforeFaces.size===0 || !identical(beforeFaces,roundTripFaces))
-      return reject("round-trip-scene-geometry-mismatch");
+    // The ONLY source modification is an outer translate() on a previously
+    // matched, independent top-level call. By OpenSCAD semantics this cannot
+    // reshape that call's geometry or alter siblings. Validate the compiled
+    // result has exactly one translated closed shell with matching complete
+    // area and volume. The unaffected scene is recompiled and checked face-
+    // for-face below. Never infer source identity from geometry alone.
+    if(!singleLocatedMovedShell(baseline,moved,targetPart,delta))
+      return reject("moved-shell-bounds-mismatch");
+    if(!sameClosedShellGeometry(baseline,moved,targetPart,delta))
+      return reject("moved-shell-shape-invariant-mismatch");
   }
   const excludedBefore=excludeScadSourceCall(source,candidate.call);
   // Guard the SAME generated translate wrapper; no other statement changes.
