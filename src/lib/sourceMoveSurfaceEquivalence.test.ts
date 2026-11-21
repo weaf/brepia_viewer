@@ -43,6 +43,22 @@ function movedAndSplit(before: ParsedOff): ParsedOff {
   return copy;
 }
 
+
+function movedWithRetessellatedUnmovedShell(before: ParsedOff): ParsedOff {
+  const copy = structuredClone(before);
+  for (let i = 4; i < 8; i++) copy.vertices[i][0] += 5;
+  const face = copy.faces[0];
+  const p = face.vertices.map(index => copy.vertices[index]);
+  const center = p[0].map((x, i) => (x + p[1][i] + p[2][i]) / 3) as [number,number,number];
+  const index = copy.vertices.push(center) - 1;
+  copy.faces.splice(0, 1,
+    {vertices:[face.vertices[0],face.vertices[1],index],color:null},
+    {vertices:[face.vertices[1],face.vertices[2],index],color:null},
+    {vertices:[face.vertices[2],face.vertices[0],index],color:null},
+  );
+  return copy;
+}
+
 describe("Source Move precise surface-equivalence fallback", () => {
   const before = together(tetra(-40), tetra(40));
 
@@ -50,6 +66,11 @@ describe("Source Move precise surface-equivalence fallback", () => {
     const after = movedAndSplit(before);
     expect(after.faces.length).toBe(before.faces.length+2);
     expect(verifySourceMoveRetessellation(before,after,1,[5,0,0])).toBe(true);
+  });
+
+  it("accepts equivalent retessellation of the UNMOVED shell, as Manifold does for Box", () => {
+    const after = movedWithRetessellatedUnmovedShell(before);
+    expect(verifySourceMoveRetessellation(before, after, 1, [5,0,0])).toBe(true);
   });
 
   it("rejects geometry changes on the unselected component", () => {
