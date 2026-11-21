@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/lib/sourceMove*"
+      - ".github/scripts/source-move-box-browser.mjs"
       - ".github/workflows/source-move-native-box.yml"
 
 permissions:
