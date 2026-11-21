@@ -130,7 +130,7 @@ function singleLocatedMovedShell(
  * Nested CSG, loop bodies, multiple part matches or errors fail closed.
  */
 export async function verifyIndependentSourceMove({
-  source, modified, candidate, baseline, moved, targetPart, delta, compile,
+  source, modified, candidate, baseline, moved, targetPart, delta, compile, onFailure,
 }:{
   source: string;
   modified: string;
@@ -140,27 +140,29 @@ export async function verifyIndependentSourceMove({
   targetPart: number;
   delta: SourceMoveVector;
   compile: (source: string)=>Promise<ParsedOff>;
+  onFailure?: (reason: string)=>void;
 }):Promise<boolean>{
-  if(!isIndependentTopLevelCall(source,candidate)) return false;
-  if(delta.some(value=>!Number.isFinite(value))) return false;
-  if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return false;
+  const reject=(reason:string)=>{onFailure?.(reason);return false;};
+  if(!isIndependentTopLevelCall(source,candidate)) return reject("call-not-independent");
+  if(delta.some(value=>!Number.isFinite(value))) return reject("non-finite-delta");
+  if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return reject("source-diff-unexpected");
   if(!singleExactMovedShell(baseline,moved,targetPart,delta)) {
     // When whole-scene Manifold retessellates the selected shell too, prove
     // its original and translated geometry with OpenSCAD's root modifier.
     // This renders just the one original call, irrespective of other bodies.
-    if(!singleLocatedMovedShell(baseline,moved,targetPart,delta)) return false;
+    if(!singleLocatedMovedShell(baseline,moved,targetPart,delta)) return reject("moved-shell-bounds-mismatch");
     const inserted=/^translate\(\[[^\]]+\]\)\s+/.exec(modified.slice(candidate.call.start));
-    if(!inserted) return false;
+    if(!inserted) return reject("wrapper-not-found");
     const originalOnly=source+"\n!"+candidate.call.callText+";\n";
     const translatedOnly=source+"\n!"+inserted[0]+candidate.call.callText+";\n";
     const standaloneBefore=await compile(originalOnly);
     const standaloneAfter=await compile(translatedOnly);
     const originalShells=connectedClosedShells(standaloneBefore);
     const translatedShells=connectedClosedShells(standaloneAfter);
-    if(originalShells.length!==1 || translatedShells.length!==1) return false;
+    if(originalShells.length!==1 || translatedShells.length!==1) return reject("root-shell-count-mismatch");
     const beforeFaces=faceCounts(standaloneBefore,originalShells[0].faceIndices,delta);
     const afterFaces=faceCounts(standaloneAfter,translatedShells[0].faceIndices,zero);
-    if(beforeFaces.size===0 || !identical(beforeFaces,afterFaces)) return false;
+    if(beforeFaces.size===0 || !identical(beforeFaces,afterFaces)) return reject("root-selected-geometry-mismatch");
   }
   const excludedBefore=excludeScadSourceCall(source,candidate.call);
   // Guard the SAME generated translate wrapper; no other statement changes.
@@ -172,8 +174,9 @@ export async function verifyIndependentSourceMove({
   const remainingAfter=await compile(excludedAfter);
   if(remainingBefore.faces.length===0 ||
      remainingBefore.faces.length!==remainingAfter.faces.length ||
-     connectedClosedShells(remainingBefore).length!==connectedClosedShells(remainingAfter).length) return false;
+     connectedClosedShells(remainingBefore).length!==connectedClosedShells(remainingAfter).length) return reject("unaffected-shell-count-mismatch");
   const beforeAll=faceCounts(remainingBefore,remainingBefore.faces.map((_,i)=>i),zero);
   const afterAll=faceCounts(remainingAfter,remainingAfter.faces.map((_,i)=>i),zero);
-  return beforeAll.size>0 && identical(beforeAll,afterAll);
+  if(beforeAll.size===0 || !identical(beforeAll,afterAll)) return reject("unaffected-geometry-mismatch");
+  return true;
 }
