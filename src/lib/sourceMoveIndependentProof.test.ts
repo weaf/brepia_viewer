@@ -111,11 +111,13 @@ describe("Source Move independent top-level proof",()=>{
     );
     const compile=vi.fn()
       .mockResolvedValueOnce(tetra(40))
+      .mockResolvedValueOnce(tetra(45.1))
+      .mockResolvedValueOnce(tetra(45))
       .mockResolvedValueOnce(tetra(45.1));
     expect(await verifyIndependentSourceMove({
       source,modified,candidate,baseline:original,moved:remeshed,targetPart:1,delta,compile,
     })).toBe(false);
-    expect(compile).toHaveBeenCalledTimes(2);
+    expect(compile).toHaveBeenCalledTimes(4);
   });
 
   it("does not accept a changed unused part in isolated compilation",async()=>{
