@@ -7,6 +7,7 @@ import {
   writeSourceMoveTranslation, type SourceMoveCandidate, type SourceMoveVector,
 } from "@/lib/sourceMoveWriteback";
 import { verifySourceMoveRetessellation } from "@/lib/sourceMoveSurfaceEquivalence";
+import { verifyIndependentSourceMove } from "@/lib/sourceMoveIndependentProof";
 
 export type SelectedSourceMove = { partIndex: number; offset: SourceMoveVector };
 
@@ -139,17 +140,35 @@ export function SourceMovePanel({
       const modified = await compileSource(preview.modified);
       if (!selectionStillCurrent(request,targetPart)) return;
       if (!verifySourceMoveTranslation(baseline,modified,targetPart,originalOffset)) {
-        const details = diagnoseSourceMoveTranslation(baseline, modified, targetPart, originalOffset);
-        let retessellationReason: Record<string, string | number> | null = null;
-        verifySourceMoveRetessellation(baseline,modified,targetPart,originalOffset,value=>{
-          retessellationReason = value;
+        // Manifold may re-tessellate an untouched part when another independent
+        // top-level part is moved. Do not loosen the surface tolerances:
+        // prove the standalone selected shell is an exact translation AND
+        // independently recompile the entire unaffected model, before saving.
+        setMessage("Checking selected source call and all untouched geometry separately…");
+        const source = getOpenScadEntrypoint(project).content;
+        const independentlyVerified = await verifyIndependentSourceMove({
+          source, modified: preview.modified, candidate: matched,
+          baseline, moved: modified, targetPart, delta: originalOffset,
+          compile: compileSource,
         });
-        console.info("[Source Move] SCAD verification rejected", {...details,retessellationReason});
-        setMessage("Verification failed: " + details.missingExpectedFaces +
-          " expected faces missing and " + details.extraActualFaces +
-          " unexpected faces (" + details.beforeFaces + " → " + details.afterFaces +
-          " triangles). Nothing saved.");
-        return;
+        if (!selectionStillCurrent(request,targetPart)) return;
+        if (!independentlyVerified) {
+          const details = diagnoseSourceMoveTranslation(baseline, modified, targetPart, originalOffset);
+          let retessellationReason: Record<string, string | number> | null = null;
+          verifySourceMoveRetessellation(baseline,modified,targetPart,originalOffset,value=>{
+            retessellationReason = value;
+          });
+          console.info("[Source Move] SCAD verification rejected", {...details,retessellationReason,
+            independentSourceProof:false});
+          setMessage("Verification failed: " + details.missingExpectedFaces +
+            " expected faces missing and " + details.extraActualFaces +
+            " unexpected faces (" + details.beforeFaces + " → " + details.afterFaces +
+            " triangles). Independent source proof also failed. Nothing saved.");
+          return;
+        }
+        console.info("[Source Move] Independent source proof accepted", {
+          module:matched.call.name,line:matched.call.line,delta:originalOffset,
+        });
       }
       const latestTarget = current.current.selected;
       if (!latestTarget || latestTarget.offset.some((v,i) => Math.abs(v-originalOffset[i])>0.00001)) {
