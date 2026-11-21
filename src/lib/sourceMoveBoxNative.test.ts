@@ -15,7 +15,7 @@ import {
 const native = process.env.SOURCE_MOVE_NATIVE_BOX === "1" ? it : it.skip;
 
 describe("Source Move real OpenSCAD Box proof", () => {
-  native("maps the lid from source, moves only it and verifies the complete OFF mesh", () => {
+  native("maps the lid from source, moves only it and verifies the complete OFF mesh", async () => {
     const fixture = process.env.SOURCE_MOVE_BOX_FILE;
     expect(fixture, "Pinned real Box fixture must be supplied").toBeTruthy();
     const source = readFileSync(fixture!, "utf8");
