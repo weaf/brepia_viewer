@@ -6,6 +6,10 @@ import path from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import { chromium } from "@playwright/test";
 
+function readLidMove(code) {
+  const match=/translate\(\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]\)\s+generate_lid\(\);/.exec(code);
+  return match ? {snippet:match[0],delta:match.slice(1,4).map(Number)} : null;
+}
 const host = "http://127.0.0.1:4301/";
 const desktop = process.env.SOURCE_MOVE_BROWSER_DEVICE === "desktop";
 const evidence = path.resolve(".output/source-move-box-browser", desktop ? "desktop" : "mobile");
@@ -163,7 +167,7 @@ try {
     });
     const oldStored = await readStoredSource();
     assert.ok(oldStored.includes("generate_lid();"), "Uploaded Box source was not persisted");
-    assert.ok(!oldStored.includes("translate([5, 0, 0]) generate_lid();"),
+    assert.ok(!readLidMove(oldStored),
       "The move was already saved before Apply");
     await panel.getByRole("button", { name: "Apply Part Move to OpenSCAD code" }).click();
     // A successful project save replaces the panel props and can clear its
@@ -172,7 +176,7 @@ try {
     let result = "timeout";
     for (let attempt = 0; attempt < 240; attempt += 1) {
       const actual = await readStoredSource();
-      if (actual.includes("translate([5, 0, 0]) generate_lid();")) {
+      if (readLidMove(actual)) {
         result = "saved";
         break;
       }
@@ -192,7 +196,7 @@ try {
     }
     await pause(1500); // Avoid treating a temporary transaction as a durable save.
     const saved = await readStoredSource();
-    if (!saved.includes("translate([5, 0, 0]) generate_lid();")) {
+    if (!readLidMove(saved)) {
       const snapshot = await page.evaluate(async () => {
         const db = await new Promise((resolve, reject) => {
           const r = indexedDB.open("brepia-local-models", 1);
@@ -214,7 +218,7 @@ try {
               entrypoint:row.project?.entrypointPath,
               files:row.project?.files?.map(f => ({
                 path:f.path, chars:f.content.length,
-                moved:f.content.includes("translate([5, 0, 0]) generate_lid();"),
+                moved:Boolean(readLidMove(f.content)),
                 lid:f.content.includes("generate_lid();"),
               })),
             })),
@@ -226,7 +230,12 @@ try {
         selectedSavedChars:saved.length, errors,
       }));
     }
-    assert.ok(saved.includes("translate([5, 0, 0]) generate_lid();"), "IndexedDB source not changed");
+    const savedMove=readLidMove(saved);
+    assert.ok(savedMove, "IndexedDB source not changed");
+    assert.ok(savedMove.delta.every(Number.isFinite),"Invalid moved SCAD coordinates");
+    assert.ok(Math.abs(savedMove.delta[0])>=0.1 && Math.abs(savedMove.delta[1])<0.001 && Math.abs(savedMove.delta[2])<0.001,
+      "Source Move modified an unexpected axis: "+JSON.stringify(savedMove.delta));
+    if(!desktop)assert.equal(savedMove.delta[0],5,"Mobile 5 mm move drifted");
     assert.ok(saved.includes("generate_box();"), "Unrelated box source missing from saved file");
     await page.screenshot({ path: path.join(evidence, "code-after-apply.jpg"), type: "jpeg", quality: 70 });
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -235,7 +244,7 @@ try {
     await openSaved.click();
     await page.getByText("Source and parameters", { exact: true }).waitFor({ timeout: 60000 });
     const persisted = await readStoredSource();
-    assert.ok(persisted.includes("translate([5, 0, 0]) generate_lid();"),
+    assert.ok(persisted.includes(savedMove.snippet),
       "Saved SCAD change disappeared after reload");
     await page.screenshot({ path: path.join(evidence, "persisted-after-reload.jpg"), type: "jpeg", quality: 70 });
 
@@ -253,7 +262,7 @@ try {
     const downloadedPath=await download.path();
     assert.ok(downloadedPath,"SCAD export has no readable download path");
     const exportedCode=readFileSync(downloadedPath,"utf8");
-    assert.ok(exportedCode.includes("translate([5, 0, 0]) generate_lid();"),
+    assert.ok(exportedCode.includes(savedMove.snippet),
       "Exported SCAD did not retain the moved lid");
     assert.ok(exportedCode.includes("generate_box();"),
       "Exported SCAD lost the unchanged box");
