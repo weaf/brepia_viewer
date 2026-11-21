@@ -162,6 +162,40 @@ try {
       throw error;
     }
     const saved = await readStoredSource();
+    if (!saved.includes("translate([5, 0, 0]) generate_lid();")) {
+      const snapshot = await page.evaluate(async () => {
+        const db = await new Promise((resolve, reject) => {
+          const r = indexedDB.open("brepia-local-models", 1);
+          r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+        });
+        try {
+          const tx = db.transaction(["cache", "models"], "readonly");
+          const cache = await new Promise((resolve, reject) => {
+            const r = tx.objectStore("cache").get("last-opened-local-model");
+            r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+          });
+          const rows = await new Promise((resolve, reject) => {
+            const r = tx.objectStore("models").getAll();
+            r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
+          });
+          return { cache,
+            models: rows.map(row => ({
+              id: row.id, name: row.name, active:row.id===cache?.modelId,
+              entrypoint:row.project?.entrypointPath,
+              files:row.project?.files?.map(f => ({
+                path:f.path, chars:f.content.length,
+                moved:f.content.includes("translate([5, 0, 0]) generate_lid();"),
+                lid:f.content.includes("generate_lid();"),
+              })),
+            })),
+          };
+        } finally { db.close(); }
+      });
+      console.error("SOURCE_MOVE_BOX_SAVE_DIAGNOSTICS", JSON.stringify({
+        snapshot, panel:await panel.innerText().catch(()=>null),
+        selectedSavedChars:saved.length, errors,
+      }));
+    }
     assert.ok(saved.includes("translate([5, 0, 0]) generate_lid();"), "IndexedDB source not changed");
     assert.ok(saved.includes("generate_box();"), "Unrelated box source missing from saved file");
     await page.screenshot({ path: path.join(evidence, "code-after-apply.jpg"), type: "jpeg", quality: 70 });
