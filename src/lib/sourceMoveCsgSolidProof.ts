@@ -37,7 +37,8 @@ export async function proveTranslatedShellsWithCsg(
   }
   const beforeParts = connectedClosedShells(original);
   const afterParts = connectedClosedShells(moved);
-  if (!beforeParts[partIndex] || beforeParts.length !== afterParts.length) {
+  if (!beforeParts[partIndex]?.closed || beforeParts.length !== afterParts.length ||
+      afterParts.some(shell => !shell.closed)) {
     return reject("csg-part-count-changed");
   }
   const beforeIndices = beforeParts[partIndex].faceIndices;
@@ -50,9 +51,29 @@ export async function proveTranslatedShellsWithCsg(
   });
   if (candidates.length !== 1) return reject("csg-no-unique-moved-shell");
   const afterIndices = candidates[0].faceIndices;
+  if (!candidates[0].closed) return reject("csg-selected-shell-open");
   const expected = polyhedronFromOff(original,beforeIndices,delta);
   const actual = polyhedronFromOff(moved,afterIndices,[0,0,0]);
   if (!expected || !actual) return reject("csg-shell-too-large-or-invalid");
+
+  // A malformed or inward-facing polyhedron may silently render NOTHING.
+  // Without this guard BOTH differences would appear empty and could
+  // incorrectly approve a save. Each isolated input MUST be a real closed
+  // solid with the correct bounds before their differences are computed.
+  for (const [poly,reason] of [
+    [expected,"csg-expected-solid-invalid"],
+    [actual,"csg-actual-solid-invalid"],
+  ] as const) {
+    const standalone=await compile("!"+poly+"\n");
+    const parts=connectedClosedShells(standalone);
+    if (parts.length!==1 || !parts[0].closed ||
+        standalone.faces.length===0) return reject(reason);
+    const renderedBounds=shellBounds(standalone,parts[0].faceIndices,[0,0,0]);
+    if (!renderedBounds ||
+        renderedBounds.some((v,i)=>Math.abs(v-beforeBounds[i])>BOUNDS_EPSILON)) {
+      return reject(reason+"-bounds");
+    }
+  }
 
   const witness: Delta = [
     Math.max(beforeBounds[3], beforeBounds[0]) + 100,
@@ -134,7 +155,7 @@ function polyhedronFromOff(
 function isWitnessOnly(result: ParsedOff, witness: Delta): boolean {
   if(result.faces.length!==12 || result.vertices.length<8) return false;
   const shells=connectedClosedShells(result);
-  if(shells.length!==1) return false;
+  if(shells.length!==1 || !shells[0].closed) return false;
   const bounds=shellBounds(result,shells[0].faceIndices,[0,0,0]);
   if(!bounds) return false;
   const expected=[...witness,...witness.map(v=>v+1)];
