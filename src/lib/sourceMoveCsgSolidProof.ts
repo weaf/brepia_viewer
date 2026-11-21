@@ -37,9 +37,14 @@ export async function proveTranslatedShellsWithCsg(
   }
   const beforeParts = connectedClosedShells(original);
   const afterParts = connectedClosedShells(moved);
-  if (!beforeParts[partIndex]?.closed || beforeParts.length !== afterParts.length ||
-      afterParts.some(shell => !shell.closed)) {
-    return reject("csg-part-count-changed");
+  if (!beforeParts[partIndex] || beforeParts.length !== afterParts.length) {
+    return reject("csg-part-count-changed:" + beforeParts.length + "->" + afterParts.length);
+  }
+  // Only the selected volume must be watertight. The rest of the scene may
+  // contain pre-existing OFF seams; the independent writeback proof checks
+  // the ENTIRE remainder exactly in separate before/after compilations.
+  if (!beforeParts[partIndex].closed) {
+    return reject("csg-selected-original-open:" + beforeParts[partIndex].openEdges);
   }
   const beforeIndices = beforeParts[partIndex].faceIndices;
   const beforeBounds = shellBounds(original, beforeIndices, delta);
