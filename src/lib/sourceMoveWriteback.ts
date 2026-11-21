@@ -1,5 +1,6 @@
 import type { ParsedOff } from "@/utils/offParser";
 import { connectedClosedShells } from "@/utils/orcaSplitSafeThreeMf";
+import { verifySourceMoveRetessellation } from "./sourceMoveSurfaceEquivalence";
 import {
   discoverScadModuleCalls,
   excludeScadSourceCall,
@@ -223,16 +224,21 @@ export function verifySourceMoveTranslation(
   partIndex: number,
   delta: SourceMoveVector,
 ): boolean {
-  if (original.faces.length !== translated.faces.length ||
-      original.faces.length === 0 || original.faces.length > MAX_FACES) return false;
+  if (original.faces.length === 0 || translated.faces.length === 0 ||
+      original.faces.length > MAX_FACES || translated.faces.length > MAX_FACES) return false;
   const shells = connectedClosedShells(original);
   const shell = shells[partIndex];
   if (!shell || shell.faceIndices.length === 0) return false;
-  const expected = countFaces(original, new Set(shell.faceIndices), delta);
-  const actual = countFaces(translated);
-  if (expected.size !== actual.size) return false;
-  for (const [key, count] of expected) if (actual.get(key) !== count) return false;
-  return true;
+  if (original.faces.length === translated.faces.length) {
+    const expected = countFaces(original, new Set(shell.faceIndices), delta);
+    const actual = countFaces(translated);
+    if (expected.size === actual.size &&
+        [...expected].every(([key, count]) => actual.get(key) === count)) return true;
+  }
+  // Manifold may split a handful of faces differently after a transform.
+  // Do NOT allow a bbox/volume-only shortcut: require exact untouched faces,
+  // unchanged shell count, and symmetric triangle-surface coverage.
+  return verifySourceMoveRetessellation(original, translated, partIndex, delta);
 }
 
 /**
