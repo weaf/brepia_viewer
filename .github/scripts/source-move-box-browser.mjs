@@ -100,6 +100,8 @@ try {
     await panel.getByRole("button", { name: "Identify source of selected part" }).click();
     await panel.getByText(/Matched part 2 to generate_lid/).waitFor({ timeout: 600000 });
     await page.screenshot({ path: path.join(evidence, "matched-lid.jpg"), type: "jpeg", quality: 70 });
+    // Use the actual active model ID recorded by Viewer. Matching only a
+    // filename can accidentally inspect an older imported copy.
     const readStoredSource = () => page.evaluate(async () => {
       const db = await new Promise((resolve, reject) => {
         const request = indexedDB.open("brepia-local-models", 1);
@@ -107,16 +109,19 @@ try {
         request.onerror = () => reject(request.error);
       });
       try {
-        const tx = db.transaction("models", "readonly");
-        const rows = await new Promise((resolve, reject) => {
-          const req = tx.objectStore("models").getAll();
+        const tx = db.transaction(["cache", "models"], "readonly");
+        const cache = await new Promise((resolve, reject) => {
+          const req = tx.objectStore("cache").get("last-opened-local-model");
           req.onsuccess = () => resolve(req.result);
           req.onerror = () => reject(req.error);
         });
-        const rec = rows.find(r => r.name === "source-move-real-box" ||
-          r.project?.files?.some(file => file.path === "source-move-real-box.scad"));
-        return rec?.project?.files?.find(file =>
-          file.path === rec.project.entrypointPath)?.content ?? "";
+        const record = await new Promise((resolve, reject) => {
+          const req = tx.objectStore("models").get(cache?.modelId);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        return record?.project?.files?.find(file =>
+          file.path === record.project.entrypointPath)?.content ?? "";
       } finally { db.close(); }
     });
     const oldStored = await readStoredSource();
@@ -132,14 +137,19 @@ try {
           request.onerror = () => reject(request.error);
         });
         try {
-          const tx = db.transaction("models", "readonly");
-          const rows = await new Promise((resolve, reject) => {
-            const req = tx.objectStore("models").getAll();
+          const tx = db.transaction(["cache", "models"], "readonly");
+          const cache = await new Promise((resolve, reject) => {
+            const req = tx.objectStore("cache").get("last-opened-local-model");
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
           });
-          return rows.some(r => r.project?.files?.some(f =>
-            f.content.includes("translate([5, 0, 0]) generate_lid();")));
+          const model = await new Promise((resolve, reject) => {
+            const req = tx.objectStore("models").get(cache?.modelId);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          return model?.project?.files?.some(f =>
+            f.content.includes("translate([5, 0, 0]) generate_lid();"));
         } finally { db.close(); }
       }, null, {timeout:360000, polling:1200});
     } catch (error) {
