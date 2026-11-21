@@ -74,7 +74,7 @@ describe("Source Move independent top-level proof",()=>{
     expect(compile.mock.calls[1][0]).toContain("if (false) translate([5, 0, 0]) lid();");
   });
 
-  it("proves a moved part via standalone root renders when whole-scene triangulation changes",async()=>{
+  const remeshedMoved = () => {
     const remeshed=structuredClone(moved);
     const face=remeshed.faces[4];
     const p=face.vertices.map(index=>remeshed.vertices[index]);
@@ -85,39 +85,43 @@ describe("Source Move independent top-level proof",()=>{
       {vertices:[face.vertices[1],face.vertices[2],midpoint],color:null},
       {vertices:[face.vertices[2],face.vertices[0],midpoint],color:null},
     );
+    return remeshed;
+  };
+
+  it("verifies entire scene is geometrically restored by inverse source transform",async()=>{
     const compile=vi.fn()
-      .mockResolvedValueOnce(tetra(40))
-      .mockResolvedValueOnce(tetra(45))
+      .mockResolvedValueOnce(original)
       .mockResolvedValueOnce(tetra(-40))
       .mockResolvedValueOnce(tetra(-40));
     expect(await verifyIndependentSourceMove({
-      source,modified,candidate,baseline:original,moved:remeshed,targetPart:1,delta,compile,
+      source,modified,candidate,baseline:original,moved:remeshedMoved(),
+      targetPart:1,delta,compile,
     })).toBe(true);
-    expect(compile).toHaveBeenCalledTimes(4);
-    expect(compile.mock.calls[0][0]).toContain("!lid();");
-    expect(compile.mock.calls[1][0]).toContain("!translate([5, 0, 0]) lid();");
+    expect(compile).toHaveBeenCalledTimes(3);
+    expect(compile.mock.calls[0][0])
+      .toContain("translate([-5, 0, 0]) translate([5, 0, 0]) lid();");
+    expect(compile.mock.calls[1][0]).toContain("if (false) lid();");
+    expect(compile.mock.calls[2][0]).toContain("if (false) translate([5, 0, 0]) lid();");
   });
 
-  it("rejects a remeshed scene when standalone selected geometry changed",async()=>{
-    const remeshed=structuredClone(moved);
-    const face=remeshed.faces[4];
-    const p=face.vertices.map(index=>remeshed.vertices[index]);
-    const center=p[0].map((v,i)=>(v+p[1][i]+p[2][i])/3) as [number,number,number];
-    const midpoint=remeshed.vertices.push(center)-1;
-    remeshed.faces.splice(4,1,
-      {vertices:[face.vertices[0],face.vertices[1],midpoint],color:null},
-      {vertices:[face.vertices[1],face.vertices[2],midpoint],color:null},
-      {vertices:[face.vertices[2],face.vertices[0],midpoint],color:null},
-    );
-    const compile=vi.fn()
-      .mockResolvedValueOnce(tetra(40))
-      .mockResolvedValueOnce(tetra(45.1))
-      .mockResolvedValueOnce(tetra(45))
-      .mockResolvedValueOnce(tetra(45.1));
+  it("rejects a wrongly restored original part before any writeback",async()=>{
+    const deformedOriginal=combine(tetra(-40),tetra(40.1));
+    const compile=vi.fn().mockResolvedValueOnce(deformedOriginal);
+    const reasons:string[]=[];
     expect(await verifyIndependentSourceMove({
-      source,modified,candidate,baseline:original,moved:remeshed,targetPart:1,delta,compile,
+      source,modified,candidate,baseline:original,moved:remeshedMoved(),
+      targetPart:1,delta,compile,onFailure:reason=>reasons.push(reason),
     })).toBe(false);
-    expect(compile).toHaveBeenCalledTimes(4);
+    expect(reasons).toContain("round-trip-scene-geometry-mismatch");
+    expect(compile).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a roundtrip that silently loses any original shell",async()=>{
+    const compile=vi.fn().mockResolvedValueOnce(tetra(-40));
+    expect(await verifyIndependentSourceMove({
+      source,modified,candidate,baseline:original,moved:remeshedMoved(),
+      targetPart:1,delta,compile,
+    })).toBe(false);
   });
 
   it("does not accept a changed unused part in isolated compilation",async()=>{
