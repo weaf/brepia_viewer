@@ -128,14 +128,19 @@ function pointTriangleDistance(point: Vector3, triangle: Face): number {
  * proof is allowed ONLY for facets under 0.005 mm² and with edges <= 10 mm.
  * Never use this for a normal-sized facet.
  */
-function nearbySliver(reference: Face, candidates: readonly Face[]): boolean {
+function nearbySliver(reference: Face, candidates: readonly Face[],
+  details?: (value: Record<string, string | number>) => void): boolean {
   const n = normal(reference);
   if (!n) return false;
   const area3d = Math.hypot(...cross(subtract(reference[1],reference[0]),
     subtract(reference[2],reference[0])))/2;
   const lengths = reference.map((p,i) =>
     Math.hypot(...subtract(p,reference[(i+1)%3])));
-  if (area3d <= 0 || area3d > 0.005 || Math.max(...lengths) > 10) return false;
+  const maxEdge = Math.max(...lengths);
+  if (area3d <= 0 || area3d > 0.005 || maxEdge > 10) {
+    details?.({microArea3d:area3d,maxEdge,reason:"outside-micro-limits"});
+    return false;
+  }
   const midpoint = (a: Vector3,b: Vector3): Vector3 =>
     [(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
   const samples: Vector3[] = [
@@ -153,9 +158,14 @@ function nearbySliver(reference: Face, candidates: readonly Face[]): boolean {
     const m = normal(candidate);
     return m && Math.abs(dot(n,m)) >= MIN_NORMAL_ALIGNMENT;
   });
-  return nearPlanes.length > 0 && samples.every(point =>
-    nearPlanes.some(candidate =>
-      pointTriangleDistance(point,candidate) <= MAX_SURFACE_DEVIATION_MM));
+  const sampleDistances = samples.map(point => Math.min(Infinity,
+    ...nearPlanes.map(candidate => pointTriangleDistance(point,candidate))));
+  const farthestSampleDistance = Math.max(...sampleDistances);
+  const valid = nearPlanes.length > 0 &&
+    sampleDistances.every(distance => distance <= MAX_SURFACE_DEVIATION_MM);
+  if (!valid) details?.({reason:"micro-distance",microArea3d:area3d,
+    maxEdge,nearPlanes:nearPlanes.length,farthestSampleDistance});
+  return valid;
 }
 
 /**
@@ -189,8 +199,9 @@ function fullyCovered(reference: Face, candidates: readonly Face[],
   // Never accept an entirely missing or extra triangle, including tiny ones.
   const tolerance = Math.min(area * 0.12, perimeter * MAX_SURFACE_DEVIATION_MM + 1e-7);
   const surfaceCoverage = covered >= area * 0.88 && Math.abs(covered - area) <= tolerance;
-  const valid = surfaceCoverage || nearbySliver(reference,candidates);
-  if (!valid) details?.({reason:"surface-coverage",area,covered,tolerance,compatible});
+  let microDetail: Record<string, string | number> = {};
+  const valid = surfaceCoverage || nearbySliver(reference,candidates,value=>{microDetail=value;});
+  if (!valid) details?.({reason:"surface-coverage",area,covered,tolerance,compatible,...microDetail});
   return valid;
 }
 
