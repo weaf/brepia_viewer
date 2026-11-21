@@ -1,0 +1,57 @@
+name: Source Move native Box proof
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/sourceMove*"
+      - ".github/scripts/source-move-box-browser.mjs"
+      - ".github/workflows/source-move-native-box.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-box-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      STATIC_VIEWER_BASE: "/"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci --no-fund
+      - name: Install native OpenSCAD
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends openscad
+      - name: Download pinned real Box fixture
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://raw.githubusercontent.com/Noty-design/Parametric-designs/1a2175071735ec265009ddf26c8b62cd3449960f/Box/L%C3%A5da_V4.scad" \
+            --output "${RUNNER_TEMP}/box.scad"
+          test -s "${RUNNER_TEMP}/box.scad"
+      - name: Verify code to lid to translated OFF while other faces stay unchanged
+        run: npx vitest run src/lib/sourceMoveBoxNative.test.ts --reporter=verbose
+        env:
+          SOURCE_MOVE_NATIVE_BOX: "1"
+          SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Verify real Box move, SCAD update and persistence in mobile Chrome
+        run: node .github/scripts/source-move-box-browser.mjs
+        env:
+          SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+      - name: Verify real Box save and reload in desktop Chrome
+        run: node .github/scripts/source-move-box-browser.mjs
+        env:
+          SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+          SOURCE_MOVE_BROWSER_DEVICE: desktop
+      - name: Retain real Box browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-move-real-box
+          path: .output/source-move-box-browser/
+          if-no-files-found: warn

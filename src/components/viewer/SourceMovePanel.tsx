@@ -3,8 +3,10 @@ import { getOpenScadEntrypoint, replaceOpenScadProjectFileContent, type OpenScad
 import { parseColoredOff } from "@/utils/offParser";
 import {
   candidateIsCurrent, findSourceMoveCandidate, verifySourceMoveTranslation,
+  diagnoseSourceMoveTranslation,
   writeSourceMoveTranslation, type SourceMoveCandidate, type SourceMoveVector,
 } from "@/lib/sourceMoveWriteback";
+import { verifyIndependentSourceMove } from "@/lib/sourceMoveIndependentProof";
 
 export type SelectedSourceMove = { partIndex: number; offset: SourceMoveVector };
 
@@ -75,7 +77,7 @@ export function SourceMovePanel({
         source, baseline, targetPart, partCount,
         compile: compileSource, signal: abort.signal,
         onProgress: ({done,total,label}) => {
-          if (generation.current === request) setProgress(done + "/" + total + ": " + label);
+          if (generation.current === request) setProgress(done + "/" + total + " source probes: " + label);
         },
       });
       if (!selectionStillCurrent(request,targetPart)) return;
@@ -88,8 +90,15 @@ export function SourceMovePanel({
           ? "Several source calls match. Source editing disabled for this part."
           : result.status === "too-complex"
             ? "Model too complex for source matching. Preview Move remains available."
-            : "No safe source match among " + result.tested + "/" + result.total +
-              " checked candidates. Preview Move still works.");
+            : result.status === "budget-exhausted"
+              ? "Search limit reached after " + result.tested + "/" + result.total +
+                " candidates. No verified match; code unchanged."
+              : result.status === "probe-failed"
+                ? "All " + result.failed + " source probes failed to compile" +
+                  (result.error ? ": " + result.error : ".") + " Code unchanged."
+                : "No verified match after " + result.tested + " candidates" +
+                  (result.failed ? " (" + result.failed + " probe failures)" : "") +
+                  ". Preview Move remains available.");
       }
     } catch (cause) {
       if (!abort.signal.aborted && generation.current === request) {
@@ -130,8 +139,32 @@ export function SourceMovePanel({
       const modified = await compileSource(preview.modified);
       if (!selectionStillCurrent(request,targetPart)) return;
       if (!verifySourceMoveTranslation(baseline,modified,targetPart,originalOffset)) {
-        setMessage("Verification failed: source rendering does not match the 3D move. Nothing saved.");
-        return;
+        // Manifold may re-tessellate an untouched part when another independent
+        // top-level part is moved. Do not loosen the surface tolerances:
+        // prove the standalone selected shell is an exact translation AND
+        // independently recompile the entire unaffected model, before saving.
+        setMessage("Checking selected source call and all untouched geometry separately…");
+        const source = getOpenScadEntrypoint(project).content;
+        const independentlyVerified = await verifyIndependentSourceMove({
+          source, modified: preview.modified, candidate: matched,
+          baseline, moved: modified, targetPart, delta: originalOffset,
+          compile: compileSource,
+          onFailure: (reason) => console.info("[Source Move] independent proof rejected", reason),
+        });
+        if (!selectionStillCurrent(request,targetPart)) return;
+        if (!independentlyVerified) {
+          const details = diagnoseSourceMoveTranslation(baseline, modified, targetPart, originalOffset);
+          console.info("[Source Move] SCAD verification rejected", {...details,
+            independentSourceProof:false});
+          setMessage("Verification failed: " + details.missingExpectedFaces +
+            " expected faces missing and " + details.extraActualFaces +
+            " unexpected faces (" + details.beforeFaces + " → " + details.afterFaces +
+            " triangles). Independent source proof also failed. Nothing saved.");
+          return;
+        }
+        console.info("[Source Move] Independent source proof accepted", {
+          module:matched.call.name,line:matched.call.line,delta:originalOffset,
+        });
       }
       const latestTarget = current.current.selected;
       if (!latestTarget || latestTarget.offset.some((v,i) => Math.abs(v-originalOffset[i])>0.00001)) {
