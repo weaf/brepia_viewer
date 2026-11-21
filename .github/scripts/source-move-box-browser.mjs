@@ -100,26 +100,67 @@ try {
     await panel.getByRole("button", { name: "Identify source of selected part" }).click();
     await panel.getByText(/Matched part 2 to generate_lid/).waitFor({ timeout: 600000 });
     await page.screenshot({ path: path.join(evidence, "matched-lid.jpg"), type: "jpeg", quality: 70 });
+    const readStoredSource = () => page.evaluate(async () => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open("brepia-local-models", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const tx = db.transaction("models", "readonly");
+        const rows = await new Promise((resolve, reject) => {
+          const req = tx.objectStore("models").getAll();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        const rec = rows.find(r => r.name === "source-move-real-box" ||
+          r.project?.files?.some(file => file.path === "source-move-real-box.scad"));
+        return rec?.project?.files?.find(file =>
+          file.path === rec.project.entrypointPath)?.content ?? "";
+      } finally { db.close(); }
+    });
+    const oldStored = await readStoredSource();
+    assert.ok(oldStored.includes("generate_lid();"), "Uploaded Box source was not persisted");
+    assert.ok(!oldStored.includes("translate([5, 0, 0]) generate_lid();"),
+      "The move was already saved before Apply");
     await panel.getByRole("button", { name: "Apply Part Move to OpenSCAD code" }).click();
-    const editor = page.getByRole("button", { name: "Open source-move-real-box.scad" });
-    await editor.waitFor({ state: "visible", timeout: 600000 });
-    await page.getByRole("button", { name: "Cancel preview" }).waitFor({ state: "hidden", timeout: 600000 });
-    await editor.click();
-    const content = await page.locator(".cm-content").first().innerText();
-    assert.ok(content.includes("translate([5, 0, 0]) generate_lid();"),
-      "Code change not applied: " + content.slice(-600));
-    assert.ok(content.includes("generate_box();"), "Unrelated box source missing");
+    try {
+      await page.waitForFunction(async () => {
+        const db = await new Promise((resolve, reject) => {
+          const request = indexedDB.open("brepia-local-models", 1);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        try {
+          const tx = db.transaction("models", "readonly");
+          const rows = await new Promise((resolve, reject) => {
+            const req = tx.objectStore("models").getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          return rows.some(r => r.project?.files?.some(f =>
+            f.content.includes("translate([5, 0, 0]) generate_lid();")));
+        } finally { db.close(); }
+      }, null, {timeout:360000, polling:1200});
+    } catch (error) {
+      await page.screenshot({ path: path.join(evidence, "apply-not-saved.jpg"), type: "jpeg", quality: 70 });
+      console.error("SOURCE_MOVE_BOX_APPLY_DIAGNOSTICS", JSON.stringify({
+        panel:await panel.innerText().catch(()=>null),
+        currentSourceHasTranslation:(await readStoredSource()).includes("translate([5, 0, 0]) generate_lid();"),
+        errors,
+      }));
+      throw error;
+    }
+    const saved = await readStoredSource();
+    assert.ok(saved.includes("translate([5, 0, 0]) generate_lid();"), "IndexedDB source not changed");
+    assert.ok(saved.includes("generate_box();"), "Unrelated box source missing from saved file");
     await page.screenshot({ path: path.join(evidence, "code-after-apply.jpg"), type: "jpeg", quality: 70 });
-    // Prove the local project was actually persisted, not just changed in
-    // CodeMirror's current in-memory document.
     await page.reload({ waitUntil: "domcontentloaded" });
     const openSaved = page.getByRole("button", { name: "Open source-move-real-box", exact: true });
     await openSaved.waitFor({ timeout: 60000 });
     await openSaved.click();
     await page.getByText("Source and parameters", { exact: true }).waitFor({ timeout: 60000 });
-    const reopenEditor = page.getByRole("button", { name: "Open source-move-real-box.scad" });
-    await reopenEditor.click();
-    const persisted = await page.locator(".cm-content").first().innerText();
+    const persisted = await readStoredSource();
     assert.ok(persisted.includes("translate([5, 0, 0]) generate_lid();"),
       "Saved SCAD change disappeared after reload");
     await page.screenshot({ path: path.join(evidence, "persisted-after-reload.jpg"), type: "jpeg", quality: 70 });
