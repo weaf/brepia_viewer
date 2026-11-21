@@ -36,7 +36,7 @@ try {
   });
   const context = await browser.newContext({
     viewport: desktop ? { width: 1365, height: 900 } : { width: 390, height: 844 },
-    isMobile: !desktop, hasTouch: !desktop, serviceWorkers: "block",
+    isMobile: !desktop, hasTouch: !desktop, serviceWorkers: "block", acceptDownloads: true,
   });
   const page = await context.newPage();
   page.setDefaultTimeout(40000);
@@ -208,6 +208,29 @@ try {
     assert.ok(persisted.includes("translate([5, 0, 0]) generate_lid();"),
       "Saved SCAD change disappeared after reload");
     await page.screenshot({ path: path.join(evidence, "persisted-after-reload.jpg"), type: "jpeg", quality: 70 });
+
+    // A real exported SCAD, not just IndexedDB, must retain the code change.
+    await page.getByRole("button",{name:"Cancel preview"}).waitFor({state:"hidden",timeout:240000});
+    const exportButton=page.getByRole("button",{name:"Export model"});
+    await exportButton.waitFor({state:"visible"});
+    assert.ok(await exportButton.isEnabled(),"SCAD export unavailable after reload");
+    await exportButton.click();
+    const [download]=await Promise.all([
+      page.waitForEvent("download",{timeout:60000}),
+      page.getByRole("menuitem",{name:/\.SCAD/}).click(),
+    ]);
+    const downloadedPath=await download.path();
+    assert.ok(downloadedPath,"SCAD export has no readable download path");
+    const exportedCode=readFileSync(downloadedPath,"utf8");
+    assert.ok(exportedCode.includes("translate([5, 0, 0]) generate_lid();"),
+      "Exported SCAD did not retain the moved lid");
+    assert.ok(exportedCode.includes("generate_box();"),
+      "Exported SCAD lost the unchanged box");
+    console.log("SOURCE_MOVE_BOX_SCAD_EXPORT_PASS",JSON.stringify({
+      device:desktop?"desktop":"mobile",name:download.suggestedFilename(),
+      codeChars:exportedCode.length,retainedTranslation:true,
+    }));
+
     assert.deepEqual(errors, [], "Unexpected browser JavaScript exceptions");
     console.log("SOURCE_MOVE_REAL_BOX_BROWSER_SAVE_PASS " + JSON.stringify({
       device: desktop ? "Chrome desktop 1365x900" : "Chrome mobile 390x844",
