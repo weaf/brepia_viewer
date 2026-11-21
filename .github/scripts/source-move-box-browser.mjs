@@ -101,8 +101,38 @@ try {
     const select = page.getByRole("combobox", { name: "Select model part" });
     assert.equal(await select.locator("option").count(), 3, "Expected box and lid only");
     await select.selectOption("1");
-    await page.getByRole("button", { name: "Show precision slider" }).click();
-    await page.getByRole("slider", { name: "Move model along X axis" }).fill("5");
+    if (!desktop) {
+      await page.getByRole("button", { name: "Show precision slider" }).click();
+      await page.getByRole("slider", { name: "Move model along X axis" }).fill("5");
+    } else {
+      // Desktop uses real pointer dragging instead of the mobile precision
+      // slider. Pick the lid in the actual canvas, then drag along SCAD X.
+      await page.getByRole("combobox",{name:"Visual move axis"}).selectOption("0");
+      const canvas=page.locator("canvas").first();
+      const bounds=await canvas.boundingBox();
+      assert.ok(bounds&&bounds.width>250&&bounds.height>250,"Desktop 3D canvas missing");
+      let hit=null;
+      for(const fy of [0.5,0.4,0.6,0.3,0.7]){
+        for(const fx of [0.25,0.35,0.45,0.55,0.65,0.75]){
+          await select.selectOption("0");
+          const x=bounds.x+bounds.width*fx,y=bounds.y+bounds.height*fy;
+          await page.mouse.click(x,y);
+          if((await select.inputValue())==="1"){hit={x,y};break;}
+        }
+        if(hit)break;
+      }
+      assert.ok(hit,"Desktop raycast could not select the real Box lid");
+      await pause(650);
+      await page.mouse.move(hit.x,hit.y);
+      await page.mouse.down();
+      await page.mouse.move(hit.x+95,hit.y-30,{steps:12});
+      await page.mouse.up();
+      await pause(400);
+      const text=await panel.innerText();
+      const matched=/Part 2: X (-?\d+(?:\.\d+)?)/.exec(text);
+      assert.ok(matched&&Math.abs(Number(matched[1]))>=0.1,
+        "Desktop drag did not move selected lid along X: "+text);
+    }
     await page.screenshot({ path: path.join(evidence, "before-identification.jpg"), type: "jpeg", quality: 70 });
     await panel.getByRole("button", { name: "Identify source of selected part" }).click();
     await panel.getByText(/Matched part 2 to generate_lid/).waitFor({ timeout: 600000 });
