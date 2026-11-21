@@ -60,7 +60,7 @@ function signedArea(poly: readonly Vector2[]): number {
 }
 
 /** 2D convex clipping (Sutherland-Hodgman). No sampling or bounding-box guesses. */
-function intersectionArea(subject: readonly Vector2[], clipTriangle: readonly Vector2[]): number {
+function intersectionPolygon(subject: readonly Vector2[], clipTriangle: readonly Vector2[]): Vector2[] {
   const orientation = signedArea(clipTriangle) >= 0 ? 1 : -1;
   let result: Vector2[] = [...subject];
   for (let i = 0; i < 3 && result.length; i += 1) {
@@ -88,7 +88,7 @@ function intersectionArea(subject: readonly Vector2[], clipTriangle: readonly Ve
       if (insideEnd) result.push(end);
     }
   }
-  return result.length >= 3 ? Math.abs(signedArea(result)) : 0;
+  return result.length >= 3 ? result : [];
 }
 
 
@@ -174,6 +174,74 @@ function nearbySliver(reference: Face, candidates: readonly Face[],
  * coplanar triangles can contribute to the overlap of a reference triangle.
  * This permits a triangulation split without accepting changed 3D surfaces.
  */
+
+/** Compare only the actual overlapping 3D patch, not a remote corner of a
+ *  59 mm triangle. These planes may differ far outside the overlap without
+ *  affecting the verified surface. This test is applied to EVERY clipped
+ *  polygon corner and its centroid, before area can count as coverage.
+ */
+function matchingOverlapPatch(
+  reference: Face,
+  candidate: Face,
+  projected: readonly Vector2[],
+  drop: number,
+  referenceNormal: Vector3,
+  candidateNormal: Vector3,
+): boolean {
+  if (projected.length < 3 ||
+      Math.abs(referenceNormal[drop]) < 1e-9 ||
+      Math.abs(candidateNormal[drop]) < 1e-9) return false;
+  const coordinate = (p: Vector2, face: Face, n: Vector3) => {
+    const point: [number, number, number] = [0,0,0];
+    const axes = drop === 0 ? [1,2] : drop === 1 ? [0,2] : [0,1];
+    point[axes[0]] = p[0];
+    point[axes[1]] = p[1];
+    point[drop] = face[0][drop];
+    for (const axis of axes) {
+      point[drop] -= n[axis] * (point[axis] - face[0][axis]) / n[drop];
+    }
+    return point[drop];
+  };
+  const centroid: Vector2 = [
+    projected.reduce((sum,v)=>sum+v[0],0)/projected.length,
+    projected.reduce((sum,v)=>sum+v[1],0)/projected.length,
+  ];
+  return [...projected,centroid].every(p => {
+    const referenceCoordinate = coordinate(p,reference,referenceNormal);
+    const candidateCoordinate = coordinate(p,candidate,candidateNormal);
+    const normalDistance = Math.abs(referenceCoordinate-candidateCoordinate) *
+      Math.abs(referenceNormal[drop]);
+    return Number.isFinite(normalDistance) && normalDistance <= MAX_SURFACE_DEVIATION_MM;
+  });
+}
+
+function boundsOf(face: Face): [number,number,number,number,number,number] {
+  return [
+    Math.min(face[0][0],face[1][0],face[2][0]),
+    Math.max(face[0][0],face[1][0],face[2][0]),
+    Math.min(face[0][1],face[1][1],face[2][1]),
+    Math.max(face[0][1],face[1][1],face[2][1]),
+    Math.min(face[0][2],face[1][2],face[2][2]),
+    Math.max(face[0][2],face[1][2],face[2][2]),
+  ];
+}
+
+/** Reject far-away mesh faces BEFORE expensive planar clipping. */
+function nearbyFaces(reference: Face, faces: readonly Face[],
+  bounds: readonly (readonly number[])[]): Face[] {
+  const ref = boundsOf(reference);
+  const margin = MAX_SURFACE_DEVIATION_MM + 0.01;
+  const matches: Face[] = [];
+  for (let i=0;i<faces.length;i+=1) {
+    const b = bounds[i];
+    if (ref[0] > b[1]+margin || ref[1] < b[0]-margin ||
+        ref[2] > b[3]+margin || ref[3] < b[2]-margin ||
+        ref[4] > b[5]+margin || ref[5] < b[4]-margin) continue;
+    matches.push(faces[i]);
+  }
+  return matches;
+}
+
 function fullyCovered(reference: Face, candidates: readonly Face[],
   details?: (value: Record<string, number | string>) => void): boolean {
   const n = normal(reference);
@@ -192,10 +260,10 @@ function fullyCovered(reference: Face, candidates: readonly Face[],
   for (const candidate of candidates) {
     const candidateNormal = normal(candidate);
     if (!candidateNormal || Math.abs(dot(n, candidateNormal)) < MIN_NORMAL_ALIGNMENT) continue;
-    if (candidate.some(v =>
-      Math.abs(dot(n, subtract(v, reference[0]))) > MAX_SURFACE_DEVIATION_MM)) continue;
+    const overlap = intersectionPolygon(candidate.map(v => project(v, drop)), projected);
+    if (!overlap.length || !matchingOverlapPatch(reference,candidate,overlap,drop,n,candidateNormal)) continue;
     compatible += 1;
-    covered += intersectionArea(candidate.map(v => project(v, drop)), projected);
+    covered += Math.abs(signedArea(overlap));
   }
   // Never accept an entirely missing or extra triangle, including tiny ones.
   const tolerance = Math.min(area * 0.12, perimeter * MAX_SURFACE_DEVIATION_MM + 1e-7);
@@ -278,15 +346,25 @@ export function verifySourceMoveRetessellation(
   const expected = missing.map(index =>
     polygon(original, index, selectedFaces.has(index), delta));
   const actual = added.map(index => polygon(translated, index, false, delta));
+  // A difference in tessellation can cover part of a changed face with
+  // triangles that also existed before. Compare against the ENTIRE mesh,
+  // bounded by a 3D spatial box, not only the residual 11/25 faces.
+  const fullExpected = original.faces.map((_,index) =>
+    polygon(original,index,selectedFaces.has(index),delta));
+  const fullActual = translated.faces.map((_,index) => polygon(translated,index,false,delta));
+  const expectedBounds = fullExpected.map(boundsOf);
+  const actualBounds = fullActual.map(boundsOf);
   for (let i = 0; i < expected.length; i += 1) {
     let detail: Record<string, string | number> = {};
-    if (!fullyCovered(expected[i],actual,value=>{detail=value;})) return reject("expected-surface-not-covered", {
+    const candidateFaces = nearbyFaces(expected[i],fullActual,actualBounds);
+    if (!fullyCovered(expected[i],candidateFaces,value=>{detail=value;})) return reject("expected-surface-not-covered", {
       index:i,missing:missing.length,added:added.length,...detail,
     });
   }
   for (let i = 0; i < actual.length; i += 1) {
     let detail: Record<string, string | number> = {};
-    if (!fullyCovered(actual[i],expected,value=>{detail=value;})) return reject("extra-surface-not-covered", {
+    const candidateFaces = nearbyFaces(actual[i],fullExpected,expectedBounds);
+    if (!fullyCovered(actual[i],candidateFaces,value=>{detail=value;})) return reject("extra-surface-not-covered", {
       index:i,missing:missing.length,added:added.length,...detail,
     });
   }
