@@ -95,30 +95,34 @@ function intersectionArea(subject: readonly Vector2[], clipTriangle: readonly Ve
  * coplanar triangles can contribute to the overlap of a reference triangle.
  * This permits a triangulation split without accepting changed 3D surfaces.
  */
-function fullyCovered(reference: Face, candidates: readonly Face[]): boolean {
+function fullyCovered(reference: Face, candidates: readonly Face[],
+  details?: (value: Record<string, number | string>) => void): boolean {
   const n = normal(reference);
-  if (!n) return false;
+  if (!n) { details?.({reason:"degenerate-reference"}); return false; }
   const drop = Math.abs(n[0]) > Math.abs(n[1])
     ? (Math.abs(n[0]) > Math.abs(n[2]) ? 0 : 2)
     : (Math.abs(n[1]) > Math.abs(n[2]) ? 1 : 2);
   const projected = reference.map(v => project(v, drop));
   const area = Math.abs(signedArea(projected));
-  if (area < 1e-9) return false;
+  if (area < 1e-9) { details?.({reason:"degenerate-area",area}); return false; }
   const perimeter = projected.reduce((sum, p, i) =>
     sum + Math.hypot(p[0] - projected[(i + 1) % 3][0],
       p[1] - projected[(i + 1) % 3][1]), 0);
   let covered = 0;
+  let compatible = 0;
   for (const candidate of candidates) {
     const candidateNormal = normal(candidate);
     if (!candidateNormal || Math.abs(dot(n, candidateNormal)) < MIN_NORMAL_ALIGNMENT) continue;
     if (candidate.some(v =>
       Math.abs(dot(n, subtract(v, reference[0]))) > MAX_SURFACE_DEVIATION_MM)) continue;
+    compatible += 1;
     covered += intersectionArea(candidate.map(v => project(v, drop)), projected);
   }
   // Never accept an entirely missing or extra triangle, including tiny ones.
-  if (covered < area * 0.88) return false;
   const tolerance = Math.min(area * 0.12, perimeter * MAX_SURFACE_DEVIATION_MM + 1e-7);
-  return Math.abs(covered - area) <= tolerance;
+  const valid = covered >= area * 0.88 && Math.abs(covered - area) <= tolerance;
+  if (!valid) details?.({reason:"surface-coverage",area,covered,tolerance,compatible});
+  return valid;
 }
 
 /**
@@ -137,19 +141,27 @@ export function verifySourceMoveRetessellation(
   translated: ParsedOff,
   partIndex: number,
   delta: Vector3,
+  report?: (result: {reason: string; [key: string]: string | number}) => void,
 ): boolean {
+  const reject = (reason: string, data: Record<string, string | number> = {}) => {
+    report?.({reason, ...data});
+    return false;
+  };
   if (original.faces.length === 0 ||
       original.faces.length > MAX_FACES_FOR_FALLBACK ||
       translated.faces.length > MAX_FACES_FOR_FALLBACK ||
       original.vertices.some(v => v.some(x => !Number.isFinite(x))) ||
       translated.vertices.some(v => v.some(x => !Number.isFinite(x))) ||
-      delta.some(x => !Number.isFinite(x))) return false;
+      delta.some(x => !Number.isFinite(x))) return reject("unsupported-input");
 
   const originalShells = connectedClosedShells(original);
   const selected = originalShells[partIndex];
-  if (!selected || !selected.faceIndices.length) return false;
+  if (!selected || !selected.faceIndices.length) return reject("selected-shell-missing");
   // Do not accept an accidental merge/split of the user's selectable parts.
-  if (connectedClosedShells(translated).length !== originalShells.length) return false;
+  const translatedShellCount = connectedClosedShells(translated).length;
+  if (translatedShellCount !== originalShells.length) return reject("shell-count-changed", {
+    before:originalShells.length, after:translatedShellCount,
+  });
   const selectedFaces = new Set(selected.faceIndices);
   const expectedByKey = new Map<string, number[]>();
   const actualByKey = new Map<string, number[]>();
@@ -175,7 +187,8 @@ export function verifySourceMoveRetessellation(
   // This is an explicit invariant for all non-selected parts, not merely
   // equal triangle counts or similar surface areas.
   for (const [key, count] of untouchedCounts) {
-    if ((actualByKey.get(key)?.length ?? 0) < count) return false;
+    const actualCount = actualByKey.get(key)?.length ?? 0;
+    if (actualCount < count) return reject("untouched-face-changed", {key,expected:count,actual:actualCount});
   }
 
   const missing: number[] = [];
@@ -190,11 +203,27 @@ export function verifySourceMoveRetessellation(
   }
   if (!missing.length || !added.length ||
       missing.length > MAX_CHANGED_TRIANGLES ||
-      added.length > MAX_CHANGED_TRIANGLES) return false;
-  if (missing.some(index => !selectedFaces.has(index))) return false;
+      added.length > MAX_CHANGED_TRIANGLES) return reject("residual-limit", {
+        missing:missing.length,added:added.length,
+      });
+  const wrongPart = missing.filter(index => !selectedFaces.has(index));
+  if (wrongPart.length) return reject("changed-faces-outside-selected-part", {
+    missingOutsideSelected:wrongPart.length, missing:missing.length,added:added.length,
+  });
 
   const expected = missing.map(index => polygon(original, index, true, delta));
   const actual = added.map(index => polygon(translated, index, false, delta));
-  return expected.every(face => fullyCovered(face, actual)) &&
-    actual.every(face => fullyCovered(face, expected));
+  for (let i = 0; i < expected.length; i += 1) {
+    let detail: Record<string, string | number> = {};
+    if (!fullyCovered(expected[i],actual,value=>{detail=value;})) return reject("expected-surface-not-covered", {
+      index:i,missing:missing.length,added:added.length,...detail,
+    });
+  }
+  for (let i = 0; i < actual.length; i += 1) {
+    let detail: Record<string, string | number> = {};
+    if (!fullyCovered(actual[i],expected,value=>{detail=value;})) return reject("extra-surface-not-covered", {
+      index:i,missing:missing.length,added:added.length,...detail,
+    });
+  }
+  return true;
 }
