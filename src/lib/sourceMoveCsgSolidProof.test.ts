@@ -60,6 +60,25 @@ describe("Source Move bidirectional solid equivalence",()=>{
     }
   });
 
+  it("allows unchanged open seams in a different component but still requires the selected solid to be closed",async()=>{
+    const before=structuredClone(original);
+    const after=structuredClone(moved);
+    before.faces.splice(0,1);
+    after.faces.splice(0,1);
+    const compile=vi.fn()
+      .mockResolvedValueOnce(tetra(48.5))
+      .mockResolvedValueOnce(tetra(48.5))
+      .mockResolvedValueOnce(marker)
+      .mockResolvedValueOnce(marker);
+    expect(await proveTranslatedShellsWithCsg(before,after,1,[8.5,0,0],compile)).toBe(true);
+    expect(compile).toHaveBeenCalledTimes(4);
+    const selectedOpen=structuredClone(before);
+    selectedOpen.faces.pop();
+    const blocked=vi.fn(async()=>marker);
+    expect(await proveTranslatedShellsWithCsg(selectedOpen,after,1,[8.5,0,0],blocked)).toBe(false);
+    expect(blocked).not.toHaveBeenCalled();
+  });
+
   it("rejects a reverse CSG difference with an additional solid region",async()=>{
     const compile=vi.fn()
       .mockResolvedValueOnce(tetra(48.5))
