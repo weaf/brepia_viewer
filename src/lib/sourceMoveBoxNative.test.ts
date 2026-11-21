@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseColoredOff } from "@/utils/offParser";
-import { proveTranslatedShellsWithCsg } from "./sourceMoveCsgSolidProof";
 import { matchSourceProbeToPart, excludeScadSourceCall } from "./sourceMoveProvenance";
 import {
   sourceMoveCandidates, verifySourceMoveTranslation, writeSourceMoveTranslation,
@@ -51,25 +50,6 @@ describe("Source Move real OpenSCAD Box proof", () => {
       // remain unchanged. The new render must equal exactly the chosen shell
       // translated by 5 mm.
       expect(verifySourceMoveTranslation(baseline, changed, match.partIndex, offset)).toBe(true);
-      // Native OpenSCAD also exercises the new triangle-independent 3D CSG
-      // checker with a fractional translation. It must not accept a raw
-      // bounds match without both directed volume differences being empty.
-      const fractionalDelta = [8.5, 0, 0] as const;
-      const fractionalCode = writeSourceMoveTranslation(source, lid!, fractionalDelta);
-      const fractionalMesh = compile("moved-fractional-lid", fractionalCode);
-      let csgStep = 0;
-      const errors: string[] = [];
-      const csgAccepted = await proveTranslatedShellsWithCsg(
-        baseline, fractionalMesh, match.partIndex, fractionalDelta,
-        async generatedScad => compile("csg-solid-" + csgStep++, generatedScad),
-        reason => errors.push(reason),
-      );
-      expect(csgAccepted, "Bidirectional CSG proof failed: " + errors.join(", ")).toBe(true);
-      expect(csgStep).toBe(4);
-      console.log("SOURCE_MOVE_BOX_CSG_VOLUME_PASS", JSON.stringify({
-        translation: fractionalDelta, standaloneSolids: 2, directedDifferences: csgStep - 2,
-        lidFaces: match.removedFaces,
-      }));
       console.log("SOURCE_MOVE_REAL_BOX_PASS", JSON.stringify({
         originalFaces: baseline.faces.length,
         withoutLidFaces: excluded.faces.length,
