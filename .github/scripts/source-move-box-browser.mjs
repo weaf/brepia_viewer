@@ -41,6 +41,10 @@ try {
   page.setDefaultTimeout(40000);
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
+  const failedRequests = [];
+  page.on("requestfailed", req => failedRequests.push({url:req.url().slice(0,180),error:req.failure()?.errorText}));
+  const httpFailures = [];
+  page.on("response", res => { if (res.status() >= 400) httpFailures.push({url:res.url().slice(0,180),status:res.status()}); });
   await context.route("https://api.github.com/repos/Noty-design/Parametric-designs/git/trees/**", route =>
     route.fulfill({
       status: 200, contentType: "application/json",
@@ -49,9 +53,28 @@ try {
   );
   try {
     await page.goto(host, { waitUntil: "domcontentloaded" });
-    await page.waitForFunction(() =>
-      document.documentElement.dataset.brepiaClientReady === "true",
-      null, { timeout: 65000 });
+    await page.screenshot({ path: path.join(evidence, "initial-page.jpg"), type: "jpeg", quality: 60 });
+    try {
+      await page.getByText("Model gallery", { exact: true }).first().waitFor({ timeout: 65000 });
+      await page.waitForFunction(() =>
+        document.documentElement.dataset.brepiaClientReady === "true",
+        null, { timeout: 65000 });
+    } catch (cause) {
+      const snapshot = await page.evaluate(() => ({
+        url:location.href,
+        title:document.title,
+        body:document.body.innerText.slice(0,1500),
+        ready:document.readyState,
+        clientReady:document.documentElement.dataset.brepiaClientReady,
+        scripts:[...document.querySelectorAll("script")].map(x=>({src:x.src,type:x.type})).slice(0,12),
+      })).catch(() => null);
+      await page.screenshot({ path: path.join(evidence, "hydration-failure.jpg"), type: "jpeg", quality: 65 });
+      console.error("SOURCE_MOVE_BOX_BROWSER_BOOT_DIAGNOSTICS", JSON.stringify({
+        snapshot,errors,failedRequests:httpFailures.length?failedRequests.slice(-20):failedRequests.slice(-12),
+        httpFailures:httpFailures.slice(-20),
+      }));
+      throw cause;
+    }
     await page.locator('input[type="file"][accept=".scad,.scad.txt"]').setInputFiles({
       name: "source-move-real-box.scad", mimeType: "text/plain",
       buffer: Buffer.from(source),
