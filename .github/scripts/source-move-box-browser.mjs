@@ -55,6 +55,10 @@ try {
       void Promise.all(msg.args().map(arg => arg.jsonValue().catch(() => null)))
         .then(args => console.log("SOURCE_MOVE_BROWSER_INDEPENDENT_PROOF", JSON.stringify(args)));
     }
+    if (msg.text().includes("[Source Move] CSG proof residue")) {
+      void Promise.all(msg.args().map(arg => arg.jsonValue().catch(() => null)))
+        .then(args => console.log("SOURCE_MOVE_BROWSER_CSG_RESIDUE", JSON.stringify(args)));
+    }
   });
   const failedRequests = [];
   page.on("requestfailed", req => failedRequests.push({url:req.url().slice(0,180),error:req.failure()?.errorText}));
