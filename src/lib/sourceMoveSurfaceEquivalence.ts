@@ -90,6 +90,74 @@ function intersectionArea(subject: readonly Vector2[], clipTriangle: readonly Ve
   return result.length >= 3 ? Math.abs(signedArea(result)) : 0;
 }
 
+
+function pointTriangleDistance(point: Vector3, triangle: Face): number {
+  const [a,b,c] = triangle;
+  const n = normal(triangle);
+  if (!n) return Infinity;
+  const ap = subtract(point,a);
+  const signed = dot(ap,n);
+  const projected: Vector3 = [
+    point[0] - signed*n[0], point[1] - signed*n[1], point[2] - signed*n[2],
+  ];
+  const u = subtract(b,a);
+  const v = subtract(c,a);
+  const w = subtract(projected,a);
+  const uu = dot(u,u), uv = dot(u,v), vv = dot(v,v);
+  const wu = dot(w,u), wv = dot(w,v);
+  const denom = uu*vv - uv*uv;
+  if (denom > 1e-18) {
+    const beta = (vv*wu - uv*wv)/denom;
+    const gamma = (uu*wv - uv*wu)/denom;
+    if (beta >= -1e-9 && gamma >= -1e-9 && beta + gamma <= 1+1e-9) return Math.abs(signed);
+  }
+  const segmentDistance = (start: Vector3, end: Vector3) => {
+    const d = subtract(end,start);
+    const length2 = dot(d,d);
+    const t = length2 > 0 ? Math.max(0,Math.min(1,dot(subtract(point,start),d)/length2)) : 0;
+    return Math.hypot(...subtract(point,[
+      start[0]+t*d[0],start[1]+t*d[1],start[2]+t*d[2],
+    ]));
+  };
+  return Math.min(segmentDistance(a,b),segmentDistance(b,c),segmentDistance(c,a));
+}
+
+/**
+ * OFF may move a near-degenerate sliver by one serialized precision step,
+ * leaving no projected 2D overlap. A seven-point bidirectional 3D proximity
+ * proof is allowed ONLY for facets under 0.005 mm² and with edges <= 10 mm.
+ * Never use this for a normal-sized facet.
+ */
+function nearbySliver(reference: Face, candidates: readonly Face[]): boolean {
+  const n = normal(reference);
+  if (!n) return false;
+  const area3d = Math.hypot(...cross(subtract(reference[1],reference[0]),
+    subtract(reference[2],reference[0])))/2;
+  const lengths = reference.map((p,i) =>
+    Math.hypot(...subtract(p,reference[(i+1)%3])));
+  if (area3d <= 0 || area3d > 0.005 || Math.max(...lengths) > 10) return false;
+  const midpoint = (a: Vector3,b: Vector3): Vector3 =>
+    [(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
+  const samples: Vector3[] = [
+    ...reference,
+    midpoint(reference[0],reference[1]),
+    midpoint(reference[1],reference[2]),
+    midpoint(reference[2],reference[0]),
+    [
+      (reference[0][0]+reference[1][0]+reference[2][0])/3,
+      (reference[0][1]+reference[1][1]+reference[2][1])/3,
+      (reference[0][2]+reference[1][2]+reference[2][2])/3,
+    ],
+  ];
+  const nearPlanes = candidates.filter(candidate => {
+    const m = normal(candidate);
+    return m && Math.abs(dot(n,m)) >= MIN_NORMAL_ALIGNMENT;
+  });
+  return nearPlanes.length > 0 && samples.every(point =>
+    nearPlanes.some(candidate =>
+      pointTriangleDistance(point,candidate) <= MAX_SURFACE_DEVIATION_MM));
+}
+
 /**
  * Demand symmetric surface coverage for every changed triangle. Only near-
  * coplanar triangles can contribute to the overlap of a reference triangle.
@@ -120,7 +188,8 @@ function fullyCovered(reference: Face, candidates: readonly Face[],
   }
   // Never accept an entirely missing or extra triangle, including tiny ones.
   const tolerance = Math.min(area * 0.12, perimeter * MAX_SURFACE_DEVIATION_MM + 1e-7);
-  const valid = covered >= area * 0.88 && Math.abs(covered - area) <= tolerance;
+  const surfaceCoverage = covered >= area * 0.88 && Math.abs(covered - area) <= tolerance;
+  const valid = surfaceCoverage || nearbySliver(reference,candidates);
   if (!valid) details?.({reason:"surface-coverage",area,covered,tolerance,compatible});
   return valid;
 }
