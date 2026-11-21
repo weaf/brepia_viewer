@@ -41,6 +41,12 @@ try {
   page.setDefaultTimeout(40000);
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
+  page.on("console", msg => {
+    if (msg.text().includes("[Source Move] SCAD verification rejected")) {
+      void Promise.all(msg.args().map(arg => arg.jsonValue().catch(() => null)))
+        .then(args => console.log("SOURCE_MOVE_BROWSER_VERIFICATION_DIAGNOSTICS", JSON.stringify(args)));
+    }
+  });
   const failedRequests = [];
   page.on("requestfailed", req => failedRequests.push({url:req.url().slice(0,180),error:req.failure()?.errorText}));
   const httpFailures = [];
@@ -129,6 +135,13 @@ try {
     assert.ok(!oldStored.includes("translate([5, 0, 0]) generate_lid();"),
       "The move was already saved before Apply");
     await panel.getByRole("button", { name: "Apply Part Move to OpenSCAD code" }).click();
+    await panel.getByText(/Verification failed:|SCAD updated and verified\./).waitFor({timeout:180000});
+    const verificationMessage = await panel.innerText();
+    if (verificationMessage.includes("Verification failed:")) {
+      await page.screenshot({path:path.join(evidence, "verification-rejected.jpg"),type:"jpeg",quality:70});
+      console.error("SOURCE_MOVE_BROWSER_REJECTION", verificationMessage);
+      throw new Error("Viewer rejected Box move before persistence: " + verificationMessage);
+    }
     try {
       await page.waitForFunction(async () => {
         const db = await new Promise((resolve, reject) => {
