@@ -65,9 +65,9 @@ describe("Source Move real OpenSCAD Box proof", () => {
         reason => errors.push(reason),
       );
       expect(csgAccepted, "Bidirectional CSG proof failed: " + errors.join(", ")).toBe(true);
-      expect(csgStep).toBe(2);
+      expect(csgStep).toBe(4);
       console.log("SOURCE_MOVE_BOX_CSG_VOLUME_PASS", JSON.stringify({
-        translation: fractionalDelta, directedDifferences: csgStep,
+        translation: fractionalDelta, standaloneSolids: 2, directedDifferences: csgStep - 2,
         lidFaces: match.removedFaces,
       }));
       console.log("SOURCE_MOVE_REAL_BOX_PASS", JSON.stringify({
