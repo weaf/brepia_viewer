@@ -97,7 +97,20 @@ export async function proveTranslatedShellsWithCsg(
       "difference() {\n"+first+"\n"+second+"\n}\n}\n";
     if (source.length > MAX_SOURCE_CHARS) return reject("csg-difference-too-large");
     const result = await compile(source);
-    if (!isWitnessOnly(result,witness)) return reject(name);
+    if (!isWitnessOnly(result,witness)) {
+      const shells=connectedClosedShells(result);
+      const summary=shells.map(shell=>({
+        faces:shell.faceIndices.length,
+        closed:shell.closed,
+        openEdges:shell.openEdges,
+        bounds:shellBounds(result,shell.faceIndices,[0,0,0]),
+      }));
+      console.info("[Source Move] CSG proof residue", {
+        gate:name,totalFaces:result.faces.length,totalVertices:result.vertices.length,
+        expectedWitness:witness,shells:summary,
+      });
+      return reject(name);
+    }
   }
   return true;
 }
