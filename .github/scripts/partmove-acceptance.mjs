@@ -103,6 +103,11 @@ try {
       assert.ok(!moved.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
         device.name+': selected part did not move from true mouse/touch drag: '+moved);
       console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
+      // Mobile X-drag intentionally uses a strong gain. The observed +21.9 mm
+      // can move the upper-right cube entirely outside a 364x204 viewport.
+      // Verify large-offset recovery with the part buttons, then use a small
+      // *visible* offset for the separate direct-3D repick acceptance.
+      const largeDraggedOffset=moved;
       // Previously a moved gizmo could swallow the next tap and make a
       // previously selected component difficult or impossible to reselect.
       // Cycle between the same two real meshes WITHOUT resetting offsets.
@@ -114,8 +119,19 @@ try {
         device.name+': untouched part offset changed');
       await prevPart.click();
       assert.equal(await selector.inputValue(),'1',device.name+': previous must return to moved part');
-      assert.equal(await page.getByTestId('visual-move-offsets').first().textContent(),moved,
+      assert.equal(await page.getByTestId('visual-move-offsets').first().textContent(),largeDraggedOffset,
         device.name+': moving away and back must retain the original offset');
+      if (device.mobile) {
+        // Deliberately bring the moved part back into the actual 3D viewport.
+        // This only changes preview offset; the real large-drag test above
+        // already passed and must not be weakened.
+        const precision=page.getByTestId('visual-move-mobile-controls');
+        await precision.getByRole('button',{name:'Show precision slider'}).click();
+        await precision.getByRole('slider',{name:'Move model along X axis'}).fill('2');
+        await precision.getByRole('button',{name:'Hide precision slider'}).click();
+        assert.match((await page.getByTestId('visual-move-offsets').first().textContent())||'',/X 2\.0/,
+          'mobile: small visibility-safe offset must be preserved');
+      }
       await prevPart.click();
       assert.equal(await selector.inputValue(),'0');
       // Selecting a moved part from the 3D canvas (not just the fallback
