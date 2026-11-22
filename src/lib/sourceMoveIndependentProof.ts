@@ -140,7 +140,7 @@ export function isIndependentNestedModuleCall(
   }
   if(scopes.length!==1) return false;
   const open=scopes[0];
-  if(!/\\bmodule\\s+[A-Za-z_]\\w*\\s*\\([^;{}]*\\)\\s*$/.test(clean.slice(0,open).trimEnd()))
+  if(!/\bmodule\s+[A-Za-z_]\w*\s*\([^;{}]*\)\s*$/.test(clean.slice(0,open).trimEnd()))
     return false;
   const begin=Math.max(
     clean.lastIndexOf(";",call.start-1),
@@ -150,9 +150,9 @@ export function isIndependentNestedModuleCall(
   if(begin<open+1) return false;
   let cursor=begin,wrappers=0;
   while(cursor<call.start) {
-    while(/\\s/.test(clean[cursor]??"")) cursor+=1;
+    while(/\s/.test(clean[cursor]??"")) cursor+=1;
     if(cursor===call.start) break;
-    const match=/^(translate|color)\\s*\\(/.exec(clean.slice(cursor,call.start));
+    const match=/^(translate|color)\s*\(/.exec(clean.slice(cursor,call.start));
     if(!match) return false;
     const parenthesis=cursor+match[0].lastIndexOf("(");
     let level=0,close=-1;
