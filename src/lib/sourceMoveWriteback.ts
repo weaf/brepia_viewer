@@ -202,6 +202,75 @@ function numericCoordinate(value: number): string {
   return Object.is(rounded, -0) ? "0" : String(rounded);
 }
 
+/**
+ * Change an indexed instance in its existing parent translate([x,y,z]).
+ * A new wrapper or a duplicated call changed the C-chain's CSG topology
+ * in Chrome WASM. Reject all loops without a safe direct vector parent.
+ */
+function shiftIndexedParentTranslate(
+  source: string, call: SourceMoveCall, index: number, delta: SourceMoveVector,
+): string {
+  const variable=call.loopVariable;
+  if(!variable || !Number.isInteger(index) || index<0) throw new Error("Invalid indexed move.");
+  const clean=maskScadNonCode(source);
+  const before=clean.slice(0,call.start);
+  const translates=Array.from(before.matchAll(/\btranslate\s*\(/g));
+  for(let p=translates.length-1;p>=0;p-=1) {
+    const item=translates[p],open=before.indexOf("(",item.index);
+    let depth=0,end=-1;
+    for(let k=open;k<call.start;k+=1) {
+      if(clean[k]==="(") depth+=1;
+      else if(clean[k]===")" && --depth===0) {end=k+1;break;}
+    }
+    if(end<0 || clean.slice(end,call.start).trim()!=="") continue;
+    const loops=Array.from(clean.slice(0,item.index).matchAll(/\bfor\s*\(/g));
+    const loop=loops.at(-1);
+    if(!loop) continue;
+    const loopOpen=clean.indexOf("(",loop.index);
+    let d=0,loopEnd=-1;
+    for(let k=loopOpen;k<item.index;k+=1) {
+      if(clean[k]==="(") d+=1;
+      else if(clean[k]===")" && --d===0) {loopEnd=k+1;break;}
+    }
+    if(loopEnd<0 || clean.slice(loopEnd,item.index).trim()!=="") continue;
+    const header=clean.slice(loopOpen+1,loopEnd-1).trim();
+    const grammar=new RegExp("^"+variable+"\\s*=\\s*\\[\\s*0\\s*:\\s*(?:[A-Za-z_]\\w*|\\d+)(?:\\s*-\\s*\\d+)?\\s*\\]$");
+    if(!grammar.test(header)) continue;
+    const args=clean.slice(open+1,end-1);
+    const bracket=/^\s*\[/.exec(args);
+    if(!bracket) continue;
+    const left=open+bracket[0].length,right=end-2;
+    if(clean[right]!=="]" || clean.slice(right+1,end-1).trim()) continue;
+    const coords:Array<{start:number;end:number}>=[];
+    let start=left+1,paren=0,invalid=false;
+    for(let k=start;k<right;k+=1) {
+      const ch=clean[k];
+      if(ch==="(")paren+=1;
+      else if(ch===")") {paren-=1;if(paren<0) invalid=true;}
+      else if(ch==="[" || ch==="]" || ch==="{" || ch==="}")invalid=true;
+      else if(ch==="," && paren===0) {coords.push({start,end:k});start=k+1;}
+    }
+    coords.push({start,end:right});
+    if(invalid || paren!==0 || coords.length!==3)continue;
+    if(coords.some(c=>{
+      const raw=source.slice(c.start,c.end);
+      return raw!==clean.slice(c.start,c.end) || !/^[\s\w.+*/%()-]+$/.test(raw) || !raw.trim();
+    }))continue;
+    let modified=source;
+    for(let axis=2;axis>=0;axis-=1){
+      const value=numericCoordinate(delta[axis]);
+      if(value==="0")continue;
+      const {start:coordStart,end:coordEnd}=coords[axis];
+      let at=coordEnd;
+      while(at>coordStart && /\s/.test(modified[at-1]))at-=1;
+      modified=modified.slice(0,at)+"+("+variable+"=="+index+"?"+value+":0)"+modified.slice(at);
+    }
+    if(modified===source)throw new Error("Move rounded to zero SCAD offset.");
+    return modified;
+  }
+  throw new Error("Selected loop has no safe directly editable translate([x,y,z]) placement.");
+}
+
 /** Local temporary rewrite, awaiting a geometrically verified preview. */
 export function writeSourceMoveTranslation(
   source: string,
@@ -220,15 +289,10 @@ export function writeSourceMoveTranslation(
   }
   if (instanceIndex === undefined) throw new Error("Missing loop instance.");
   const afterCall = call.start + call.callText.length;
-  const rest = source.slice(afterCall);
-  const semicolon = /^\s*;/.exec(rest);
-  if (!semicolon) throw new Error("Loop module call is not a standalone statement.");
-  // A single conditional translation preserves each instance's callsite.
-  // Duplicated if/else module calls fragmented every chain link in WASM.
-  const guarded = "translate(" + call.loopVariable + " == " + instanceIndex +
-    " ? [" + delta.map(numericCoordinate).join(", ") + "] : [0, 0, 0]) " +
-    call.callText + ";";
-  return source.slice(0, call.start) + guarded + source.slice(afterCall + semicolon[0].length);
+  if (!/^\s*;/.test(source.slice(afterCall))) {
+    throw new Error("Loop module call is not a standalone statement.");
+  }
+  return shiftIndexedParentTranslate(source,call,instanceIndex,delta);
 }
 
 function polygonKey(off: ParsedOff, faceIndex: number, delta: SourceMoveVector): string {

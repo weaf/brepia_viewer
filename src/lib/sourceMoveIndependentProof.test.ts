@@ -163,7 +163,7 @@ describe("Source Move independent top-level proof",()=>{
     expect(compile).toHaveBeenCalledTimes(2);
     expect(compile.mock.calls[0][0]).toContain("if (i != 1) link(i);");
     expect(compile.mock.calls[1][0]).toContain(
-      "if (i != 1) translate(i == 1 ? [5, 0, 0] : [0, 0, 0]) link(i);",
+      "translate([i*20+(i==1?5:0),0,0]) if (i != 1) link(i);",
     );
   });
 

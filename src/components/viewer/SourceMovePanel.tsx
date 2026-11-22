@@ -119,9 +119,13 @@ export function SourceMovePanel({
       const source = getOpenScadEntrypoint(project).content;
       if (!candidateIsCurrent(source, matched)) return null;
       const modified = writeSourceMoveTranslation(source, matched, selected.offset);
-      const start = matched.call.start;
-      const replaceEnd = Math.min(modified.length, start + 200);
-      return { modified, snippet: modified.slice(start,replaceEnd).split("\n")[0] };
+      let changeAt=0;
+      while(changeAt<source.length && changeAt<modified.length &&
+            source[changeAt]===modified[changeAt]) changeAt+=1;
+      const lineStart=modified.lastIndexOf("\n",changeAt)+1;
+      const nextBreak=modified.indexOf("\n",changeAt);
+      return { modified, snippet: modified.slice(lineStart,
+        nextBreak<0?modified.length:nextBreak).trim() };
     } catch {
       return null;
     }

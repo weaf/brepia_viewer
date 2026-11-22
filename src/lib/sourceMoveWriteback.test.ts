@@ -46,9 +46,17 @@ describe("Source Move from selected rendered shell to SCAD",()=>{
   it("changes one instance of a generated loop without moving other instances",()=>{
     const s="module link(i) { cube(i); }\nfor(i=[0:2]) translate([i*20,0,0]) link(i);";
     const chosen=sourceMoveCandidates(s,3).find(x=>x.instanceIndex===1)!;
-    expect(writeSourceMoveTranslation(s,chosen,[2,3,4])).toContain(
-      "translate(i == 1 ? [2, 3, 4] : [0, 0, 0]) link(i);",
+    const changed=writeSourceMoveTranslation(s,chosen,[2,3,4]);
+    expect(changed).toContain(
+      "translate([i*20+(i==1?2:0),0+(i==1?3:0),0+(i==1?4:0)]) link(i);",
     );
+    expect(changed.replace("+(i==1?2:0)","").replace("+(i==1?3:0)","")
+      .replace("+(i==1?4:0)","")).toBe(s);
+  });
+  it("rejects a loop without a directly editable position vector",()=>{
+    const s="module link(i){cube(1);}\nfor(i=[0:3]) link(i);";
+    const chosen=sourceMoveCandidates(s,4).find(x=>x.instanceIndex===1)!;
+    expect(()=>writeSourceMoveTranslation(s,chosen,[5,0,0])).toThrow(/no safe directly editable/);
   });
   it("requires an actual finite nonzero delta",()=>{
     const chosen=sourceMoveCandidates(source,2)[0];

@@ -390,13 +390,18 @@ export async function verifyIndependentSourceMove({
   const excludedBefore=excludeScadSourceCall(
     source,candidate.call,isolatedLoop ? candidate.instanceIndex : undefined,
   );
-  // Disable the SAME instance before and after the generated writeback.
-  // Other loop iterations must remain byte-identical in their OFF triangles.
+  // Indexed coordinate insertions shift the module call by their total length.
+  // The target call text must remain exactly the original verified site.
+  const afterStart=isolatedLoop
+    ? candidate.call.start + modified.length - source.length
+    : candidate.call.start;
+  if(afterStart<0 || modified.slice(afterStart,afterStart+candidate.call.callText.length)!==
+      candidate.call.callText) return reject("rewritten-call-site-mismatch");
   const guard = isolatedLoop
     ? "if (" + candidate.call.loopVariable + " != " + candidate.instanceIndex + ") "
     : "if (false) ";
-  const excludedAfter=modified.slice(0,candidate.call.start)+guard+
-    modified.slice(candidate.call.start);
+  const excludedAfter=modified.slice(0,afterStart)+guard+
+    modified.slice(afterStart);
   // The OpenSCAD WASM worker is single-threaded. Do not overlap two project
   // previews or let their temporary file contexts interfere.
   const remainingBefore=await compile(excludedBefore);
