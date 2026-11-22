@@ -254,7 +254,7 @@ function shiftIndexedParentTranslate(
     if(invalid || paren!==0 || coords.length!==3)continue;
     if(coords.some(c=>{
       const raw=source.slice(c.start,c.end);
-      return raw!==clean.slice(c.start,c.end) || !/^[\s\w.+*\/%()-]+$/.test(raw) || !raw.trim();
+      return raw!==clean.slice(c.start,c.end) || !/^[\s\w.+*%()-]+$/.test(raw.replaceAll("/", "")) || !raw.trim();
     }))continue;
     let modified=source;
     for(let axis=2;axis>=0;axis-=1){
