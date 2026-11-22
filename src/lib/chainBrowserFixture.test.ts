@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createChain, generateCaChainScad } from "./chainGenerator";
+import { createChain, generateCaChainScad } from "./chainGenerator/chainGenerator";
 
 const selected = process.env.SOURCE_MOVE_CHAIN_BROWSER_FIXTURE === "1" ? it : it.skip;
 describe("real chain Chrome fixture", () => {
