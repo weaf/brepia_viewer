@@ -223,8 +223,11 @@ export function writeSourceMoveTranslation(
   const rest = source.slice(afterCall);
   const semicolon = /^\s*;/.exec(rest);
   if (!semicolon) throw new Error("Loop module call is not a standalone statement.");
-  const guarded = "if (" + call.loopVariable + " == " + instanceIndex + ") " +
-    translation + call.callText + "; else " + call.callText + ";";
+  // A single conditional translation preserves each instance's callsite.
+  // Duplicated if/else module calls fragmented every chain link in WASM.
+  const guarded = "translate(" + call.loopVariable + " == " + instanceIndex +
+    " ? [" + delta.map(numericCoordinate).join(", ") + "] : [0, 0, 0]) " +
+    call.callText + ";";";
   return source.slice(0, call.start) + guarded + source.slice(afterCall + semicolon[0].length);
 }
 

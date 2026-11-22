@@ -13,7 +13,7 @@ assert.ok(fixture, "Real generated chain SCAD fixture is required");
 const source = readFileSync(fixture, "utf8");
 assert.ok(source.includes("chain_link(i);") && source.includes("chain_count=3;"));
 const savedMove = code => {
-  const match = /if\s*\(\s*i\s*==\s*1\s*\)\s*translate\(\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]\)\s*chain_link\(i\);\s*else\s+chain_link\(i\);/.exec(code);
+  const match = /translate\(\s*i\s*==\s*1\s*\?\s*\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]\s*:\s*\[\s*0\s*,\s*0\s*,\s*0\s*\]\s*\)\s*chain_link\(i\);/.exec(code);
   return match ? { snippet: match[0], delta: match.slice(1, 4).map(Number) } : null;
 };
 await mkdir(evidence, { recursive: true });

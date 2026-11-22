@@ -47,7 +47,7 @@ describe("Source Move from selected rendered shell to SCAD",()=>{
     const s="module link(i) { cube(i); }\nfor(i=[0:2]) translate([i*20,0,0]) link(i);";
     const chosen=sourceMoveCandidates(s,3).find(x=>x.instanceIndex===1)!;
     expect(writeSourceMoveTranslation(s,chosen,[2,3,4])).toContain(
-      "if (i == 1) translate([2, 3, 4]) link(i); else link(i);",
+      "translate(i == 1 ? [2, 3, 4] : [0, 0, 0]) link(i);",
     );
   });
   it("requires an actual finite nonzero delta",()=>{

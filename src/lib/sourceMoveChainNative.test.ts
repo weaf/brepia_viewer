@@ -57,7 +57,7 @@ describe("Source Move real parametrized C-chain proof", () => {
       const delta = [5, 0, 0] as const;
       const modified = writeSourceMoveTranslation(source, found.candidate!, delta);
       expect(modified).toContain(
-        "if (i == 1) translate([5, 0, 0]) chain_link(i); else chain_link(i);",
+        "translate(i == 1 ? [5, 0, 0] : [0, 0, 0]) chain_link(i);",
       );
       const moved = compile(modified);
       const exact = verifySourceMoveTranslation(baseline, moved, identity.partIndex, delta);
