@@ -1,0 +1,44 @@
+name: Source Move real chain Chrome
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/sourceMove*"
+      - "src/lib/chainBrowserFixture.test.ts"
+      - ".github/scripts/source-move-chain-browser.mjs"
+      - ".github/workflows/source-move-chain-browser.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chain-chrome-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      STATIC_VIEWER_BASE: "/"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci --no-fund
+      - name: Generate real Viewer C-chain fixture
+        run: npx vitest run src/lib/chainBrowserFixture.test.ts --reporter=verbose
+        env:
+          SOURCE_MOVE_CHAIN_BROWSER_FIXTURE: "1"
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Verify real chain index-specific source save, reload and SCAD export in Chrome mobile
+        run: node .github/scripts/source-move-chain-browser.mjs
+        env:
+          SOURCE_MOVE_CHAIN_FILE: .output/source-move-chain-fixture.scad
+      - name: Retain real chain Chrome screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-move-real-chain-chrome
+          path: .output/source-move-chain-browser/
+          if-no-files-found: warn
