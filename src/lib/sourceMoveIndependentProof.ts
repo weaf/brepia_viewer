@@ -191,17 +191,22 @@ function singleLocatedMovedShell(
 
 /**
  * Geometric sanity check for a rigid, source-proven translation.
- * Non-identical tessellation is legal; a rigid translation preserves the
- * complete surface area, enclosed signed volume magnitude and closedness.
- * This is NEVER an independent basis for source attribution or saving.
+ * Non-identical tessellation is legal; a rigid translation preserves total
+ * surface area, the signed surface volume integral and shell closure state.
+ * A uniquely attributed indexed loop may already contain an open mesh:
+ * its open state must remain open. This is NEVER an independent basis for
+ * source attribution or saving; the exact isolated sibling comparison and
+ * the strictly generated source transform are mandatory.
  */
-function sameClosedShellGeometry(
+function sameSourceProvenShellGeometry(
   baseline: ParsedOff, moved: ParsedOff, partIndex: number, delta: SourceMoveVector,
+  allowAlreadyOpen: boolean,
 ): boolean {
   const before=connectedClosedShells(baseline);
   const after=connectedClosedShells(moved);
   const chosen=before[partIndex];
-  if (!chosen?.closed || before.length!==after.length) return false;
+  if (!chosen || (!chosen.closed && !allowAlreadyOpen) ||
+      before.length!==after.length) return false;
   const bounds=(off:ParsedOff, indices:readonly number[])=>{
     const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
     for(const index of indices) for(const vi of off.faces[index].vertices) {
@@ -221,7 +226,10 @@ function sameClosedShellGeometry(
     const b=bounds(moved,part.faceIndices);
     return b && b.every((v,i)=>Math.abs(v-target[i])<=0.022);
   });
-  if(matching.length!==1 || !matching[0].closed) return false;
+  // A translation cannot repair or break an already-open surface. The
+  // candidate's SCAD provenance, call-specific source diff and separately
+  // compiled unaffected siblings are proven elsewhere in this verifier.
+  if(matching.length!==1 || matching[0].closed!==chosen.closed) return false;
   const metrics=(off:ParsedOff,indices:readonly number[])=>{
     let area=0, volume6=0;
     const b=bounds(off,indices);
@@ -304,10 +312,12 @@ export async function verifyIndependentSourceMove({
     // reshape that call's geometry or alter siblings. Validate the compiled
     // result has exactly one translated closed shell with matching complete
     // area and volume. The unaffected scene is recompiled and checked face-
-    // for-face below. Never infer source identity from geometry alone.
+    // for-face below. For indexed loops, an originally open source mesh
+    // must remain open and preserve its surface metrics; other source classes
+    // still require closedness. Never infer identity from metrics alone.
     if(!singleLocatedMovedShell(baseline,moved,targetPart,delta))
       return reject("moved-shell-bounds-mismatch");
-    if(!sameClosedShellGeometry(baseline,moved,targetPart,delta))
+    if(!sameSourceProvenShellGeometry(baseline,moved,targetPart,delta,isolatedLoop))
       return reject("moved-shell-shape-invariant-mismatch");
   }
   const excludedBefore=excludeScadSourceCall(

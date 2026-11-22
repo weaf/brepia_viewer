@@ -167,6 +167,42 @@ describe("Source Move independent top-level proof",()=>{
     );
   });
 
+  it("accepts an already-open indexed shell only with unchanged closure state and source proof",async()=>{
+    const loopSource="module link(i) { cube(1); }\\nfor(i=[0:2]) translate([i*20,0,0]) link(i);".replace("\\n","\n");
+    const loopCandidate={...candidateFor(loopSource,"link"),instanceIndex:1};
+    const rewritten=writeSourceMoveTranslation(loopSource,loopCandidate,delta);
+    const open=(x:number,split=false):ParsedOff=>{
+      const shape=tetra(x);
+      shape.faces.splice(0,1);
+      if(split){
+        const triangle=shape.faces[0];
+        const pts=triangle.vertices.map(i=>shape.vertices[i]);
+        const center=pts[0].map((n,i)=>(n+pts[1][i]+pts[2][i])/3) as [number,number,number];
+        const middle=shape.vertices.push(center)-1;
+        shape.faces.splice(0,1,
+          {vertices:[triangle.vertices[0],triangle.vertices[1],middle],color:null},
+          {vertices:[triangle.vertices[1],triangle.vertices[2],middle],color:null},
+          {vertices:[triangle.vertices[2],triangle.vertices[0],middle],color:null},
+        );
+      }
+      return shape;
+    };
+    const before=combine(open(-40),open(40));
+    const after=combine(open(-40),open(45,true));
+    const compile=vi.fn(async()=>open(-40));
+    expect(await verifyIndependentSourceMove({
+      source:loopSource,modified:rewritten,candidate:loopCandidate,
+      baseline:before,moved:after,targetPart:1,delta,compile,
+    })).toBe(true);
+    expect(compile).toHaveBeenCalledTimes(2);
+    // The Box top-level fallback is intentionally stricter than the loop case.
+    const boxCompile=vi.fn(async()=>open(-40));
+    expect(await verifyIndependentSourceMove({
+      source,modified,candidate,baseline:before,moved:after,
+      targetPart:1,delta,compile:boxCompile,
+    })).toBe(false);
+  });
+
   it("rejects rotated, nested CSG, braced and nonzero-start loops",()=>{
     const fixture=(statement:string)=>"module link(i) { cube(1); }\n"+statement;
     const check=(statement:string)=>{
