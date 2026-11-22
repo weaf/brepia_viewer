@@ -25,12 +25,12 @@ jobs:
           cache: npm
       - name: Install exact dependencies
         run: npm ci --no-fund
-      - name: Generate real Viewer C-chain fixture
+      - name: Build canonical static Viewer
+        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
+      - name: Generate real Viewer C-chain fixture after build output cleanup
         run: npx vitest run src/lib/chainBrowserFixture.test.ts --reporter=verbose
         env:
           SOURCE_MOVE_CHAIN_BROWSER_FIXTURE: "1"
-      - name: Build canonical static Viewer
-        run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
       - name: Verify real chain index-specific source save, reload and SCAD export in Chrome mobile
         run: node .github/scripts/source-move-chain-browser.mjs
         env:
