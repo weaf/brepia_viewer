@@ -96,7 +96,7 @@ function VisualPartPointerPicker({
       );
       parts.forEach(part => part.updateWorldMatrix(true, true));
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(parts, true);
+      const hits = raycaster.intersectObjects([...parts], true);
       const target = hits.find(hit => hit.object instanceof THREE.Mesh);
       if (!target) return;
       let owner: THREE.Object3D | null = target.object;
