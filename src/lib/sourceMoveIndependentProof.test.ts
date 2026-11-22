@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ParsedOff } from "@/utils/offParser";
 import { discoverScadModuleCalls } from "./sourceMoveProvenance";
-import { verifyIndependentSourceMove, isIndependentTopLevelCall } from "./sourceMoveIndependentProof";
+import { verifyIndependentSourceMove, isIndependentTopLevelCall, isIndependentTopLevelLoopInstance } from "./sourceMoveIndependentProof";
 import { writeSourceMoveTranslation, type SourceMoveCandidate } from "./sourceMoveWriteback";
 
 const source=[
@@ -142,6 +142,56 @@ describe("Source Move independent top-level proof",()=>{
       moved:combine(tetra(-35),tetra(40)),targetPart:1,delta,compile,
     })).toBe(false);
     expect(compile).not.toHaveBeenCalled();
+  });
+
+  it("proves a translated instance in an indexed, translate-only top-level loop",async()=>{
+    const loopSource=[
+      "module link(i) { cube(1); }",
+      'if (layout == "print") {',
+      "  for(i=[0:count-1]) translate([i*20,0,0]) link(i);",
+      "}",
+    ].join("\n");
+    const loopCandidate={...candidateFor(loopSource,"link"),instanceIndex:1};
+    expect(loopCandidate.call.loopVariable).toBe("i");
+    expect(isIndependentTopLevelLoopInstance(loopSource,loopCandidate)).toBe(true);
+    const rewritten=writeSourceMoveTranslation(loopSource,loopCandidate,delta);
+    const compile=vi.fn(async(_src:string)=>tetra(-40));
+    expect(await verifyIndependentSourceMove({
+      source:loopSource,modified:rewritten,candidate:loopCandidate,
+      baseline:original,moved,targetPart:1,delta,compile,
+    })).toBe(true);
+    expect(compile).toHaveBeenCalledTimes(2);
+    expect(compile.mock.calls[0][0]).toContain("if (i != 1) link(i);");
+    expect(compile.mock.calls[1][0]).toContain(
+      "if (i != 1) if (i == 1) translate([5, 0, 0]) link(i); else link(i);",
+    );
+  });
+
+  it("rejects rotated, nested CSG, braced and nonzero-start loops",()=>{
+    const fixture=(statement:string)=>"module link(i) { cube(1); }\n"+statement;
+    const check=(statement:string)=>{
+      const scad=fixture(statement);
+      const cand={...candidateFor(scad,"link"),instanceIndex:1};
+      return isIndependentTopLevelLoopInstance(scad,cand);
+    };
+    expect(check("for(i=[0:3]) rotate([0,0,90]) link(i);")).toBe(false);
+    expect(check("for(i=[0:3]) scale([2,1,1]) link(i);")).toBe(false);
+    expect(check("union() { for(i=[0:3]) translate([i*20,0,0]) link(i); }")).toBe(false);
+    expect(check("for(i=[1:3]) translate([i*20,0,0]) link(i);")).toBe(false);
+    expect(check("for(i=[0,1,2]) translate([i*20,0,0]) link(i);")).toBe(false);
+    expect(check("for(i=[0:3]) { translate([i*20,0,0]) link(i); }")).toBe(false);
+    expect(check("module extra() { for(i=[0:3]) link(i); }")).toBe(false);
+  });
+
+  it("rejects changed siblings even when an indexed moved instance is valid",async()=>{
+    const loopSource="module link(i) { cube(1); }\nfor(i=[0:2]) translate([i*20,0,0]) link(i);";
+    const loopCandidate={...candidateFor(loopSource,"link"),instanceIndex:1};
+    const modifiedLoop=writeSourceMoveTranslation(loopSource,loopCandidate,delta);
+    const compile=vi.fn().mockResolvedValueOnce(tetra(-40)).mockResolvedValueOnce(tetra(-39));
+    expect(await verifyIndependentSourceMove({
+      source:loopSource,modified:modifiedLoop,candidate:loopCandidate,
+      baseline:original,moved,targetPart:1,delta,compile,
+    })).toBe(false);
   });
 
   it("does not accept arbitrary SCAD edits beyond the generated transform",async()=>{

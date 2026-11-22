@@ -44,6 +44,79 @@ export function isIndependentTopLevelCall(source: string, candidate: SourceMoveC
   return true;
 }
 
+/**
+ * Accept an indexed instance only when the actual loop is a top-level
+ * standalone statement (possibly inside a top-level if/else branch) and its
+ * entire path to the call consists of translations. The generated delta is
+ * in world axes; rotate/scale/mirror, nested CSG and braced loop bodies
+ * cannot be translated in world space using this simple source rewrite.
+ */
+export function isIndependentTopLevelLoopInstance(
+  source: string, candidate: SourceMoveCandidate,
+): boolean {
+  const {call, instanceIndex} = candidate;
+  if (!call.loopVariable || !Number.isInteger(instanceIndex) ||
+      instanceIndex! < 0 || call.start < 0 ||
+      source.slice(call.start, call.start + call.callText.length) !== call.callText) return false;
+  const clean = maskScadNonCode(source);
+  const before = clean.slice(0, call.start);
+  const loopPattern = /\bfor\s*\(/g;
+  const matches = Array.from(before.matchAll(loopPattern));
+  for (let site = matches.length - 1; site >= 0; site -= 1) {
+    const match = matches[site];
+    const openParen = before.indexOf("(", match.index);
+    let depth = 0, end = -1;
+    for (let i = openParen; i < call.start; i += 1) {
+      if (clean[i] === "(") depth += 1;
+      else if (clean[i] === ")" && --depth === 0) { end = i + 1; break; }
+    }
+    if (end < 0) continue;
+    const header = clean.slice(openParen + 1, end - 1).trim();
+    const variable = call.loopVariable.replace(/[$]/g, "");
+    const headerPattern = new RegExp("^" + variable +
+      "\\s*=\\s*\\[\\s*0\\s*:\\s*(?:[A-Za-z_]\\w*|[0-9]+)(?:\\s*-\\s*[0-9]+)?\\s*\\]$");
+    if (!headerPattern.test(header)) continue;
+    // Only the transform chain between this exact for() and the call.
+    let cursor = end;
+    let valid = true;
+    let transforms = 0;
+    while (cursor < call.start) {
+      while (/\s/.test(clean[cursor] ?? "")) cursor += 1;
+      if (cursor === call.start) break;
+      const translate = /^translate\s*\(/.exec(clean.slice(cursor, call.start));
+      if (!translate) { valid = false; break; }
+      const begin = cursor + translate[0].lastIndexOf("(");
+      let level = 0, close = -1;
+      for (let i = begin; i < call.start; i += 1) {
+        if (clean[i] === "(") level += 1;
+        else if (clean[i] === ")" && --level === 0) { close = i + 1; break; }
+      }
+      if (close < 0) { valid = false; break; }
+      cursor = close;
+      transforms += 1;
+    }
+    if (!valid || cursor !== call.start || transforms > 8) continue;
+    // A transparent single top-level if/else block is allowed, but not
+    // module definitions, unions, differences or arbitrary nested scopes.
+    const braces: number[] = [];
+    for (let i = 0; i < match.index!; i += 1) {
+      if (clean[i] === "{") braces.push(i);
+      else if (clean[i] === "}") {
+        if (braces.length === 0) return false;
+        braces.pop();
+      }
+    }
+    if (braces.length > 1) return false;
+    if (braces.length === 1) {
+      const opening = braces[0];
+      const prefix = clean.slice(0, opening).trimEnd();
+      if (!/(?:\belse|\bif\s*\([^()]*\))$/.test(prefix)) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 function faceCounts(off: ParsedOff, indices: readonly number[], delta: SourceMoveVector): Map<string,number> {
   const out=new Map<string,number>();
   for(const index of indices) {
@@ -204,7 +277,7 @@ function sameClosedShellGeometry(
  *    after disabling that call both before and after the source edit.
  *
  * This checks ALL triangles of the independently rendered unaffected parts.
- * Nested CSG, loop bodies, multiple part matches or errors fail closed.
+ * Nested CSG, rotated/scaled loop instances, multiple matches or errors fail closed.
  */
 export async function verifyIndependentSourceMove({
   source, modified, candidate, baseline, moved, targetPart, delta, compile, onFailure,
@@ -220,7 +293,9 @@ export async function verifyIndependentSourceMove({
   onFailure?: (reason: string)=>void;
 }):Promise<boolean>{
   const reject=(reason:string)=>{onFailure?.(reason);return false;};
-  if(!isIndependentTopLevelCall(source,candidate)) return reject("call-not-independent");
+  const isolatedLoop = isIndependentTopLevelLoopInstance(source,candidate);
+  if(!isIndependentTopLevelCall(source,candidate) && !isolatedLoop)
+    return reject("call-not-independent");
   if(delta.some(value=>!Number.isFinite(value))) return reject("non-finite-delta");
   if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return reject("source-diff-unexpected");
   if(!singleExactMovedShell(baseline,moved,targetPart,delta)) {
@@ -235,9 +310,15 @@ export async function verifyIndependentSourceMove({
     if(!sameClosedShellGeometry(baseline,moved,targetPart,delta))
       return reject("moved-shell-shape-invariant-mismatch");
   }
-  const excludedBefore=excludeScadSourceCall(source,candidate.call);
-  // Guard the SAME generated translate wrapper; no other statement changes.
-  const excludedAfter=modified.slice(0,candidate.call.start)+"if (false) "+
+  const excludedBefore=excludeScadSourceCall(
+    source,candidate.call,isolatedLoop ? candidate.instanceIndex : undefined,
+  );
+  // Disable the SAME instance before and after the generated writeback.
+  // Other loop iterations must remain byte-identical in their OFF triangles.
+  const guard = isolatedLoop
+    ? "if (" + candidate.call.loopVariable + " != " + candidate.instanceIndex + ") "
+    : "if (false) ";
+  const excludedAfter=modified.slice(0,candidate.call.start)+guard+
     modified.slice(candidate.call.start);
   // The OpenSCAD WASM worker is single-threaded. Do not overlap two project
   // previews or let their temporary file contexts interfere.
