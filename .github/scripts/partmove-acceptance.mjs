@@ -103,6 +103,37 @@ try {
       assert.ok(!moved.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
         device.name+': selected part did not move from true mouse/touch drag: '+moved);
       console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
+      // Previously a moved gizmo could swallow the next tap and make a
+      // previously selected component difficult or impossible to reselect.
+      // Cycle between the same two real meshes WITHOUT resetting offsets.
+      const prevPart=page.getByRole('button',{name:'Previous model part'});
+      const nextPart=page.getByRole('button',{name:'Next model part'});
+      await nextPart.click();
+      assert.equal(await selector.inputValue(),'0',device.name+': next must wrap to part 1');
+      assert.match((await page.getByTestId('visual-move-offsets').first().textContent())||'',/Scene X 0\.0 \/ Y 0\.0 \/ Z 0\.0/,
+        device.name+': untouched part offset changed');
+      await prevPart.click();
+      assert.equal(await selector.inputValue(),'1',device.name+': previous must return to moved part');
+      assert.equal(await page.getByTestId('visual-move-offsets').first().textContent(),moved,
+        device.name+': moving away and back must retain the original offset');
+      await prevPart.click();
+      assert.equal(await selector.inputValue(),'0');
+      // Selecting a moved part from the 3D canvas (not just the fallback
+      // selector) must remain possible after switching to another part.
+      let repicked=false;
+      for(const fy of [0.4,0.5,0.6,0.3,0.7]){
+        for(const fx of [0.25,0.35,0.45,0.55,0.65,0.75]){
+          const area=await hitCanvas.boundingBox();
+          if(!area)break;
+          const x=area.x+area.width*fx,y=area.y+area.height*fy;
+          if(device.mobile)await page.touchscreen.tap(x,y);
+          else await page.mouse.click(x,y);
+          if((await selector.inputValue())==='1'){repicked=true;break;}
+        }
+        if(repicked)break;
+      }
+      assert.ok(repicked,device.name+': reselecting moved part by clicking in 3D failed');
+      console.log('PART_MOVE_RESELECTION_'+device.name.toUpperCase()+'_PASS',moved);
       await page.getByRole('button',{name:'Reset Selected Part'}).click();
       await selector.selectOption('0');
       await page.screenshot({path:path.join(proof,device.name+'-selected-part.png'),fullPage:true});
