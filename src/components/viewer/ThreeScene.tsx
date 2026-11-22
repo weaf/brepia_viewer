@@ -65,6 +65,59 @@ function ViewerControls({ uprightLocked, enabled, onUserCameraMove }: { uprightL
   return <ArcballControls makeDefault enabled={enabled} onStart={onUserCameraMove} minZoom={0.01} maxZoom={1000} />;
 }
 
+// R3F's primitive-backed event registrations can be lost when the SAME mesh
+// Object3D is reparented between its selected gizmo and ordinary part group.
+// Select via the actual live mesh transforms before R3F processes a drag.
+// This is preview-only; it never changes source or exported geometry.
+function VisualPartPointerPicker({
+  parts, selected, enabled, onSelect,
+}: {
+  parts: readonly THREE.Group[];
+  selected: number | null;
+  enabled: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
+  useEffect(() => {
+    if (!enabled || parts.length < 2) return;
+    const canvas = gl.domElement;
+    const pointer = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary || event.button !== 0) return;
+      const bounds = canvas.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0 ||
+          event.clientX < bounds.left || event.clientX > bounds.right ||
+          event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+      pointer.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
+      );
+      parts.forEach(part => part.updateWorldMatrix(true, true));
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(parts, true);
+      const target = hits.find(hit => hit.object instanceof THREE.Mesh);
+      if (!target) return;
+      let owner: THREE.Object3D | null = target.object;
+      let index = -1;
+      while (owner && index < 0) {
+        index = parts.indexOf(owner as THREE.Group);
+        owner = owner.parent;
+      }
+      if (index < 0 || index === selected) return;
+      // A selection tap must not start a drag on the previously selected
+      // component (or move the orbit camera) in the same pointer event.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onSelect(index);
+    };
+    canvas.addEventListener("pointerdown", onPointerDown, true);
+    return () => canvas.removeEventListener("pointerdown", onPointerDown, true);
+  }, [camera, enabled, gl, onSelect, parts, selected]);
+  return null;
+}
+
 type ModelSurfacePointer = {
   point: THREE.Vector3;
   pointer: THREE.Vector2;
@@ -837,6 +890,12 @@ export function ThreeScene({
           )}
           {/* Keep Stage's initial model fit. After manual camera movement, do
               not refit on geometry changes (Customizer, sliders or presets). */}
+          {visualMoving && visualEditAllowed && visualMoveMode === 'part' && partModelElement && (
+            <VisualPartPointerPicker
+              parts={partObjects} selected={selectedPart} enabled
+              onSelect={setSelectedPart}
+            />
+          )}
           <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={shouldAutoFitCamera}>
             <Environment files={`${import.meta.env.BASE_URL}city.hdr`} />
             <ambientLight intensity={0.8} />
