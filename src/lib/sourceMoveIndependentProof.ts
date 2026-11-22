@@ -395,8 +395,9 @@ export async function verifyIndependentSourceMove({
   const afterStart=isolatedLoop
     ? candidate.call.start + modified.length - source.length
     : candidate.call.start;
-  if(afterStart<0 || modified.slice(afterStart,afterStart+candidate.call.callText.length)!==
-      candidate.call.callText) return reject("rewritten-call-site-mismatch");
+  if(isolatedLoop &&
+      (afterStart<0 || modified.slice(afterStart,afterStart+candidate.call.callText.length)!==
+        candidate.call.callText)) return reject("rewritten-call-site-mismatch");
   const guard = isolatedLoop
     ? "if (" + candidate.call.loopVariable + " != " + candidate.instanceIndex + ") "
     : "if (false) ";
