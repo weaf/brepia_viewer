@@ -37,6 +37,10 @@ jobs:
         env:
           SOURCE_MOVE_NATIVE_BOX: "1"
           SOURCE_MOVE_BOX_FILE: ${{ runner.temp }}/box.scad
+      - name: Verify real generated chain index-specific native Source Move
+        run: npx vitest run src/lib/sourceMoveChainNative.test.ts --reporter=verbose
+        env:
+          SOURCE_MOVE_NATIVE_CHAIN: "1"
       - name: Build canonical static Viewer
         run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
       - name: Verify real Box move, SCAD update and persistence in mobile Chrome
