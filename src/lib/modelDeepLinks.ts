@@ -23,7 +23,7 @@ export function parseViewerModelLink(query: string): ViewerModelLink | null {
     }
     if (url.hash) throw new Error("Remove fragments from the model URL.");
     // Preserve remote query strings: direct raw SCAD hosts sometimes require them.
-    if (!/\\.scad(?:\\.txt)?$/i.test(url.pathname) &&
+    if (!/\.scad(?:\.txt)?$/i.test(url.pathname) &&
       !["github.com", "www.github.com"].includes(url.hostname.toLowerCase())) {
       throw new Error("Link to a .scad file or a public GitHub project.");
     }
@@ -33,7 +33,7 @@ export function parseViewerModelLink(query: string): ViewerModelLink | null {
     !/^[a-z0-9][a-z0-9-]*$/.test(libraries[0]) || files[0].length > 1024 ||
     files[0].startsWith("/") || files[0].split("/").some((part) =>
       !part || part === "." || part === ".." || part.includes("\\") ||
-      /[\\x00-\\x1f\\x7f]/.test(part))) {
+      /[\x00-\x1f\x7f]/.test(part))) {
     throw new Error("The linked library model is invalid.");
   }
   return { kind: "library", repositoryId: libraries[0], path: files[0] };
