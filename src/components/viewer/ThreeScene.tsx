@@ -92,7 +92,8 @@ function MobileMoveTouchTarget({
       ? Math.abs(camera.top - camera.bottom) / Math.max(0.01, camera.zoom) / size.height
       : camera instanceof THREE.PerspectiveCamera
         ? 2 * center.distanceTo(camera.position) *
-          Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / size.height
+          Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) /
+          (Math.max(0.01, camera.zoom) * size.height)
         : 0;
     const parentMinScale = Math.max(0.001, Math.min(
       Math.abs(parentScale.x), Math.abs(parentScale.y), Math.abs(parentScale.z),
