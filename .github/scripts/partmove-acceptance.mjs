@@ -103,6 +103,61 @@ try {
       assert.ok(!moved.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
         device.name+': selected part did not move from true mouse/touch drag: '+moved);
       console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
+      // Mobile X-drag intentionally uses a strong gain. The observed +21.9 mm
+      // can move the upper-right cube entirely outside a 364x204 viewport.
+      // Verify large-offset recovery with the part buttons, then use a small
+      // *visible* offset for the separate direct-3D repick acceptance.
+      const largeDraggedOffset=moved;
+      // Previously a moved gizmo could swallow the next tap and make a
+      // previously selected component difficult or impossible to reselect.
+      // Cycle between the same two real meshes WITHOUT resetting offsets.
+      const prevPart=page.getByRole('button',{name:'Previous model part'});
+      const nextPart=page.getByRole('button',{name:'Next model part'});
+      await nextPart.click();
+      assert.equal(await selector.inputValue(),'0',device.name+': next must wrap to part 1');
+      assert.match((await page.getByTestId('visual-move-offsets').first().textContent())||'',/Scene X 0\.0 \/ Y 0\.0 \/ Z 0\.0/,
+        device.name+': untouched part offset changed');
+      await prevPart.click();
+      assert.equal(await selector.inputValue(),'1',device.name+': previous must return to moved part');
+      assert.equal(await page.getByTestId('visual-move-offsets').first().textContent(),largeDraggedOffset,
+        device.name+': moving away and back must retain the original offset');
+      if (device.mobile) {
+        // Deliberately bring the moved part back into the actual 3D viewport.
+        // This only changes preview offset; the real large-drag test above
+        // already passed and must not be weakened.
+        const precision=page.getByTestId('visual-move-mobile-controls');
+        await precision.getByRole('button',{name:'Show precision slider'}).click();
+        await precision.getByRole('slider',{name:'Move model along X axis'}).fill('2');
+        await precision.getByRole('button',{name:'Hide precision slider'}).click();
+        assert.match((await page.getByTestId('visual-move-offsets').first().textContent())||'',/X 2\.0/,
+          'mobile: small visibility-safe offset must be preserved');
+      }
+      await prevPart.click();
+      assert.equal(await selector.inputValue(),'0');
+      // Selecting a moved part from the 3D canvas (not just the fallback
+      // selector) must remain possible after switching to another part.
+      await hitCanvas.screenshot({path:path.join(proof,device.name+'-moved-part-before-repick.png')});
+      const repickBounds=await hitCanvas.boundingBox();
+      assert.ok(repickBounds,'3D canvas vanished after moving the part');
+      // The selected box starts at the far right of the test viewport.
+      // Moving +X shifts it farther right. The old grid capped at 75%
+      // width and never hit the displaced geometry, a test defect.
+      let repicked=false;
+      for(const fy of [0.3,0.4,0.5,0.2,0.6,0.7,0.8]){
+        for(const fx of [0.9,0.95,0.85,0.8,0.75,0.7,0.65,0.55,0.45,0.35,0.25]){
+          const x=repickBounds.x+repickBounds.width*fx;
+          const y=repickBounds.y+repickBounds.height*fy;
+          if(device.mobile)await page.touchscreen.tap(x,y);
+          else await page.mouse.click(x,y);
+          if((await selector.inputValue())==='1'){repicked=true;break;}
+        }
+        if(repicked)break;
+      }
+      if(!repicked) {
+        await page.screenshot({path:path.join(proof,device.name+'-repick-failed.png'),fullPage:true});
+      }
+      assert.ok(repicked,device.name+': reselecting moved part by clicking in 3D failed');
+      console.log('PART_MOVE_RESELECTION_'+device.name.toUpperCase()+'_PASS',moved);
       await page.getByRole('button',{name:'Reset Selected Part'}).click();
       await selector.selectOption('0');
       await page.screenshot({path:path.join(proof,device.name+'-selected-part.png'),fullPage:true});

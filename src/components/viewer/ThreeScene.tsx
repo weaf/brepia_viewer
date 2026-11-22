@@ -11,7 +11,7 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, ChevronDown, ChevronUp, Lock, Moon, Move3D, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
+import { Box, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Lock, Moon, Move3D, Ruler, Sun, Undo2, Unlock, X } from "lucide-react";
 import { OrthographicPerspectiveToggle } from "@/components/viewer/OrthographicPerspectiveToggle";
 import { ViewGizmo } from "@/components/viewer/ViewGizmo";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,59 @@ function ViewerControls({ uprightLocked, enabled, onUserCameraMove }: { uprightL
   }
 
   return <ArcballControls makeDefault enabled={enabled} onStart={onUserCameraMove} minZoom={0.01} maxZoom={1000} />;
+}
+
+// R3F's primitive-backed event registrations can be lost when the SAME mesh
+// Object3D is reparented between its selected gizmo and ordinary part group.
+// Select via the actual live mesh transforms before R3F processes a drag.
+// This is preview-only; it never changes source or exported geometry.
+function VisualPartPointerPicker({
+  parts, selected, enabled, onSelect,
+}: {
+  parts: readonly THREE.Group[];
+  selected: number | null;
+  enabled: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
+  useEffect(() => {
+    if (!enabled || parts.length < 2) return;
+    const canvas = gl.domElement;
+    const pointer = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary || event.button !== 0) return;
+      const bounds = canvas.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0 ||
+          event.clientX < bounds.left || event.clientX > bounds.right ||
+          event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+      pointer.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
+      );
+      parts.forEach(part => part.updateWorldMatrix(true, true));
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects([...parts], true);
+      const target = hits.find(hit => hit.object instanceof THREE.Mesh);
+      if (!target) return;
+      let owner: THREE.Object3D | null = target.object;
+      let index = -1;
+      while (owner && index < 0) {
+        index = parts.indexOf(owner as THREE.Group);
+        owner = owner.parent;
+      }
+      if (index < 0 || index === selected) return;
+      // A selection tap must not start a drag on the previously selected
+      // component (or move the orbit camera) in the same pointer event.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onSelect(index);
+    };
+    canvas.addEventListener("pointerdown", onPointerDown, true);
+    return () => canvas.removeEventListener("pointerdown", onPointerDown, true);
+  }, [camera, enabled, gl, onSelect, parts, selected]);
+  return null;
 }
 
 type ModelSurfacePointer = {
@@ -723,6 +776,13 @@ export function ThreeScene({
     if (selectedPart === null) return;
     setPartOffsets(current => ({ ...current, [selectedPart]: offset }));
   }, [selectedPart]);
+  const cycleSelectedPart = (step: -1 | 1) => {
+    if (availablePartCount < 2) return;
+    setDraggingVisualMove(false);
+    setSelectedPart(previous => previous === null
+      ? (step === 1 ? 0 : availablePartCount - 1)
+      : (previous + step + availablePartCount) % availablePartCount);
+  };
   const resetSelectedPart = () => {
     if (selectedPart === null) return;
     setPartOffsets(current => ({ ...current, [selectedPart]: [0,0,0] }));
@@ -750,6 +810,15 @@ export function ThreeScene({
         const partVisual = (
           <group rotation={[-Math.PI / 2, 0, 0]}>
             <primitive object={part} position={groupCenterOffset.toArray()}
+              // Select on pointer-down, not only click. The selected gizmo
+              // captures pointer-up during drag; click is not guaranteed to
+              // arrive after a touch or a previous part movement.
+              onPointerDown={(event: ThreeEvent<PointerEvent>) => {
+                if (selectedPart !== index) {
+                  event.stopPropagation();
+                  setSelectedPart(index);
+                }
+              }}
               onClick={(event: ThreeEvent<MouseEvent>) => {
                 if (event.delta > 4) return;
                 event.stopPropagation();
@@ -821,6 +890,12 @@ export function ThreeScene({
           )}
           {/* Keep Stage's initial model fit. After manual camera movement, do
               not refit on geometry changes (Customizer, sliders or presets). */}
+          {visualMoving && visualEditAllowed && visualMoveMode === 'part' && partModelElement && (
+            <VisualPartPointerPicker
+              parts={partObjects} selected={selectedPart} enabled
+              onSelect={setSelectedPart}
+            />
+          )}
           <Stage environment={null} intensity={0.6} position={[0, 0, 0]} adjustCamera={shouldAutoFitCamera}>
             <Environment files={`${import.meta.env.BASE_URL}city.hdr`} />
             <ambientLight intensity={0.8} />
@@ -959,7 +1034,22 @@ export function ThreeScene({
                       <option key={index} value={index}>Part {index + 1} ({part.userData.triangleCount} triangles)</option>
                     ))}
                   </select>
-                  <p>{selectedPart === null ? 'Tap a part to select it, then drag a handle.' : 'Selected part ' + (selectedPart + 1)}</p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button type="button" aria-label="Previous model part" title="Previous part"
+                      className="flex h-9 w-9 items-center justify-center rounded border border-white/20"
+                      onClick={() => cycleSelectedPart(-1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="min-w-20 text-center" aria-live="polite">
+                      {selectedPart === null ? 'Choose a part' : `Part ${selectedPart + 1} / ${availablePartCount}`}
+                    </span>
+                    <button type="button" aria-label="Next model part" title="Next part"
+                      className="flex h-9 w-9 items-center justify-center rounded border border-white/20"
+                      onClick={() => cycleSelectedPart(1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-white/70">Tap a part to select it, then drag its axis handle.</p>
                   <div className="flex flex-wrap gap-1">
                     <button type="button" className="min-h-9 rounded border border-white/20 px-2"
                       onClick={resetSelectedPart} disabled={selectedPart === null}>Reset Selected Part</button>
@@ -1147,6 +1237,11 @@ export function ThreeScene({
                 </select>
                 {visualMoveMode === 'part' && (
                   <>
+                    <button type="button" aria-label="Previous model part" title="Previous part"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
+                      onClick={() => cycleSelectedPart(-1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
                     <label className="sr-only" htmlFor="part-move-selector-mobile">Part</label>
                     <select id="part-move-selector-mobile" aria-label="Select model part"
                       className="h-9 min-w-0 flex-1 rounded-md border border-white/20 bg-adam-background-1 px-1"
@@ -1157,6 +1252,11 @@ export function ThreeScene({
                         <option key={index} value={index}>Part {index + 1} ({part.userData.triangleCount} triangles)</option>
                       ))}
                     </select>
+                    <button type="button" aria-label="Next model part" title="Next part"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/20"
+                      onClick={() => cycleSelectedPart(1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
                     <button type="button" aria-label="Reset All Parts" title="Reset all parts"
                       className="h-9 w-9 shrink-0 rounded-md border border-white/20"
                       onClick={() => setPartOffsets({})}>All</button>
