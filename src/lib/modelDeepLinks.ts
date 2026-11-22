@@ -33,7 +33,7 @@ export function parseViewerModelLink(query: string): ViewerModelLink | null {
     !/^[a-z0-9][a-z0-9-]*$/.test(libraries[0]) || files[0].length > 1024 ||
     files[0].startsWith("/") || files[0].split("/").some((part) =>
       !part || part === "." || part === ".." || part.includes("\\") ||
-      Array.from(part).some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127)) {
+      Array.from(part).some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127))) {
     throw new Error("The linked library model is invalid.");
   }
   return { kind: "library", repositoryId: libraries[0], path: files[0] };
