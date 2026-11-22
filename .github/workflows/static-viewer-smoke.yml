@@ -44,6 +44,9 @@ jobs:
       - name: Test GitHub OpenSCAD URL imports in desktop and mobile Chrome
         run: node .github/scripts/github-url-import-smoke.mjs
 
+      - name: Verify model deep links and library filtering on desktop and mobile
+        run: node .github/scripts/model-deep-links-smoke.mjs
+
       - name: Verify two-file OpenSCAD editing and parameter sliders
         run: node .github/scripts/multifile-editor-smoke.mjs
 
