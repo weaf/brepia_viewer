@@ -11,50 +11,74 @@ export type ModelRepositoryConfig = {
   path: string;
 };
 
-/**
- * Public GitHub sources for the built-in OpenSCAD model gallery.
- * Add another entry to include a repository folder; path is relative to that repo.
- * Example: { id: 'community', label: 'Community', owner: 'org', repository: 'models', branch: 'main', path: 'openscad' }
- */
-export const MODEL_REPOSITORIES: ModelRepositoryConfig[] = [
-  {
-    id: 'parametric-designs',
-    label: 'Parametric designs',
-    owner: 'Noty-design',
-    repository: 'Parametric-designs',
-    branch: 'main',
-    path: '',
-  },
-];
+import curatedRepositories from "./modelRepositories.json";
+
+/** Every source is curated in modelRepositories.json and reviewed through pull requests. */
+export const MODEL_REPOSITORIES: ModelRepositoryConfig[] = validateModelRepositories(curatedRepositories);
 
 export function normalizeModelRepositoryPath(path: string): string {
-  const normalized = path.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
   if (
-    normalized.split('/').some((segment) => segment === '.' || segment === '..')
+    typeof path !== "string" ||
+    (path !== "" && !/^[a-z0-9_./-]+$/i.test(path)) ||
+    path.startsWith("/") || path.endsWith("/") || path.includes("//") ||
+    path.split("/").some((segment) => segment === "." || segment === "..")
   ) {
     throw new Error(`Invalid GitHub model repository folder: ${path}`);
   }
-  return normalized;
+  return path;
+}
+
+/** Validate the untrusted PR-editable registry before constructing any GitHub URLs. */
+export function validateModelRepositories(raw: unknown): ModelRepositoryConfig[] {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 50) {
+    throw new Error("Model repository catalog must contain 1 to 50 entries.");
+  }
+  const ids = new Set<string>();
+  return raw.map((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error("Invalid model repository entry.");
+    }
+    const entry = item as Record<string, unknown>;
+    const fields = ["id", "label", "owner", "repository", "branch", "path"];
+    if (Object.keys(entry).some((key) => !fields.includes(key)) ||
+      fields.some((key) => typeof entry[key] !== "string")) {
+      throw new Error("Model repository entry has missing or unexpected fields.");
+    }
+    const source = entry as ModelRepositoryConfig;
+    if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(source.id) ||
+      ids.has(source.id) || ["all", "uploads"].includes(source.id)) {
+      throw new Error(`Invalid or duplicate model repository ID: ${source.id}`);
+    }
+    ids.add(source.id);
+    if (source.label !== source.label.trim() || source.label.length < 1 ||
+      source.label.length > 70 || /[\\x00-\\x1f\\x7f]/.test(source.label)) {
+      throw new Error(`Invalid model repository label: ${source.id}`);
+    }
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i.test(source.owner) ||
+      !/^[a-z0-9_.-]+$/i.test(source.repository) ||
+      source.repository === "." || source.repository === ".." ||
+      source.repository.length > 100) {
+      throw new Error(`Invalid GitHub owner/repository: ${source.id}`);
+    }
+    if (!/^[a-z0-9][a-z0-9._/-]*$/i.test(source.branch) ||
+      source.branch.length > 160 || source.branch.includes("..") ||
+      source.branch.includes("//") || source.branch.endsWith("/") ||
+      source.branch.endsWith(".lock")) {
+      throw new Error(`Invalid GitHub branch or tag: ${source.id}`);
+    }
+    normalizeModelRepositoryPath(source.path);
+    return { ...source };
+  });
 }
 
 export function getModelRepository(id: string): ModelRepositoryConfig {
   const source = MODEL_REPOSITORIES.find((repository) => repository.id === id);
   if (!source) throw new Error(`Unknown model repository source: ${id}`);
-  return { ...source, path: normalizeModelRepositoryPath(source.path) };
+  return { ...source };
 }
 
 export function getModelRepositories(): ModelRepositoryConfig[] {
-  const ids = new Set<string>();
-  return MODEL_REPOSITORIES.map((source) => {
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(source.id) || ids.has(source.id)) {
-      throw new Error(`Invalid or duplicate model repository ID: ${source.id}`);
-    }
-    ids.add(source.id);
-    if (!source.owner.trim() || !source.repository.trim() || !source.branch.trim()) {
-      throw new Error(`Incomplete GitHub model repository source: ${source.id}`);
-    }
-    return { ...source, path: normalizeModelRepositoryPath(source.path) };
-  });
+  return MODEL_REPOSITORIES.map((source) => ({ ...source }));
 }
 
 export function modelRepositoryCacheKey(source: ModelRepositoryConfig): string {
