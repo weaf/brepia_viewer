@@ -43,6 +43,7 @@ try {
   page.on("pageerror", err => errors.push(err.message));
   page.on("console", msg => {
     if (msg.text().includes("[Source Move] independent proof rejected") ||
+        msg.text().includes("[Source Move] located shell diagnostic") ||
         msg.text().includes("[Source Move] SCAD verification rejected")) {
       void Promise.all(msg.args().map(arg => arg.jsonValue().catch(() => null)))
         .then(args => console.log("CHAIN_SOURCE_MOVE_DIAGNOSTICS", JSON.stringify(args)));

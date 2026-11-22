@@ -190,7 +190,15 @@ function singleExactMovedShell(
 ): boolean {
   const before=connectedClosedShells(baseline);
   const after=connectedClosedShells(moved);
-  if(before.length!==after.length || !before[targetPart]) return false;
+  if(before.length!==after.length || !before[targetPart]) {
+    console.info("[Source Move] located shell diagnostic", {
+      reason:"shell-count-or-target",
+      selectedPart:targetPart,
+      before:before.map(part=>({faces:part.faceIndices.length,closed:part.closed})),
+      after:after.map(part=>({faces:part.faceIndices.length,closed:part.closed})),
+    });
+    return false;
+  }
   const expected=faceCounts(baseline,before[targetPart].faceIndices,delta);
   if(!expected.size) return false;
   let matches=0;
@@ -234,6 +242,15 @@ function singleLocatedMovedShell(
     const actual=bounds(moved,shell.faceIndices);
     if(actual.length===6 && actual.every((value,i)=>Math.abs(value-target[i])<=0.022)) matches++;
   }
+  if(matches!==1) console.info("[Source Move] located shell diagnostic", {
+    reason:"bounds",
+    selectedPart:targetPart,
+    selectedBounds:selected,
+    expectedBounds:target,
+    observedBounds:after.map(part=>bounds(moved,part.faceIndices)),
+    beforeShells:before.map(part=>({faces:part.faceIndices.length,closed:part.closed})),
+    afterShells:after.map(part=>({faces:part.faceIndices.length,closed:part.closed})),
+  });
   return matches===1;
 }
 
