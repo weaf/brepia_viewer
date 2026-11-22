@@ -51,7 +51,7 @@ export function validateModelRepositories(raw: unknown): ModelRepositoryConfig[]
     }
     ids.add(source.id);
     if (source.label !== source.label.trim() || source.label.length < 1 ||
-      source.label.length > 70 || /[\\x00-\\x1f\\x7f]/.test(source.label)) {
+      source.label.length > 70 || /[\x00-\x1f\x7f]/.test(source.label)) {
       throw new Error(`Invalid model repository label: ${source.id}`);
     }
     if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i.test(source.owner) ||
