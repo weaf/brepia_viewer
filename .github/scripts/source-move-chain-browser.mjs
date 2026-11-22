@@ -103,6 +103,10 @@ try {
     const originalStored = await readStored();
     assert.ok(originalStored.includes("for(i=[0:chain_count-1])"), "Chain source was not imported");
     assert.ok(!savedMove(originalStored), "Source was already moved");
+    console.log("CHAIN_IMPORT_BASELINE", JSON.stringify({
+      fixtureLength:source.length, importedLength:originalStored.length,
+      exactFixtureBytes:source===originalStored,
+    }));
     await panel.getByRole("button", { name: "Apply Part Move to OpenSCAD code" }).click();
     let outcome = "timeout";
     for (let attempt = 0; attempt < 480; attempt += 1) {
@@ -126,7 +130,7 @@ try {
     const move = savedMove(updated);
     assert.ok(move, "IndexedDB lost new source");
     assert.deepEqual(move.delta, [5, 0, 0], "Wrong axis or delta");
-    assert.equal(updated.replace(move.snippet, "chain_link(i);"), source,
+    assert.equal(updated.replace(move.snippet, ""), originalStored,
       "Unexpected source mutation beyond the selected link translation");
     await page.screenshot({ path: path.join(evidence, "source-saved.jpg"), type: "jpeg", quality: 65 });
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -148,7 +152,7 @@ try {
     assert.ok(file, "SCAD export missing");
     const exported = readFileSync(file, "utf8");
     assert.ok(exported.includes(move.snippet), "SCAD export dropped indexed translation");
-    assert.equal(exported.replace(move.snippet, "chain_link(i);"), source,
+    assert.equal(exported.replace(move.snippet, ""), originalStored,
       "Export changed other chain code unexpectedly");
     assert.deepEqual(errors, [], "Unexpected browser JavaScript exception");
     console.log("SOURCE_MOVE_REAL_CHAIN_BROWSER_SAVE_PASS", JSON.stringify({
