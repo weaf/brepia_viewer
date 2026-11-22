@@ -104,13 +104,13 @@ try {
         device.name+': selected part did not move from true mouse/touch drag: '+moved);
       console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
       if (device.mobile) {
-        const translatedX=Number(/Scene X (-?\\d+(?:\\.\\d+)?)/.exec(moved)?.[1]);
+        const translatedX=Number(/Scene X (-?\d+(?:\.\d+)?)/.exec(moved)?.[1]);
         assert.ok(Number.isFinite(translatedX) && translatedX > 0.5 && translatedX < 12,
           'individual part mobile drag must be precise enough to stay visible: '+moved);
         console.log('PART_MOVE_MOBILE_FINE_TOUCH_GAIN_PASS',translatedX);
       }
-      // Keep the large-drag recovery check even with improved fine gain.
-      // Fallback part cycling must preserve the preview offset exactly.
+      // Even when a moved part leaves the canvas, cycling remains a recovery
+      // mechanism. Preserve the precise visual offset across part changes.
       // Verify large-offset recovery with the part buttons, then use a small
       // *visible* offset for the separate direct-3D repick acceptance.
       const largeDraggedOffset=moved;
