@@ -64,7 +64,53 @@ try {
       await hitCanvas.waitFor({state:'visible',timeout:15000});
       const hitBox=await hitCanvas.boundingBox();
       assert.ok(hitBox,'No 3D canvas for direct component picking');
-      await hitCanvas.screenshot({path:path.join(proof,device.name+'-before-direct-click.png')});
+      const initialCanvasPng=await hitCanvas.screenshot({path:path.join(proof,device.name+'-before-direct-click.png')});
+      if (device.mobile) {
+        // Locate the red X gizmo ball in the actual rendered canvas. The
+        // button with a red X is in the top-right area, outside this region.
+        // Probe 16 CSS pixels to the right of the ball, beyond its visible
+        // radius, to verify that the new transparent target truly accepts
+        // off-center touches (not merely a drag on the blue model surface).
+        const marker=await page.evaluate(async (pngBytes) => {
+          const bitmap=await createImageBitmap(new Blob([Uint8Array.from(pngBytes)],{type:'image/png'}));
+          const probe=document.createElement('canvas');
+          probe.width=bitmap.width;probe.height=bitmap.height;
+          const ctx=probe.getContext('2d',{willReadFrequently:true});
+          if(!ctx)return null;
+          ctx.drawImage(bitmap,0,0);
+          const pixels=ctx.getImageData(0,0,probe.width,probe.height).data;
+          let sx=0,sy=0,count=0;
+          for(let y=Math.floor(probe.height*0.56);y<Math.floor(probe.height*0.88);y++){
+            for(let x=12;x<Math.floor(probe.width*0.52);x++){
+              const o=(y*probe.width+x)*4;
+              const red=pixels[o],green=pixels[o+1],blue=pixels[o+2];
+              if(red>195 && green>45 && green<155 && blue>45 &&
+                 blue<155 && red>green*1.65){sx+=x;sy+=y;count++;}
+            }
+          }
+          return count>=8?{x:sx/count,y:sy/count,count}:null;
+        },Array.from(initialCanvasPng));
+        assert.ok(marker,'mobile: cannot locate the actual rendered red gizmo marker');
+        const tx=hitBox.x+marker.x+16,ty=hitBox.y+marker.y;
+        const cdp=await context.newCDPSession(page);
+        const send=(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{
+          type,touchPoints:type==='touchEnd'?[]:[{x,y,id:73}],
+        });
+        await send('touchStart',tx,ty);
+        for(let step=1;step<=8;step++){
+          await send('touchMove',tx+step*5,ty-step);
+          await pause(35);
+        }
+        await send('touchEnd',tx+40,ty-8);
+        await pause(150);
+        const aroundHandle=(await page.getByTestId('visual-move-offsets').first().textContent())||'';
+        assert.ok(!aroundHandle.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
+          'mobile: off-center touch beside visible gizmo did not start Move: '+aroundHandle);
+        console.log('PART_MOVE_MOBILE_GIZMO_TOUCH_TARGET_PASS',JSON.stringify({marker,offset:aroundHandle}));
+        await page.screenshot({path:path.join(proof,'mobile-gizmo-touch-target.png'),fullPage:true});
+        await page.getByRole('button',{name:'Reset Selected Part'}).click();
+        await pause(200);
+      }
       console.log('HIT_CANVAS_BOUNDS',JSON.stringify(hitBox));
       let directlyPicked=false;
       let selectedScreenPoint=null;

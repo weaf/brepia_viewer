@@ -65,6 +65,57 @@ function ViewerControls({ uprightLocked, enabled, onUserCameraMove }: { uprightL
   return <ArcballControls makeDefault enabled={enabled} onStart={onUserCameraMove} minZoom={0.01} maxZoom={1000} />;
 }
 
+// Preserve the small visible gizmo ball, but let a finger grab it from a
+// minimum 44px-wide target. A transparent material still participates in
+// Three.js raycasting; depth/color writes remain disabled. Screen-space sizing
+// is updated during camera zoom rather than requiring model recompilation.
+function MobileMoveTouchTarget({
+  position, visibleRadius, onPointerDown,
+}: {
+  position: VisualMoveOffset;
+  visibleRadius: number;
+  onPointerDown: (event: ThreeEvent<PointerEvent>) => void;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const camera = useThree((state) => state.camera);
+  const size = useThree((state) => state.size);
+  const center = useMemo(() => new THREE.Vector3(), []);
+  const parentScale = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh || !mesh.parent || size.height <= 0) return;
+    mesh.updateWorldMatrix(true, false);
+    mesh.getWorldPosition(center);
+    mesh.parent.getWorldScale(parentScale);
+    const worldPerPixel = camera instanceof THREE.OrthographicCamera
+      ? Math.abs(camera.top - camera.bottom) / Math.max(0.01, camera.zoom) / size.height
+      : camera instanceof THREE.PerspectiveCamera
+        ? 2 * center.distanceTo(camera.position) *
+          Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) /
+          (Math.max(0.01, camera.zoom) * size.height)
+        : 0;
+    const parentMinScale = Math.max(0.001, Math.min(
+      Math.abs(parentScale.x), Math.abs(parentScale.y), Math.abs(parentScale.z),
+    ));
+    // A bounded world-space radius prevents an offscreen zoom level from
+    // making an invisible handle cover the entire model.
+    const radius = Math.max(
+      visibleRadius * 1.15,
+      Math.min(visibleRadius * 4, (22 * worldPerPixel) / parentMinScale),
+    );
+    mesh.scale.setScalar(radius);
+  });
+
+  return (
+    <mesh ref={meshRef} position={position} onPointerDown={onPointerDown}>
+      <sphereGeometry args={[1, 16, 12]} />
+      <meshBasicMaterial transparent opacity={0} depthTest={false}
+        depthWrite={false} colorWrite={false} />
+    </mesh>
+  );
+}
+
 // R3F's primitive-backed event registrations can be lost when the SAME mesh
 // Object3D is reparented between its selected gizmo and ordinary part group.
 // Select via the actual live mesh transforms before R3F processes a drag.
@@ -487,6 +538,11 @@ function VisualMoveManipulator({
               <meshBasicMaterial color={arrowColors[i]} depthTest={false}
                 transparent opacity={selected ? 1 : 0.8} />
             </mesh>
+            {isMobile && (
+              <MobileMoveTouchTarget position={direction}
+                visibleRadius={Math.max(0.7, handleLength * 0.085)}
+                onPointerDown={(event) => startDrag(event, axisIndex)} />
+            )}
           </group>
         );
       })}
