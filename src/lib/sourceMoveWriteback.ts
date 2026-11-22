@@ -32,9 +32,9 @@ const ROUND = 100; // OFF output has limited decimal precision.
  * which may be active in a given configuration. This is a probe priority, not
  * proof of ownership: only OFF comparison can establish a match.
  */
-function moduleBodyRanges(source: string): Array<readonly [number, number]> {
+function moduleBodyRanges(source: string): Array<{ name: string; start: number; end: number }> {
   const clean = maskScadNonCode(source);
-  const ranges: Array<readonly [number, number]> = [];
+  const ranges: Array<{ name: string; start: number; end: number }> = [];
   for (const match of clean.matchAll(/\bmodule\s+[A-Za-z_]\w*\s*\(/g)) {
     const openParen = clean.indexOf("(", match.index);
     let cursor = openParen;
@@ -58,7 +58,7 @@ function moduleBodyRanges(source: string): Array<readonly [number, number]> {
       else if (clean[cursor] === "}") {
         braces -= 1;
         if (braces === 0) {
-          ranges.push([bodyStart, cursor]);
+          ranges.push({ name: match[0].split(/\s+/)[1].split("(")[0], start: bodyStart, end: cursor });
           break;
         }
       }
@@ -82,27 +82,55 @@ function expandCalls(calls: readonly SourceMoveCall[], partCount: number): Sourc
 }
 
 /**
- * Try entrypoint-level calls first, then individual loop instances, then
- * nested helpers. Every candidate is still independently checked against
+ * Try entrypoint calls first, then breadth-first descendants of those
+ * calls, then unreachable nested helpers. Every site is still checked against
  * the complete OFF mesh. Never associate a part based on name or order alone.
  */
 export function sourceMoveCandidates(source: string, partCount: number): SourceMoveCandidate[] {
   const discovery = discoverScadModuleCalls(source);
   if (discovery.status !== "available") return [];
-  const moduleRanges = moduleBodyRanges(source);
-  const topLevel: SourceMoveCall[] = [];
-  const nestedLoops: SourceMoveCall[] = [];
-  const nestedCalls: SourceMoveCall[] = [];
+  const ranges = moduleBodyRanges(source);
+  const roots: SourceMoveCall[] = [];
+  const byOwner = new Map<string, SourceMoveCall[]>();
   for (const call of discovery.calls) {
-    const insideModule = moduleRanges.some(([start, end]) => call.start > start && call.start < end);
-    if (!insideModule) topLevel.push(call);
-    else if (call.loopVariable) nestedLoops.push(call);
-    else nestedCalls.push(call);
+    // Prefer the smallest containing definition if a source nests modules.
+    const owner = ranges
+      .filter(range => call.start > range.start && call.start < range.end)
+      .sort((a,b) => (a.end-a.start)-(b.end-b.start))[0];
+    if (!owner) roots.push(call);
+    else {
+      const owned = byOwner.get(owner.name) ?? [];
+      owned.push(call);
+      byOwner.set(owner.name,owned);
+    }
   }
+  // Traverse source call ownership breadth-first. Interleave sibling module
+  // bodies to avoid spending the entire probe budget on one *inactive*
+  // dispatcher branch. Every candidate still needs a real exclusion proof.
+  const levels: SourceMoveCall[][] = [roots];
+  const visited = new Set(roots.map(call => call.id));
+  let frontier = roots;
+  for (let depth=0; depth<12 && frontier.length; depth+=1) {
+    const buckets = frontier.map(call => byOwner.get(call.name) ?? []);
+    const next: SourceMoveCall[] = [];
+    for (let index=0; index<Math.max(0,...buckets.map(bucket=>bucket.length)); index+=1) {
+      for (const bucket of buckets) {
+        const call=bucket[index];
+        if(call && !visited.has(call.id)) {
+          visited.add(call.id);
+          next.push(call);
+        }
+      }
+    }
+    if(!next.length) break;
+    levels.push(next);
+    frontier=next;
+  }
+  const unused = discovery.calls.filter(call => !visited.has(call.id));
   return [
-    ...expandCalls(topLevel, partCount),
-    ...expandCalls(nestedLoops, partCount),
-    ...expandCalls(nestedCalls, partCount),
+    ...levels.flatMap(level => expandCalls(level,partCount)),
+    ...expandCalls(unused.filter(call=>Boolean(call.loopVariable)),partCount),
+    ...expandCalls(unused.filter(call=>!call.loopVariable),partCount),
   ];
 }
 

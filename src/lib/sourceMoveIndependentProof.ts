@@ -117,6 +117,55 @@ export function isIndependentTopLevelLoopInstance(
   return false;
 }
 
+/**
+ * A direct, non-rotated call within a module body can be proved independently
+ * after a unique real OFF exclusion. Do not infer identity from the module
+ * name: paths through loops, CSG, rotations and nested scopes are excluded.
+ * The post-compile target-bounds and unaffected-geometry gates remain mandatory.
+ */
+export function isIndependentNestedModuleCall(
+  source: string, candidate: SourceMoveCandidate,
+): boolean {
+  if (candidate.instanceIndex !== undefined || candidate.call.loopVariable) return false;
+  const clean=maskScadNonCode(source);
+  const {call}=candidate;
+  if (source.slice(call.start,call.start+call.callText.length)!==call.callText) return false;
+  const scopes:number[]=[];
+  for(let i=0;i<call.start;i+=1){
+    if(clean[i]==="{") scopes.push(i);
+    else if(clean[i]==="}") {
+      if(!scopes.length) return false;
+      scopes.pop();
+    }
+  }
+  if(scopes.length!==1) return false;
+  const open=scopes[0];
+  if(!/\\bmodule\\s+[A-Za-z_]\\w*\\s*\\([^;{}]*\\)\\s*$/.test(clean.slice(0,open).trimEnd()))
+    return false;
+  const begin=Math.max(
+    clean.lastIndexOf(";",call.start-1),
+    clean.lastIndexOf("{",call.start-1),
+    clean.lastIndexOf("}",call.start-1),
+  )+1;
+  if(begin<open+1) return false;
+  let cursor=begin,wrappers=0;
+  while(cursor<call.start) {
+    while(/\\s/.test(clean[cursor]??"")) cursor+=1;
+    if(cursor===call.start) break;
+    const match=/^(translate|color)\\s*\\(/.exec(clean.slice(cursor,call.start));
+    if(!match) return false;
+    const parenthesis=cursor+match[0].lastIndexOf("(");
+    let level=0,close=-1;
+    for(let i=parenthesis;i<call.start;i+=1) {
+      if(clean[i]==="(") level+=1;
+      else if(clean[i]===")" && --level===0){close=i+1;break;}
+    }
+    if(close<0 || ++wrappers>8) return false;
+    cursor=close;
+  }
+  return cursor===call.start;
+}
+
 function faceCounts(off: ParsedOff, indices: readonly number[], delta: SourceMoveVector): Map<string,number> {
   const out=new Map<string,number>();
   for(const index of indices) {
@@ -302,7 +351,8 @@ export async function verifyIndependentSourceMove({
 }):Promise<boolean>{
   const reject=(reason:string)=>{onFailure?.(reason);return false;};
   const isolatedLoop = isIndependentTopLevelLoopInstance(source,candidate);
-  if(!isIndependentTopLevelCall(source,candidate) && !isolatedLoop)
+  const independentNested = isIndependentNestedModuleCall(source,candidate);
+  if(!isIndependentTopLevelCall(source,candidate) && !isolatedLoop && !independentNested)
     return reject("call-not-independent");
   if(delta.some(value=>!Number.isFinite(value))) return reject("non-finite-delta");
   if(writeSourceMoveTranslation(source,candidate,delta)!==modified) return reject("source-diff-unexpected");

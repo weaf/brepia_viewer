@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ParsedOff } from "@/utils/offParser";
 import { discoverScadModuleCalls } from "./sourceMoveProvenance";
-import { verifyIndependentSourceMove, isIndependentTopLevelCall, isIndependentTopLevelLoopInstance } from "./sourceMoveIndependentProof";
+import { verifyIndependentSourceMove, isIndependentTopLevelCall, isIndependentTopLevelLoopInstance, isIndependentNestedModuleCall } from "./sourceMoveIndependentProof";
 import { writeSourceMoveTranslation, type SourceMoveCandidate } from "./sourceMoveWriteback";
 
 const source=[
@@ -201,6 +201,45 @@ describe("Source Move independent top-level proof",()=>{
       source,modified,candidate,baseline:before,moved:after,
       targetPart:1,delta,compile:boxCompile,
     })).toBe(false);
+  });
+
+  it("accepts an independently attributable direct module-body call with translate and color",async()=>{
+    const nestedSource=[
+      "module head() { cube(5); }",
+      "module other() { cube(8); }",
+      "module print_layout() {",
+      '  translate([0,70,10]) color("blue") head();',
+      "  translate([0,0,10]) other();",
+      "}",
+      "print_layout();",
+    ].join("\n");
+    const chosen=candidateFor(nestedSource,"head");
+    expect(isIndependentNestedModuleCall(nestedSource,chosen)).toBe(true);
+    const rewritten=writeSourceMoveTranslation(nestedSource,chosen,delta);
+    const compile=vi.fn(async()=>tetra(-40));
+    expect(await verifyIndependentSourceMove({
+      source:nestedSource,modified:rewritten,candidate:chosen,
+      baseline:original,moved,targetPart:1,delta,compile,
+    })).toBe(true);
+    expect(compile).toHaveBeenCalledTimes(2);
+    expect(compile.mock.calls[0][0]).toContain('color("blue") if (false) head();');
+  });
+
+  it("rejects nested CSG, rotation and looping even in a module body",()=>{
+    const fixture=(body:string)=>{
+      const src="module head() { cube(1); }\nmodule layout() { "+body+" }\nlayout();";
+      return {src,candidate:candidateFor(src,"head")};
+    };
+    for(const body of [
+      "translate([0,0,10]) rotate([0,0,90]) head();",
+      "difference() { head(); cube(1); }",
+      "union() { head(); }",
+      "for(i=[0:2]) { head(); }",
+      "if(show) head();",
+    ]) {
+      const {src,candidate}=fixture(body);
+      expect(isIndependentNestedModuleCall(src,candidate)).toBe(false);
+    }
   });
 
   it("rejects rotated, nested CSG, braced and nonzero-start loops",()=>{

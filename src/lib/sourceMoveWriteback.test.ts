@@ -84,6 +84,31 @@ describe("Source Move from selected rendered shell to SCAD",()=>{
     expect(calls.length).toBeGreaterThan(12);
     expect(calls.slice(0,2).map(c=>c.call.name)).toEqual(["box","lid"]);
   });
+  it("fairly probes sibling render modules instead of exhausting budget in an inactive branch",()=>{
+    const helpers=Array.from({length:18},(_,i)=>"module helper"+i+"() { cube(1); }").join("\n");
+    const inactive=Array.from({length:18},(_,i)=>"helper"+i+"();").join("\n");
+    const s=[
+      "module head() { cube(10); }",
+      "module torso() { cube(8); }",
+      helpers,
+      "module assembled_model() {",inactive,"}",
+      "module print_layout() {",
+      'translate([0,70,10]) color("blue") head();',
+      'translate([0,0,10]) color("blue") torso();',
+      "}",
+      'module main() { if(mode == "print") print_layout(); else assembled_model(); }',
+      "main();",
+    ].join("\n");
+    const ordered=sourceMoveCandidates(s,2);
+    const printHead=ordered.findIndex(x=>x.call.name==="head");
+    const printTorso=ordered.findIndex(x=>x.call.name==="torso");
+    expect(ordered[0].call.name).toBe("main");
+    expect(ordered.slice(1,3).map(x=>x.call.name)).toEqual(["print_layout","assembled_model"]);
+    expect(printHead).toBeGreaterThanOrEqual(3);
+    expect(printHead).toBeLessThan(7);
+    expect(printTorso).toBeLessThan(10);
+  });
+
   it("interleaves loop sites so the first loop cannot consume every probe",()=>{
     const model=[
       "module link(i) { cube(1); }",
