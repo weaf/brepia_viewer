@@ -120,17 +120,25 @@ try {
       assert.equal(await selector.inputValue(),'0');
       // Selecting a moved part from the 3D canvas (not just the fallback
       // selector) must remain possible after switching to another part.
+      await hitCanvas.screenshot({path:path.join(proof,device.name+'-moved-part-before-repick.png')});
+      const repickBounds=await hitCanvas.boundingBox();
+      assert.ok(repickBounds,'3D canvas vanished after moving the part');
+      // The selected box starts at the far right of the test viewport.
+      // Moving +X shifts it farther right. The old grid capped at 75%
+      // width and never hit the displaced geometry, a test defect.
       let repicked=false;
-      for(const fy of [0.4,0.5,0.6,0.3,0.7]){
-        for(const fx of [0.25,0.35,0.45,0.55,0.65,0.75]){
-          const area=await hitCanvas.boundingBox();
-          if(!area)break;
-          const x=area.x+area.width*fx,y=area.y+area.height*fy;
+      for(const fy of [0.3,0.4,0.5,0.2,0.6,0.7,0.8]){
+        for(const fx of [0.9,0.95,0.85,0.8,0.75,0.7,0.65,0.55,0.45,0.35,0.25]){
+          const x=repickBounds.x+repickBounds.width*fx;
+          const y=repickBounds.y+repickBounds.height*fy;
           if(device.mobile)await page.touchscreen.tap(x,y);
           else await page.mouse.click(x,y);
           if((await selector.inputValue())==='1'){repicked=true;break;}
         }
         if(repicked)break;
+      }
+      if(!repicked) {
+        await page.screenshot({path:path.join(proof,device.name+'-repick-failed.png'),fullPage:true});
       }
       assert.ok(repicked,device.name+': reselecting moved part by clicking in 3D failed');
       console.log('PART_MOVE_RESELECTION_'+device.name.toUpperCase()+'_PASS',moved);
