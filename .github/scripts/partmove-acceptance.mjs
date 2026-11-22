@@ -103,8 +103,14 @@ try {
       assert.ok(!moved.includes('Scene X 0.0 / Y 0.0 / Z 0.0'),
         device.name+': selected part did not move from true mouse/touch drag: '+moved);
       console.log('PART_MOVE_CONTINUOUS_DRAG_'+device.name.toUpperCase()+'_PASS',moved);
-      // Mobile X-drag intentionally uses a strong gain. The observed +21.9 mm
-      // can move the upper-right cube entirely outside a 364x204 viewport.
+      if (device.mobile) {
+        const translatedX=Number(/Scene X (-?\d+(?:\.\d+)?)/.exec(moved)?.[1]);
+        assert.ok(Number.isFinite(translatedX) && translatedX > 0.5 && translatedX < 12,
+          'individual part mobile drag must be precise enough to stay visible: '+moved);
+        console.log('PART_MOVE_MOBILE_FINE_TOUCH_GAIN_PASS',translatedX);
+      }
+      // Even when a moved part leaves the canvas, cycling remains a recovery
+      // mechanism. Preserve the precise visual offset across part changes.
       // Verify large-offset recovery with the part buttons, then use a small
       // *visible* offset for the separate direct-3D repick acceptance.
       const largeDraggedOffset=moved;

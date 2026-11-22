@@ -264,6 +264,7 @@ function VisualMoveManipulator({
   axis,
   handleLength,
   isMobile,
+  mobileTouchGain = 2,
   onAxisChange,
   onOffsetChange,
   onDraggingChange,
@@ -276,6 +277,7 @@ function VisualMoveManipulator({
   axis: 0 | 1 | 2;
   handleLength: number;
   isMobile: boolean;
+  mobileTouchGain?: number;
   onAxisChange: (axis: 0 | 1 | 2) => void;
   onOffsetChange: (offset: VisualMoveOffset) => void;
   onDraggingChange: (dragging: boolean) => void;
@@ -381,7 +383,10 @@ function VisualMoveManipulator({
       const next = [...drag.initialOffset] as VisualMoveOffset;
       // A mobile finger has less travel than a mouse; use a predictable,
       // continuous gain rather than rounding or repeated step increments.
-      next[drag.axis] += displacement * (isMobile ? 2 : 1);
+      // Whole-model Move keeps the accepted fast touch gain. Individual
+      // components use a finer gain so a short finger drag does not
+      // throw the selected component off a small mobile viewport.
+      next[drag.axis] += displacement * (isMobile ? mobileTouchGain : 1);
       onOffsetChange(next);
     };
     const onEnd = (event: PointerEvent) => {
@@ -414,7 +419,7 @@ function VisualMoveManipulator({
       touches.clear();
       pinchRef.current = null;
     };
-  }, [camera, controls, endDrag, gl, invalidate, isMobile, onOffsetChange, onPinchingChange, onUserCameraMove]);
+  }, [camera, controls, endDrag, gl, invalidate, isMobile, mobileTouchGain, onOffsetChange, onPinchingChange, onUserCameraMove]);
 
   const startDrag = (event: ThreeEvent<PointerEvent>, chosenAxis: 0 | 1 | 2) => {
     if (event.button !== 0 || !event.isPrimary ||
@@ -829,7 +834,7 @@ export function ThreeScene({
         );
         return index === selectedPart ? (
           <VisualMoveManipulator key={index} axis={visualMoveAxis} offset={selectedPartOffset}
-            basePosition={worldCenter} isMobile={isMobile}
+            basePosition={worldCenter} isMobile={isMobile} mobileTouchGain={0.75}
             handleLength={Math.max(2, visualMoveHandleLength * 0.35)}
             onAxisChange={setVisualMoveAxis} onOffsetChange={setSelectedPartOffset}
             onDraggingChange={setDraggingVisualMove} onPinchingChange={setPinchingVisualMove}
