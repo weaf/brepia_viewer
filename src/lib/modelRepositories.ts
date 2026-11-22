@@ -44,7 +44,7 @@ export function validateModelRepositories(raw: unknown): ModelRepositoryConfig[]
       fields.some((key) => typeof entry[key] !== "string")) {
       throw new Error("Model repository entry has missing or unexpected fields.");
     }
-    const source = entry as ModelRepositoryConfig;
+    const source = entry as unknown as ModelRepositoryConfig;
     if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(source.id) ||
       ids.has(source.id) || ["all", "uploads"].includes(source.id)) {
       throw new Error(`Invalid or duplicate model repository ID: ${source.id}`);
