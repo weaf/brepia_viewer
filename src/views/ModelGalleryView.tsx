@@ -36,6 +36,7 @@ import {
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
 import { useToast } from "@/hooks/use-toast";
 import { fetchScadSourceFromUrl } from "@/lib/scadUrlImport";
+import { parseViewerModelLink, createViewerModelLink } from "@/lib/modelDeepLinks";
 import {
   inspectGithubScadUrl,
   downloadGithubScadProject,
@@ -148,6 +149,9 @@ export function ModelGalleryView() {
   const [isLoadingGallery, setIsLoadingGallery] = useState(true);
   const [isReloading, setIsReloading] = useState(false);
   const [search, setSearch] = useState("");
+  const [repositoryFilter, setRepositoryFilter] = useState("all");
+  const deepLinkHandledRef = useRef(false);
+  const libraryLinkHandledRef = useRef(false);
   const [activeRecord, setActiveRecord] = useState<LocalModelRecord | null>(
     null,
   );
@@ -258,14 +262,16 @@ export function ModelGalleryView() {
 
   const filteredBuiltIns = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
-    if (!needle) return builtIns;
     return builtIns.filter((model) =>
-      `${model.name} ${model.category} ${model.path}`
-        .toLocaleLowerCase()
-        .includes(needle),
+      (repositoryFilter === "all" || model.repositoryId === repositoryFilter) &&
+      (!needle || `${model.name} ${model.category} ${model.path}`
+        .toLocaleLowerCase().includes(needle)),
     );
-  }, [builtIns, search]);
-  const builtInGalleryCards = useMemo(() => buildBuiltInGalleryCards(builtIns, search), [builtIns, search]);
+  }, [builtIns, search, repositoryFilter]);
+  const builtInGalleryCards = useMemo(
+    () => buildBuiltInGalleryCards(filteredBuiltIns, search),
+    [filteredBuiltIns, search],
+  );
   const filteredUploads = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     if (!needle) return localModels;
@@ -544,6 +550,24 @@ export function ModelGalleryView() {
       setIsOpeningModel(false);
     }
   };
+
+  // Curated library links wait for the (possibly cached) catalog to load.
+  useEffect(() => {
+    if (isLoadingGallery || isReloading) return;
+    let link: ReturnType<typeof parseViewerModelLink>;
+    try { link = parseViewerModelLink(window.location.search); } catch { return; }
+    if (!link || link.kind !== "library" || libraryLinkHandledRef.current) return;
+    libraryLinkHandledRef.current = true;
+    const match = builtIns.find((item) =>
+      item.repositoryId === link.repositoryId && item.path === link.path);
+    if (!match) {
+      setErrorMessage("The linked library model was not found. Check the library ID and file path.");
+      return;
+    }
+    void openBuiltIn(match);
+  // The initial catalog is the explicit readiness gate; do not reopen on refresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingGallery, isReloading, builtIns]);
 
   const openUploadedModel = (record: LocalModelRecord) => {
     setErrorMessage(null);
@@ -855,22 +879,38 @@ export function ModelGalleryView() {
     setErrorMessage(null);
   };
 
-  const importSourceUrl = async () => {
+  const importSourceUrl = async (linkedUrl?: string) => {
     if (isUploading) return;
+    const sourceUrl = linkedUrl ?? urlToImport;
+    const fromDeepLink = typeof linkedUrl === "string";
     setIsUploading(true);
     setErrorMessage(null);
     try {
-      if (isGithubRepositoryUrl(urlToImport)) {
-        if (!githubInspection) {
+      if (isGithubRepositoryUrl(sourceUrl)) {
+        if (!githubInspection || fromDeepLink) {
           setUrlImportProgress("Reading GitHub repository...");
-          const inspection = await inspectGithubScadUrl(urlToImport);
+          const inspection = await inspectGithubScadUrl(sourceUrl);
           const scope = inspection.suggestedScope;
           const selection = getGithubScadSelection(inspection, scope);
+          const selectedEntrypoint = inspection.suggestedEntrypoint ||
+            (selection.entrypoints.length === 1 ? selection.entrypoints[0] : "");
           setGithubInspection(inspection);
           setGithubScope(scope);
-          setGithubEntrypoint(
-            inspection.suggestedEntrypoint || selection.entrypoints[0] || "",
-          );
+          setGithubEntrypoint(selectedEntrypoint);
+          if (fromDeepLink && selectedEntrypoint) {
+            setUrlImportProgress("Downloading linked GitHub model...");
+            const result = await downloadGithubScadProject(inspection, scope, selectedEntrypoint);
+            const record = await createUploadedModel({
+              name: result.title, project: result.project, assets: result.assets,
+            });
+            await refreshLocalModels();
+            openUploadedModel(record);
+            resetGithubSelection();
+            setShowUrlImport(false);
+            setUrlToImport("");
+            return;
+          }
+          setShowUrlImport(true);
           setUrlImportProgress(null);
           return;
         }
@@ -905,7 +945,7 @@ export function ModelGalleryView() {
       }
 
       setUrlImportProgress("Downloading OpenSCAD file...");
-      const { filename, bytes } = await fetchScadSourceFromUrl(urlToImport);
+      const { filename, bytes } = await fetchScadSourceFromUrl(sourceUrl);
       const file = new File([new Uint8Array(bytes)], filename, { type: "text/plain" });
       const record = await uploadSourceFile(file);
       await refreshLocalModels();
@@ -923,6 +963,27 @@ export function ModelGalleryView() {
       setIsUploading(false);
     }
   };
+
+  // Only the initial URL is consumed; navigation and unrelated query parameters are untouched.
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    let link: ReturnType<typeof parseViewerModelLink>;
+    try {
+      link = parseViewerModelLink(window.location.search);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Invalid model link.");
+      return;
+    }
+    if (!link) return;
+    if (link.kind === "url") {
+      setShowUrlImport(true);
+      setUrlToImport(link.url);
+      void importSourceUrl(link.url);
+    }
+  // This is an intentional one-shot deep-link bootstrap, not a reactive import.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const uploadFolder = async (files: File[]) => {
     const result = await readScadImportFolder(files);
@@ -1091,6 +1152,22 @@ export function ModelGalleryView() {
             </div>
           </div>
           <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
+            {activeRecord.origin === "built-in" && activeRecord.sourceRepositoryId && activeRecord.sourcePath && (
+              <Button type="button" variant="outline" size="sm" className="gap-1"
+                onClick={() => {
+                  const url = createViewerModelLink({
+                    kind: "library",
+                    repositoryId: activeRecord.sourceRepositoryId!,
+                    path: activeRecord.sourcePath!,
+                  });
+                  void navigator.clipboard.writeText(url).then(
+                    () => toast({ title: "Model link copied", description: "Share this link to open the model directly." }),
+                    () => toast({ title: "Could not copy link", description: url, variant: "destructive" }),
+                  );
+                }}>
+                <Link2 className="h-4 w-4" /> Share
+              </Button>
+            )}
             <RepositoryLink compact />
             <ExperimentalMenu
               fastPreviewEnabled={fastPreviewEnabled}
@@ -1641,6 +1718,20 @@ export function ModelGalleryView() {
             />
           </label>
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-adam-neutral-400">
+            <label className="flex items-center gap-2">
+              <span>Library</span>
+              <select
+                aria-label="Filter models by library"
+                value={repositoryFilter}
+                onChange={(event) => setRepositoryFilter(event.target.value)}
+                className="h-10 max-w-[200px] rounded-md border border-adam-neutral-700 bg-adam-background-1 px-2 text-xs text-adam-text-primary"
+              >
+                <option value="all">All libraries</option>
+                {getModelRepositories().map((source) => (
+                  <option key={source.id} value={source.id}>{source.label}</option>
+                ))}
+              </select>
+            </label>
             {builtInsUpdatedAt !== null && (
               <span
                 className="inline-flex items-center gap-1.5"
