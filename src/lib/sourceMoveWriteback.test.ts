@@ -46,9 +46,17 @@ describe("Source Move from selected rendered shell to SCAD",()=>{
   it("changes one instance of a generated loop without moving other instances",()=>{
     const s="module link(i) { cube(i); }\nfor(i=[0:2]) translate([i*20,0,0]) link(i);";
     const chosen=sourceMoveCandidates(s,3).find(x=>x.instanceIndex===1)!;
-    expect(writeSourceMoveTranslation(s,chosen,[2,3,4])).toContain(
-      "if (i == 1) translate([2, 3, 4]) link(i); else link(i);",
+    const changed=writeSourceMoveTranslation(s,chosen,[2,3,4]);
+    expect(changed).toContain(
+      "translate([i*20+(i==1?2:0),0+(i==1?3:0),0+(i==1?4:0)]) link(i);",
     );
+    expect(changed.replace("+(i==1?2:0)","").replace("+(i==1?3:0)","")
+      .replace("+(i==1?4:0)","")).toBe(s);
+  });
+  it("rejects a loop without a directly editable position vector",()=>{
+    const s="module link(i){cube(1);}\nfor(i=[0:3]) link(i);";
+    const chosen=sourceMoveCandidates(s,4).find(x=>x.instanceIndex===1)!;
+    expect(()=>writeSourceMoveTranslation(s,chosen,[5,0,0])).toThrow(/no safe directly editable/);
   });
   it("requires an actual finite nonzero delta",()=>{
     const chosen=sourceMoveCandidates(source,2)[0];
@@ -65,7 +73,84 @@ describe("Source Move from selected rendered shell to SCAD",()=>{
     const result=await findSourceMoveCandidate({source,baseline,targetPart:1,partCount:2,compile});
     expect(result.status).toBe("matched");
     expect(result.candidate?.call.name).toBe("lid");
-    expect(compile).toHaveBeenCalledTimes(1);
+    expect(compile).toHaveBeenCalledTimes(2); // main-flow body() is checked before lid().
+  });
+  it("prioritizes main render calls before many nested geometry helpers",()=>{
+    const helpers=Array.from({length:20},(_,i)=>"module helper_"+i+"() { cube(1); }").join("\n");
+    const nested=Array.from({length:20},(_,i)=>"helper_"+i+"();").join("\n");
+    const model=[
+      "module box() { cube(10); }",
+      "module lid() { cube(5); }",
+      helpers,
+      "if(show_box) box();",
+      "if(show_lid) lid();",
+      "module elaborate_geometry() {",
+      nested,
+      "}",
+    ].join("\n");
+    const calls=sourceMoveCandidates(model,2);
+    expect(calls.length).toBeGreaterThan(12);
+    expect(calls.slice(0,2).map(c=>c.call.name)).toEqual(["box","lid"]);
+  });
+  it("fairly probes sibling render modules instead of exhausting budget in an inactive branch",()=>{
+    const helpers=Array.from({length:18},(_,i)=>"module helper"+i+"() { cube(1); }").join("\n");
+    const inactive=Array.from({length:18},(_,i)=>"helper"+i+"();").join("\n");
+    const s=[
+      "module head() { cube(10); }",
+      "module torso() { cube(8); }",
+      helpers,
+      "module assembled_model() {",inactive,"}",
+      "module print_layout() {",
+      'translate([0,70,10]) color("blue") head();',
+      'translate([0,0,10]) color("blue") torso();',
+      "}",
+      'module main() { if(mode == "print") print_layout(); else assembled_model(); }',
+      "main();",
+    ].join("\n");
+    const ordered=sourceMoveCandidates(s,2);
+    const printHead=ordered.findIndex(x=>x.call.name==="head");
+    const printTorso=ordered.findIndex(x=>x.call.name==="torso");
+    expect(ordered[0].call.name).toBe("main");
+    expect(ordered.slice(1,3).map(x=>x.call.name)).toEqual(["print_layout","assembled_model"]);
+    expect(printHead).toBeGreaterThanOrEqual(3);
+    expect(printHead).toBeLessThan(7);
+    expect(printTorso).toBeLessThan(10);
+  });
+
+  it("interleaves loop sites so the first loop cannot consume every probe",()=>{
+    const model=[
+      "module link(i) { cube(1); }",
+      "module endcap(i) { cube(2); }",
+      "for(i=[0:9]) translate([i*20,0,0]) link(i);",
+      "for(i=[0:9]) translate([i*20,20,0]) endcap(i);",
+    ].join("\n");
+    const calls=sourceMoveCandidates(model,10);
+    expect(calls.slice(0,4).map(c=>[c.call.name,c.instanceIndex])).toEqual([
+      ["link",0],["endcap",0],["link",1],["endcap",1],
+    ]);
+  });
+  it("reports exhaustion rather than pretending the untested calls did not exist",async()=>{
+    const calls=Array.from({length:16},(_,i)=>"module m"+i+"(){ cube(1); }").join("\n")+"\n"+
+      Array.from({length:16},(_,i)=>"m"+i+"();").join("\n");
+    const baseline=combine(box(0),box(20));
+    const result=await findSourceMoveCandidate({
+      source:calls,baseline,targetPart:1,partCount:2,
+      compile:async()=>baseline,
+    });
+    expect(result.status).toBe("budget-exhausted");
+    expect(result.tested).toBe(12);
+    expect(result.total).toBe(16);
+    expect(result.failed).toBe(0);
+  });
+  it("distinguishes compiler failures from negative geometry evidence",async()=>{
+    const baseline=combine(box(0),box(20));
+    const result=await findSourceMoveCandidate({
+      source,baseline,targetPart:1,partCount:2,
+      compile:async()=>{throw new Error("OpenSCAD compile unavailable");},
+    });
+    expect(result.status).toBe("probe-failed");
+    expect(result.failed).toBe(2);
+    expect(result.error).toContain("unavailable");
   });
   it("verifies the moved part while every untouched polygon remains identical",()=>{
     const before=combine(box(0),box(20));

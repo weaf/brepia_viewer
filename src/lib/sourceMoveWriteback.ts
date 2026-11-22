@@ -3,6 +3,7 @@ import { connectedClosedShells } from "@/utils/orcaSplitSafeThreeMf";
 import {
   discoverScadModuleCalls,
   excludeScadSourceCall,
+  maskScadNonCode,
   type SourceMoveCall,
   type SourceMoveMatch,
   matchSourceProbeToPart,
@@ -12,10 +13,12 @@ export type SourceMoveVector = readonly [number, number, number];
 export type SourceMoveCandidate = { call: SourceMoveCall; instanceIndex?: number };
 export type SourceMoveProgress = { done: number; total: number; label: string };
 export type SourceMoveSearch = {
-  status: "matched" | "not-found" | "ambiguous" | "too-complex";
+  status: "matched" | "not-found" | "ambiguous" | "too-complex" | "budget-exhausted" | "probe-failed";
   candidate?: SourceMoveCandidate;
   tested: number;
   total: number;
+  failed: number;
+  error?: string;
 };
 
 const MAX_PROBES = 12;
@@ -23,19 +26,112 @@ const MAX_INSTANCES = 10;
 const MAX_FACES = 250_000;
 const ROUND = 100; // OFF output has limited decimal precision.
 
-/** A bounded, generic list. Reused source modules and inactive loops must be probed. */
+/**
+ * Distinguish calls in the entrypoint's main render flow from calls inside
+ * module definitions. OpenSCAD modules can contain many helper calls, none of
+ * which may be active in a given configuration. This is a probe priority, not
+ * proof of ownership: only OFF comparison can establish a match.
+ */
+function moduleBodyRanges(source: string): Array<{ name: string; start: number; end: number }> {
+  const clean = maskScadNonCode(source);
+  const ranges: Array<{ name: string; start: number; end: number }> = [];
+  for (const match of clean.matchAll(/\bmodule\s+[A-Za-z_]\w*\s*\(/g)) {
+    const openParen = clean.indexOf("(", match.index);
+    let cursor = openParen;
+    let parens = 0;
+    for (; cursor < clean.length; cursor += 1) {
+      if (clean[cursor] === "(") parens += 1;
+      else if (clean[cursor] === ")") {
+        parens -= 1;
+        if (parens === 0) { cursor += 1; break; }
+      }
+    }
+    if (parens !== 0) continue;
+    while (cursor < clean.length && /\s/.test(clean[cursor])) cursor += 1;
+    // Braced module bodies can be classified safely. For unbraced module
+    // definitions, retain the existing conservative geometry-based fallback.
+    if (clean[cursor] !== "{") continue;
+    const bodyStart = cursor;
+    let braces = 0;
+    for (; cursor < clean.length; cursor += 1) {
+      if (clean[cursor] === "{") braces += 1;
+      else if (clean[cursor] === "}") {
+        braces -= 1;
+        if (braces === 0) {
+          ranges.push({ name: match[0].split(/\s+/)[1].split("(")[0], start: bodyStart, end: cursor });
+          break;
+        }
+      }
+    }
+  }
+  return ranges;
+}
+
+/** Fairly distribute loop instances instead of using the whole probe budget on one site. */
+function expandCalls(calls: readonly SourceMoveCall[], partCount: number): SourceMoveCandidate[] {
+  const limits = calls.map(call => call.loopVariable ? Math.min(MAX_INSTANCES, partCount) : 1);
+  const entries: SourceMoveCandidate[] = [];
+  for (let instance = 0; instance < Math.max(0, ...limits); instance += 1) {
+    calls.forEach((call, index) => {
+      if (instance < limits[index]) {
+        entries.push(call.loopVariable ? { call, instanceIndex: instance } : { call });
+      }
+    });
+  }
+  return entries;
+}
+
+/**
+ * Try entrypoint calls first, then breadth-first descendants of those
+ * calls, then unreachable nested helpers. Every site is still checked against
+ * the complete OFF mesh. Never associate a part based on name or order alone.
+ */
 export function sourceMoveCandidates(source: string, partCount: number): SourceMoveCandidate[] {
   const discovery = discoverScadModuleCalls(source);
   if (discovery.status !== "available") return [];
-  const entries: SourceMoveCandidate[] = [];
-  for (const call of [...discovery.calls].reverse()) {
-    if (call.loopVariable) {
-      for (let i = 0; i < Math.min(MAX_INSTANCES, partCount); i += 1) {
-        entries.push({ call, instanceIndex: i });
-      }
-    } else entries.push({ call });
+  const ranges = moduleBodyRanges(source);
+  const roots: SourceMoveCall[] = [];
+  const byOwner = new Map<string, SourceMoveCall[]>();
+  for (const call of discovery.calls) {
+    // Prefer the smallest containing definition if a source nests modules.
+    const owner = ranges
+      .filter(range => call.start > range.start && call.start < range.end)
+      .sort((a,b) => (a.end-a.start)-(b.end-b.start))[0];
+    if (!owner) roots.push(call);
+    else {
+      const owned = byOwner.get(owner.name) ?? [];
+      owned.push(call);
+      byOwner.set(owner.name,owned);
+    }
   }
-  return entries;
+  // Traverse source call ownership breadth-first. Interleave sibling module
+  // bodies to avoid spending the entire probe budget on one *inactive*
+  // dispatcher branch. Every candidate still needs a real exclusion proof.
+  const levels: SourceMoveCall[][] = [roots];
+  const visited = new Set(roots.map(call => call.id));
+  let frontier = roots;
+  for (let depth=0; depth<12 && frontier.length; depth+=1) {
+    const buckets = frontier.map(call => byOwner.get(call.name) ?? []);
+    const next: SourceMoveCall[] = [];
+    for (let index=0; index<Math.max(0,...buckets.map(bucket=>bucket.length)); index+=1) {
+      for (const bucket of buckets) {
+        const call=bucket[index];
+        if(call && !visited.has(call.id)) {
+          visited.add(call.id);
+          next.push(call);
+        }
+      }
+    }
+    if(!next.length) break;
+    levels.push(next);
+    frontier=next;
+  }
+  const unused = discovery.calls.filter(call => !visited.has(call.id));
+  return [
+    ...levels.flatMap(level => expandCalls(level,partCount)),
+    ...expandCalls(unused.filter(call=>Boolean(call.loopVariable)),partCount),
+    ...expandCalls(unused.filter(call=>!call.loopVariable),partCount),
+  ];
 }
 
 /**
@@ -54,12 +150,14 @@ export async function findSourceMoveCandidate({
   onProgress?: (progress: SourceMoveProgress) => void;
 }): Promise<SourceMoveSearch> {
   if (baseline.faces.length === 0 || baseline.faces.length > MAX_FACES) {
-    return { status: "too-complex", tested: 0, total: 0 };
+    return { status: "too-complex", tested: 0, total: 0, failed: 0 };
   }
   const all = sourceMoveCandidates(source, partCount);
-  if (all.length === 0) return { status: "not-found", tested: 0, total: 0 };
+  if (all.length === 0) return { status: "not-found", tested: 0, total: 0, failed: 0 };
   const toCheck = all.slice(0, MAX_PROBES);
   let tested = 0;
+  let failed = 0;
+  let firstError: string | undefined;
   for (const candidate of toCheck) {
     if (signal?.aborted) throw new DOMException("Source analysis cancelled", "AbortError");
     onProgress?.({
@@ -75,19 +173,24 @@ export async function findSourceMoveCandidate({
         // The complete post-apply OFF comparison is the decisive correctness
         // gate; do not spend minutes recompiling other candidate calls.
         tested += 1;
-        onProgress?.({done:tested,total:toCheck.length,label:"Verified"});
-        return {status:"matched",candidate,tested,total:all.length};
+        onProgress?.({done:tested,total:toCheck.length,label:"Source candidate matched"});
+        return {status:"matched",candidate,tested,total:all.length,failed};
       }
     } catch (cause) {
       if (signal?.aborted) throw new DOMException("Source analysis cancelled", "AbortError");
       // A model may be invalid under this temporary exclusion. Other probes
       // remain meaningful; never infer a mapping from a failed compilation.
+      failed += 1;
+      if (firstError === undefined) firstError = cause instanceof Error ? cause.message : String(cause);
       console.info("[Source Move] Source probe skipped:", candidate.call.id, cause);
     }
     tested += 1;
   }
   onProgress?.({ done: tested, total: toCheck.length, label: "Done" });
-  return { status: "not-found", tested, total: all.length };
+  return {
+    status: tested === failed ? "probe-failed" : all.length > tested ? "budget-exhausted" : "not-found",
+    tested, total: all.length, failed, error: firstError,
+  };
 }
 
 function numericCoordinate(value: number): string {
@@ -97,6 +200,75 @@ function numericCoordinate(value: number): string {
   // Fixed precision avoids huge scientific notation and unstable tiny deltas.
   const rounded = Math.round(value * 10_000) / 10_000;
   return Object.is(rounded, -0) ? "0" : String(rounded);
+}
+
+/**
+ * Change an indexed instance in its existing parent translate([x,y,z]).
+ * A new wrapper or a duplicated call changed the C-chain's CSG topology
+ * in Chrome WASM. Reject all loops without a safe direct vector parent.
+ */
+function shiftIndexedParentTranslate(
+  source: string, call: SourceMoveCall, index: number, delta: SourceMoveVector,
+): string {
+  const variable=call.loopVariable;
+  if(!variable || !Number.isInteger(index) || index<0) throw new Error("Invalid indexed move.");
+  const clean=maskScadNonCode(source);
+  const before=clean.slice(0,call.start);
+  const translates=Array.from(before.matchAll(/\btranslate\s*\(/g));
+  for(let p=translates.length-1;p>=0;p-=1) {
+    const item=translates[p],open=before.indexOf("(",item.index);
+    let depth=0,end=-1;
+    for(let k=open;k<call.start;k+=1) {
+      if(clean[k]==="(") depth+=1;
+      else if(clean[k]===")" && --depth===0) {end=k+1;break;}
+    }
+    if(end<0 || clean.slice(end,call.start).trim()!=="") continue;
+    const loops=Array.from(clean.slice(0,item.index).matchAll(/\bfor\s*\(/g));
+    const loop=loops.at(-1);
+    if(!loop) continue;
+    const loopOpen=clean.indexOf("(",loop.index);
+    let d=0,loopEnd=-1;
+    for(let k=loopOpen;k<item.index;k+=1) {
+      if(clean[k]==="(") d+=1;
+      else if(clean[k]===")" && --d===0) {loopEnd=k+1;break;}
+    }
+    if(loopEnd<0 || clean.slice(loopEnd,item.index).trim()!=="") continue;
+    const header=clean.slice(loopOpen+1,loopEnd-1).trim();
+    const grammar=new RegExp("^"+variable+"\\s*=\\s*\\[\\s*0\\s*:\\s*(?:[A-Za-z_]\\w*|\\d+)(?:\\s*-\\s*\\d+)?\\s*\\]$");
+    if(!grammar.test(header)) continue;
+    const args=clean.slice(open+1,end-1);
+    const bracket=/^\s*\[/.exec(args);
+    if(!bracket) continue;
+    const left=open+bracket[0].length,right=end-2;
+    if(clean[right]!=="]" || clean.slice(right+1,end-1).trim()) continue;
+    const coords:Array<{start:number;end:number}>=[];
+    let start=left+1,paren=0,invalid=false;
+    for(let k=start;k<right;k+=1) {
+      const ch=clean[k];
+      if(ch==="(")paren+=1;
+      else if(ch===")") {paren-=1;if(paren<0) invalid=true;}
+      else if(ch==="[" || ch==="]" || ch==="{" || ch==="}")invalid=true;
+      else if(ch==="," && paren===0) {coords.push({start,end:k});start=k+1;}
+    }
+    coords.push({start,end:right});
+    if(invalid || paren!==0 || coords.length!==3)continue;
+    if(coords.some(c=>{
+      const raw=source.slice(c.start,c.end);
+      return raw!==clean.slice(c.start,c.end) || !/^[\s\w.+*%()-]+$/.test(raw.split("/").join("")) || !raw.trim();
+    }))continue;
+    let modified=source;
+    for(let axis=2;axis>=0;axis-=1){
+      const value=numericCoordinate(delta[axis]);
+      if(value==="0")continue;
+      const {start:coordStart,end:coordEnd}=coords[axis];
+      let at=coordEnd;
+      while(at>coordStart && /\s/.test(modified[at-1]))at-=1;
+      modified=modified.slice(0,at)+"+("+variable+"=="+index+"?"+value+":0)"+modified.slice(at);
+    }
+    if(modified===source)throw new Error("Move rounded to zero SCAD offset.");
+    return modified;
+  }
+  throw new Error("Selected loop has no safe directly editable translate([x,y,z]) placement.");
 }
 
 /** Local temporary rewrite, awaiting a geometrically verified preview. */
@@ -117,12 +289,10 @@ export function writeSourceMoveTranslation(
   }
   if (instanceIndex === undefined) throw new Error("Missing loop instance.");
   const afterCall = call.start + call.callText.length;
-  const rest = source.slice(afterCall);
-  const semicolon = /^\s*;/.exec(rest);
-  if (!semicolon) throw new Error("Loop module call is not a standalone statement.");
-  const guarded = "if (" + call.loopVariable + " == " + instanceIndex + ") " +
-    translation + call.callText + "; else " + call.callText + ";";
-  return source.slice(0, call.start) + guarded + source.slice(afterCall + semicolon[0].length);
+  if (!/^\s*;/.test(source.slice(afterCall))) {
+    throw new Error("Loop module call is not a standalone statement.");
+  }
+  return shiftIndexedParentTranslate(source,call,instanceIndex,delta);
 }
 
 function polygonKey(off: ParsedOff, faceIndex: number, delta: SourceMoveVector): string {
@@ -158,6 +328,86 @@ export function verifySourceMoveTranslation(
   if (expected.size !== actual.size) return false;
   for (const [key, count] of expected) if (actual.get(key) !== count) return false;
   return true;
+}
+
+/**
+ * Failure-only diagnostics for a real OpenSCAD recompile. These numbers do
+ * not relax the fail-closed verification gate: the caller must still use
+ * verifySourceMoveTranslation before any persistent change.
+ */
+export function diagnoseSourceMoveTranslation(
+  original: ParsedOff,
+  translated: ParsedOff,
+  partIndex: number,
+  delta: SourceMoveVector,
+): {
+  beforeFaces: number;
+  afterFaces: number;
+  selectedShellFaces: number | null;
+  missingExpectedFaces: number;
+  extraActualFaces: number;
+  expectedDistinctFaces: number;
+  actualDistinctFaces: number;
+  firstMissingFace: string | null;
+  firstExtraFace: string | null;
+  matchingAtCoarserResolution: boolean;
+} {
+  const empty = {
+    beforeFaces: original.faces.length, afterFaces: translated.faces.length,
+    selectedShellFaces: null, missingExpectedFaces: 0, extraActualFaces: 0,
+    expectedDistinctFaces: 0, actualDistinctFaces: 0,
+    firstMissingFace: null, firstExtraFace: null,
+    matchingAtCoarserResolution: false,
+  };
+  if (original.faces.length > MAX_FACES || translated.faces.length > MAX_FACES) return empty;
+  const shell = connectedClosedShells(original)[partIndex];
+  if (!shell) return empty;
+  const selected = new Set(shell.faceIndices);
+  const expected = countFaces(original, selected, delta);
+  const actual = countFaces(translated);
+  let missing = 0;
+  let extra = 0;
+  let firstMissingFace: string | null = null;
+  let firstExtraFace: string | null = null;
+  for (const [key, count] of expected) {
+    const deficit = count - (actual.get(key) ?? 0);
+    if (deficit > 0) {
+      missing += deficit;
+      firstMissingFace ??= key;
+    }
+  }
+  for (const [key, count] of actual) {
+    const surplus = count - (expected.get(key) ?? 0);
+    if (surplus > 0) {
+      extra += surplus;
+      firstExtraFace ??= key;
+    }
+  }
+  // A coarse diagnostic is informative only; never use it to accept a save.
+  const coarse = (off: ParsedOff, afterMove: boolean) => {
+    const counts = new Map<string, number>();
+    for (let i = 0; i < off.faces.length; i += 1) {
+      const moved = !afterMove && selected.has(i);
+      const key = off.faces[i].vertices.map(index => {
+        const v = off.vertices[index];
+        return v.map((value, axis) =>
+          Math.round((value + (moved ? delta[axis] : 0)) * 10),
+        ).join(",");
+      }).sort().join("|");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const coarseBefore = coarse(original, false);
+  const coarseAfter = coarse(translated, true);
+  const matchingAtCoarserResolution = coarseBefore.size === coarseAfter.size &&
+    [...coarseBefore].every(([key, count]) => coarseAfter.get(key) === count);
+  return {
+    ...empty, selectedShellFaces: shell.faceIndices.length,
+    missingExpectedFaces: missing, extraActualFaces: extra,
+    expectedDistinctFaces: expected.size, actualDistinctFaces: actual.size,
+    firstMissingFace, firstExtraFace, matchingAtCoarserResolution,
+  };
 }
 
 /** Reject silent matching to the wrong geometry when a caller reuses a stale selection. */
