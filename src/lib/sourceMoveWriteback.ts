@@ -227,7 +227,7 @@ export function writeSourceMoveTranslation(
   // Duplicated if/else module calls fragmented every chain link in WASM.
   const guarded = "translate(" + call.loopVariable + " == " + instanceIndex +
     " ? [" + delta.map(numericCoordinate).join(", ") + "] : [0, 0, 0]) " +
-    call.callText + ";";";
+    call.callText + ";";
   return source.slice(0, call.start) + guarded + source.slice(afterCall + semicolon[0].length);
 }
 
