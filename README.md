@@ -53,14 +53,14 @@ https://viewer.notydesign.se/?model=https%3A%2F%2Fwww.printables.com%2Fmodel%2F3
 
 The Viewer recognizes each platform and clearly distinguishes public downloads from provider-restricted model files.
 
-- **Printables:** The browser attempts a read-only file lookup through Printables' undocumented public GraphQL service. You can select an openly available STL/3MF file; when a shared model has only one file, the Viewer attempts to open it immediately. This service or its cross-origin permissions can change at any time, so production support is best effort.
+- **Printables:** The browser can list and open publicly available STL/3MF files. An optional, fixed-endpoint [Cloudflare metadata bridge](platform-bridge/README.md) avoids browser CORS restrictions on Printables' undocumented GraphQL API. It is **not deployed by this PR**. Until `VITE_PRINTABLES_BRIDGE_ORIGIN` points to an owner-approved Worker, Viewer keeps the original direct-browser behavior (which may fail CORS). Public file delivery still depends on the provider's direct HTTPS link and CORS policy.
 - **Thingiverse:** Model pages are recognized, but its official API needs a developer token. Viewer does not store or ask for a token in a public browser session. Open the original model page to download a supported file.
 - **MakerWorld:** Model pages are recognized. Provider downloads ordinarily require login and authorized file access. No session scraping or credential bypass is attempted.
 - **Snapmaker Space:** Model pages are recognized and link to their original download page. Its public file-download API has not been verified.
 
 **Direct public STL/3MF HTTPS file links** can also be passed to `?model=` when the file host permits CORS. The local Upload model button accepts SCAD, STL and 3MF. A mesh file is wrapped in an OpenSCAD `import("model.stl");` project so it can be displayed and transformed; **it does not recover the original parametric design**. Supported 3MF geometry is converted locally to STL for preview, without preserving materials, colors, print profiles, or separate plates. A complex or sliced-only 3MF may fail with an explicit error. An individual asset must fit the existing 16 MiB limit (3MF conversion is capped at 8 MiB compressed).
 
-All files are stored locally in the browser and inherit the original model creator's license. No public proxy, hidden credentials, or server-side scraping is included.
+All imported files are stored locally in the browser and remain subject to the original creator's license. No credentials, protected-file scraping or binary download proxy is included. The optional Printables Worker only exposes fixed, public metadata endpoints and is not deployed or connected to the production Viewer without a separate owner decision.
 
 ## Contribute a model library
 
