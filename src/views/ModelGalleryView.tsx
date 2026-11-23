@@ -36,6 +36,12 @@ import {
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
 import { useToast } from "@/hooks/use-toast";
 import { fetchScadSourceFromUrl } from "@/lib/scadUrlImport";
+import { createMeshModelProject } from "@/lib/meshModelImport";
+import {
+  identifyPlatformModelUrl, isDirectMeshUrl, listPrintablesModelFiles,
+  getPrintablesDownloadUrl, fetchPublicMesh, type PlatformFileList,
+  type PlatformModel,
+} from "@/lib/platformModelImport";
 import { parseViewerModelLink, createViewerModelLink } from "@/lib/modelDeepLinks";
 import {
   inspectGithubScadUrl,
@@ -175,6 +181,9 @@ export function ModelGalleryView() {
   const [showUrlImport, setShowUrlImport] = useState(false);
   const [urlToImport, setUrlToImport] = useState("");
   const [githubInspection, setGithubInspection] = useState<GithubScadInspection | null>(null);
+  const [platformModel, setPlatformModel] = useState<PlatformModel | null>(null);
+  const [platformFiles, setPlatformFiles] = useState<PlatformFileList | null>(null);
+  const [platformFileId, setPlatformFileId] = useState("");
   const [githubScope, setGithubScope] = useState("");
   const [githubEntrypoint, setGithubEntrypoint] = useState("");
   const [urlImportProgress, setUrlImportProgress] = useState<string | null>(null);
@@ -874,6 +883,9 @@ export function ModelGalleryView() {
   };
 
   const resetGithubSelection = () => {
+    setPlatformModel(null);
+    setPlatformFiles(null);
+    setPlatformFileId("");
     setGithubInspection(null);
     setGithubScope("");
     setGithubEntrypoint("");
@@ -888,6 +900,72 @@ export function ModelGalleryView() {
     setIsUploading(true);
     setErrorMessage(null);
     try {
+      const platform = identifyPlatformModelUrl(sourceUrl);
+      if (platform) {
+        setPlatformModel(platform);
+        setShowUrlImport(true);
+        if (platform.platform !== "printables") {
+          setUrlImportProgress(null);
+          setPlatformFiles(null);
+          // Platform pages can require login or a provider-specific API token.
+          // Do not attempt to bypass those restrictions via scraping or proxying.
+          return;
+        }
+        if (!fromDeepLink && platformFiles?.model.url === platform.url && platformFileId) {
+          const file = platformFiles.files.find(item => item.id === platformFileId);
+          if (!file) throw new Error("Choose an available Printables file.");
+          setUrlImportProgress("Downloading public Printables model...");
+          const downloadUrl = await getPrintablesDownloadUrl(platform, file);
+          const mesh = await fetchPublicMesh(downloadUrl, file.name);
+          const prepared = await createMeshModelProject(mesh);
+          const record = await createUploadedModel(prepared);
+          await refreshLocalModels();
+          openUploadedModel(record);
+          resetGithubSelection();
+          setShowUrlImport(false);
+          setUrlToImport("");
+          return;
+        }
+        setUrlImportProgress("Checking publicly available Printables files...");
+        const listing = await listPrintablesModelFiles(platform);
+        setPlatformFiles(listing);
+        const preferred = listing.files.find(file => file.format === "stl") ??
+          listing.files.find(file => file.format === "3mf");
+        setPlatformFileId(preferred?.id ?? "");
+        setUrlImportProgress(null);
+        if (!listing.files.length) {
+          setErrorMessage("No freely accessible STL/3MF files were listed. Open Printables to download the original files.");
+        }
+        // Multiple Printables files need deliberate selection: do not silently import a random part.
+        if (fromDeepLink && listing.files.length === 1) {
+          const file = listing.files[0];
+          setUrlImportProgress("Downloading linked Printables model...");
+          const downloadUrl = await getPrintablesDownloadUrl(platform, file);
+          const mesh = await fetchPublicMesh(downloadUrl, file.name);
+          const prepared = await createMeshModelProject(mesh);
+          const record = await createUploadedModel(prepared);
+          await refreshLocalModels();
+          openUploadedModel(record);
+          resetGithubSelection();
+          setShowUrlImport(false);
+          setUrlToImport("");
+        }
+        return;
+      }
+
+      if (isDirectMeshUrl(sourceUrl)) {
+        setUrlImportProgress("Downloading STL or 3MF model...");
+        const filename = decodeURIComponent(new URL(sourceUrl).pathname.split("/").pop() ?? "");
+        const file = await fetchPublicMesh(sourceUrl, filename);
+        const prepared = await createMeshModelProject(file);
+        const record = await createUploadedModel(prepared);
+        await refreshLocalModels();
+        openUploadedModel(record);
+        resetGithubSelection();
+        setShowUrlImport(false);
+        setUrlToImport("");
+        return;
+      }
       if (isGithubRepositoryUrl(sourceUrl)) {
         if (!githubInspection || fromDeepLink) {
           setUrlImportProgress("Reading GitHub repository...");
@@ -1017,7 +1095,12 @@ export function ModelGalleryView() {
     setIsUploading(true);
     setErrorMessage(null);
     try {
-      if (files.length === 1 && supportedSourceFile.test(files[0].name)) {
+      if (files.length === 1 && /\\.(?:stl|3mf)$/i.test(files[0].name)) {
+        const record = await createUploadedModel(await createMeshModelProject(files[0]));
+        await refreshLocalModels();
+        openUploadedModel(record);
+        showUploadConfirmation(record.name);
+      } else if (files.length === 1 && supportedSourceFile.test(files[0].name)) {
         const record = await uploadSourceFile(files[0]);
         await refreshLocalModels();
         openUploadedModel(record);
@@ -1514,7 +1597,7 @@ export function ModelGalleryView() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".scad,.scad.txt"
+              accept=".scad,.scad.txt,.stl,.3mf"
               className="hidden"
               disabled={isUploading}
               onChange={(event) => {
@@ -1580,7 +1663,7 @@ export function ModelGalleryView() {
             className="mt-4 rounded-lg border border-adam-neutral-700 p-3"
           >
             <label htmlFor="url-scad-import" className="mb-2 block text-sm font-medium">
-              OpenSCAD file, folder or GitHub repository URL
+              Model URL (GitHub, Printables, Thingiverse, MakerWorld or Snapmaker Space)
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
@@ -1591,7 +1674,7 @@ export function ModelGalleryView() {
                   setUrlToImport(event.target.value);
                   resetGithubSelection();
                 }}
-                placeholder="https://github.com/owner/repository/tree/main"
+                placeholder="https://www.printables.com/model/3161-3d-benchy"
                 aria-label="OpenSCAD file or GitHub project URL"
                 className="!border-[#818b92] hover:!border-[#a8b1b8] focus:!border-[#38bdf8] focus:!ring-2 focus:!ring-[#38bdf8]"
                 disabled={isUploading}
@@ -1602,8 +1685,44 @@ export function ModelGalleryView() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-adam-neutral-400">
-              Import a direct HTTPS .scad file, a GitHub file, a folder or a public repository.
+              Import a public SCAD, STL or 3MF URL; GitHub files/folders; or a model page from Printables, Thingiverse, MakerWorld or Snapmaker Space.
             </p>
+            {platformModel && (
+              <div role="region" aria-label="Platform model import" className="mt-3 rounded-md border border-adam-neutral-700 p-3">
+                <p className="text-sm font-semibold">{platformModel.label} model</p>
+                {platformFiles && platformFiles.files.length > 0 ? (
+                  <>
+                    <p className="mt-1 text-xs text-adam-neutral-300">{platformFiles.title}</p>
+                    <label htmlFor="platform-file-choice" className="mt-2 block text-xs">Select a model file</label>
+                    <select id="platform-file-choice" value={platformFileId}
+                      onChange={(event) => setPlatformFileId(event.target.value)}
+                      className="mt-1 h-11 w-full rounded-md border border-adam-neutral-700 bg-adam-background-1 px-2 text-sm"
+                    >
+                      {platformFiles.files.map(file => (
+                        <option key={file.id} value={file.id}>
+                          {file.name} ({file.format.toUpperCase()}{file.bytes ? `, ${Math.ceil(file.bytes / 1024)} KiB` : ""})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-adam-neutral-400">
+                      STL models open as mesh-backed OpenSCAD projects. 3MF conversion imports geometry only;
+                      original print profiles, plates and colors are not preserved.
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-xs text-adam-neutral-300">
+                    {platformModel.platform === "printables"
+                      ? "Only publicly listed files can be imported automatically. Protected files require downloading on the original site."
+                      : "This platform does not provide an authenticated-free file API supported by Viewer. Download an original STL, 3MF or SCAD file from the model page, then use Upload model here."}
+                  </p>
+                )}
+                <a href={platformModel.url} target="_blank" rel="noopener noreferrer"
+                  className="mt-3 inline-flex min-h-10 items-center text-xs font-medium underline underline-offset-4"
+                >
+                  Open original model page
+                </a>
+              </div>
+            )}
             {urlImportProgress && (
               <p role="status" className="mt-2 text-xs text-adam-neutral-200">
                 {urlImportProgress}
