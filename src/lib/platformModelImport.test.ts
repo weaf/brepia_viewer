@@ -9,7 +9,7 @@ describe("platform model links", () => {
     ["https://www.printables.com/model/3161-3d-benchy", "printables", "3161"],
     ["https://www.thingiverse.com/thing:763622/files", "thingiverse", "763622"],
     ["https://makerworld.com/en/models/24966-my-model", "makerworld", "24966"],
-    ["https://space.snapmaker.com/en/models/12345", "snapmaker-space", "12345"],
+    ["https://space.snapmaker.com/en/model/24313", "snapmaker-space", "12345"],
   ])("detects %s", (url, platform, modelId) => {
     expect(identifyPlatformModelUrl(url)).toMatchObject({ platform, modelId });
   });
