@@ -16,7 +16,7 @@ The Worker sends **hardcoded** read-only GraphQL operations and a fixed download
 ## Validate without deploying
 
 ```bash
-node --test platform-bridge/worker.test.mjs
+node --test platform-bridge/worker.nodecheck.mjs
 npm run check
 ```
 
