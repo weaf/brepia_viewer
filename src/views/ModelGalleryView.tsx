@@ -131,6 +131,7 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
 
 export function ModelGalleryView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const meshFileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -1597,7 +1598,7 @@ export function ModelGalleryView() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".scad,.scad.txt,.stl,.3mf"
+              accept=".scad,.scad.txt"
               className="hidden"
               disabled={isUploading}
               onChange={(event) => {
@@ -1619,6 +1620,24 @@ export function ModelGalleryView() {
                 void onChooseFiles(files);
               }}
             />
+            <input
+              ref={meshFileInputRef}
+              type="file"
+              accept=".stl,.3mf"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = "";
+                void onChooseFiles(files);
+              }}
+            />
+            <Button type="button" variant="outline"
+              className="gap-2 border-adam-neutral-700"
+              disabled={isUploading}
+              onClick={() => meshFileInputRef.current?.click()}>
+              <FileUp className="h-4 w-4" /> Upload STL/3MF
+            </Button>
             <Button
               type="button"
               onClick={() => fileInputRef.current?.click()}
