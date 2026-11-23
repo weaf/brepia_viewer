@@ -105,13 +105,15 @@ try {
       const page=await context.newPage();
       const errors=[];
       page.on("pageerror",err=>errors.push(err.message));
-      await page.route("https://api.printables.com/graphql/**",async route=>{
-        const request=route.request().postData() || "";
-        const payload=request.includes("getDownloadLink")
-          ? {data:{getDownloadLink:{ok:true,output:{link:"https://files.printables.com/media/prints/cube.stl"}}}}
-          : {data:{print:{name:"Test printed model",stls:[
-            {id:"11",name:"cube.stl",fileSize:bytes.length},
-            {id:"12",name:"second.3mf",fileSize:900}]}}};
+      const bridgeCalls=[];
+      await page.route("https://bridge.example.test/v1/printables/**",async route=>{
+        const pathname=new URL(route.request().url()).pathname;
+        bridgeCalls.push({pathname,method:route.request().method()});
+        const payload=pathname.endsWith("/download")
+          ? {url:"https://files.printables.com/media/prints/cube.stl",filename:"cube.stl",format:"stl"}
+          : {title:"Test printed model",files:[
+            {id:"11",name:"cube.stl",bytes:bytes.length,format:"stl"},
+            {id:"12",name:"second.3mf",bytes:900,format:"3mf"}]};
         await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(payload),
           headers:{"access-control-allow-origin":"*"}});
       });
@@ -145,6 +147,12 @@ try {
         await region.waitFor({timeout:30000});
         await page.getByLabel("Select a model file").selectOption("11");
         await page.getByRole("button",{name:"Import selected file"}).click();
+        await page.waitForFunction(() => document.querySelector('section[aria-label="3D model preview"]') !== null,
+          null, {timeout:60000});
+        if (!bridgeCalls.some(call => call.pathname==="/v1/printables/3161/files" && call.method==="GET") ||
+            !bridgeCalls.some(call => call.pathname==="/v1/printables/3161/files/11/download" && call.method==="GET")) {
+          throw new Error("Printables import did not use both fixed Worker endpoints: "+JSON.stringify(bridgeCalls));
+        }
       } else if(["thingiverse","makerworld","snapmaker"].includes(scenario)) {
         const region=page.getByRole("region",{name:"Platform model import"});
         await region.waitFor({timeout:20000});
