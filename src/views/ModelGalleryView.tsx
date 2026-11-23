@@ -1680,8 +1680,11 @@ export function ModelGalleryView() {
                 disabled={isUploading}
                 required
               />
-              <Button type="submit" disabled={isUploading || !urlToImport.trim()}>
-                {isUploading ? "Importing…" : githubInspection ? "Import selected project" : "Continue"}
+              <Button type="submit" disabled={isUploading || !urlToImport.trim() ||
+                (platformModel != null && platformModel.platform !== "printables") ||
+                (platformFiles != null && platformFiles.files.length === 0)}>
+                {isUploading ? "Importing…" : platformFiles ? "Import selected file" :
+                  githubInspection ? "Import selected project" : "Continue"}
               </Button>
             </div>
             <p className="mt-2 text-xs text-adam-neutral-400">
