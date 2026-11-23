@@ -124,7 +124,11 @@ try {
         const canvas=page.locator('section[aria-label="3D model preview"] canvas').first();
         await canvas.waitFor({state:"visible",timeout:90000});
         const bounds=await canvas.boundingBox();
-        if(!bounds || bounds.width<70 || bounds.height<70)throw new Error("Mesh not visible: "+scenario);
+        if(!bounds || bounds.width<70 || bounds.height<70) {
+          await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+"-bounds-failure.png"),fullPage:true});
+          throw new Error("3D canvas too small for "+scenario+": "+JSON.stringify(bounds)+
+            " | "+(await page.locator("body").innerText()).slice(0,1200));
+        }
       }
       await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+".png"),fullPage:true});
       if(errors.length)throw new Error("Browser errors: "+errors.join("; "));
