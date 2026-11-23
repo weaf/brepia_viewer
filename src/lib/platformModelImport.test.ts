@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   identifyPlatformModelUrl, isDirectMeshUrl, listPrintablesModelFiles,
-  getPrintablesDownloadUrl, fetchPublicMesh,
+  getPrintablesDownloadUrl, fetchPublicMesh, printablesBridgeOrigin,
 } from "./platformModelImport";
 
 describe("platform model links", () => {
@@ -57,6 +57,38 @@ describe("public Printables file listing", () => {
     await expect(getPrintablesDownloadUrl(model, file, async () => new Response(JSON.stringify({
       data: { getDownloadLink: { ok: true, output: { link: "https://evil.example/file.stl" } } },
     })))).rejects.toThrow(/untrusted/);
+  });
+  it("validates the optional Worker as a single HTTPS origin", () => {
+    expect(printablesBridgeOrigin("https://bridge.example.test")).toBe("https://bridge.example.test");
+    expect(printablesBridgeOrigin(undefined)).toBeNull();
+    for (const value of ["http://bridge.example.test", "https://x.example/path",
+      "https://user:pass@x.example", "https://x.example:9090", "https://x.example/?url=other"]) {
+      expect(() => printablesBridgeOrigin(value)).toThrow(/bridge/);
+    }
+  });
+  it("uses fixed read-only metadata endpoints when the bridge is configured", async () => {
+    const visited: Array<{ url: string; options: RequestInit | undefined }> = [];
+    const fetcher = async (url: RequestInfo | URL, options?: RequestInit) => {
+      visited.push({ url: String(url), options });
+      const download = String(url).endsWith("/download");
+      return new Response(JSON.stringify(download ? {
+        url: "https://files.printables.com/media/prints/cube.stl",
+        filename: "cube.stl", format: "stl",
+      } : {
+        title: "Bridge test", files: [{ id: "10", name: "cube.stl", bytes: 128, format: "stl" }],
+      }));
+    };
+    const origin = "https://bridge.example.test";
+    const listing = await listPrintablesModelFiles(model, fetcher as typeof fetch, origin);
+    expect(listing.files.map(file => file.name)).toEqual(["cube.stl"]);
+    const download = await getPrintablesDownloadUrl(model, listing.files[0], fetcher as typeof fetch, origin);
+    expect(download).toBe("https://files.printables.com/media/prints/cube.stl");
+    expect(visited.map(hit => hit.url)).toEqual([
+      origin + "/v1/printables/3161/files",
+      origin + "/v1/printables/3161/files/10/download",
+    ]);
+    expect(visited.every(hit => hit.options?.method === "GET" &&
+      hit.options?.credentials === "omit" && hit.options?.redirect === "error")).toBe(true);
   });
   it("rejects oversized downloads even when the server lies about their length", async () => {
     await expect(fetchPublicMesh("https://files.printables.com/x.stl", "x.stl", async () =>
