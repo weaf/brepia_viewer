@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import { zipSync, strToU8 } from "fflate";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -25,6 +26,21 @@ function cubeStl() {
   return data;
 }
 const bytes = cubeStl();
+const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+<resources><object id="1" type="model"><mesh><vertices>
+<vertex x="0" y="0" z="0"/><vertex x="10" y="0" z="0"/>
+<vertex x="0" y="10" z="0"/><vertex x="0" y="0" z="10"/>
+</vertices><triangles>
+<triangle v1="0" v2="2" v3="1"/><triangle v1="0" v2="1" v3="3"/>
+<triangle v1="0" v2="3" v3="2"/><triangle v1="1" v2="2" v3="3"/>
+</triangles></mesh></object></resources><build><item objectid="1"/></build>
+</model>`;
+const threeMfBytes = Buffer.from(zipSync({
+  "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>`),
+  "_rels/.rels": strToU8(`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`),
+  "3D/3dmodel.model": strToU8(xml),
+}));
 let browser;
 try {
   let ready = false;
@@ -37,7 +53,7 @@ try {
     args: ["--disable-dev-shm-usage", "--enable-unsafe-swiftshader"] });
   for (const device of [{ name:"desktop",width:1280,height:800 },
                         { name:"mobile",width:390,height:844 }]) {
-    for (const scenario of ["printables", "direct-stl", "local-stl",
+    for (const scenario of ["printables", "direct-stl", "direct-3mf", "local-stl",
                             "thingiverse", "makerworld", "snapmaker"]) {
       const context=await browser.newContext({viewport:{width:device.width,height:device.height},
         serviceWorkers:"block"});
@@ -62,12 +78,17 @@ try {
         await route.fulfill({status:200,contentType:"application/octet-stream",body:bytes,
           headers:{"access-control-allow-origin":"*"}});
       });
+      await page.route("https://example.org/models/cube.3mf",async route=>{
+        await route.fulfill({status:200,contentType:"application/octet-stream",body:threeMfBytes,
+          headers:{"access-control-allow-origin":"*"}});
+      });
       const links={
         "printables":"https://www.printables.com/model/3161-3d-benchy",
         "thingiverse":"https://www.thingiverse.com/thing:763622",
         "makerworld":"https://makerworld.com/en/models/24966-example",
         "snapmaker":"https://space.snapmaker.com/en/model/24313",
         "direct-stl":"https://example.org/models/cube.stl",
+        "direct-3mf":"https://example.org/models/cube.3mf",
       };
       const target=links[scenario] ? origin+"/?model="+encodeURIComponent(links[scenario]) : origin+"/";
       await page.goto(target,{waitUntil:"domcontentloaded",timeout:45000});
@@ -98,7 +119,8 @@ try {
           await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+"-failure.png"),fullPage:true});
           throw new Error("Model did not open for "+scenario+": "+(await page.locator("body").innerText()).slice(0,2000), {cause});
         }
-        await page.getByText(/12 triangles/).first().waitFor({timeout:120000});
+        await page.getByText(scenario==="direct-3mf" ? /4 triangles/ : /12 triangles/)
+          .first().waitFor({timeout:120000});
         const canvas=page.locator('section[aria-label="3D model preview"] canvas').first();
         await canvas.waitFor({state:"visible",timeout:90000});
         const bounds=await canvas.boundingBox();
