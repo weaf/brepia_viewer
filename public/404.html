@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Opening OpenSCAD model – Brepia Viewer</title>
+  <script>
+    // GitHub Pages serves this file for paths it cannot prerender.
+    // Convert /https://host/file.scad into the existing, validated ?model= import flow.
+    (() => {
+      try {
+        let input = decodeURIComponent(window.location.pathname.slice(1));
+        if (input.startsWith("open/")) input = input.slice(5);
+        // Some reverse proxies collapse repeated slashes inside URL paths.
+        input = input.replace(/^https:\/(?!\/)/i, "https://");
+        if (window.location.search) {
+          input += (input.includes("?") ? "&" : "?") + window.location.search.slice(1);
+        }
+        if (input.length > 2048) return;
+        const remote = new URL(input);
+        if (remote.protocol !== "https:" || !remote.hostname ||
+            remote.username || remote.password || remote.port || remote.hash) return;
+        const isScadFile = /\.scad(?:\.txt)?$/i.test(remote.pathname);
+        const isGithub = ["github.com", "www.github.com"].includes(remote.hostname.toLowerCase());
+        if (!isScadFile && !isGithub) return;
+        // Navigation stays on our own origin: this is never an open redirect.
+        window.location.replace("/?model=" + encodeURIComponent(remote.href));
+      } catch {
+        // Normal missing pages must remain 404, not silently open the gallery.
+      }
+    })();
+  </script>
+</head>
+<body style="font:16px system-ui,sans-serif;background:#191a1a;color:#eee;padding:2rem">
+  <h1>Page not found</h1>
+  <p>To open a model, append its complete HTTPS .scad or public GitHub URL after the Viewer domain.</p>
+  <p><a href="/" style="color:#8cc9ff">Open Brepia Viewer</a></p>
+</body>
+</html>
