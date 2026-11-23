@@ -41,6 +41,36 @@ const threeMfBytes = Buffer.from(zipSync({
   "_rels/.rels": strToU8(`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`),
   "3D/3dmodel.model": strToU8(xml),
 }));
+/** Require actual painted blue/white mesh pixels, not just a mounted WebGL canvas. */
+async function paintedMeshPixels(page, canvas) {
+  const screenshot = await canvas.screenshot({ timeout: 20000 });
+  return page.evaluate(async encoded => {
+    const data = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([data], { type: "image/png" }));
+    const surface = document.createElement("canvas");
+    surface.width = bitmap.width;
+    surface.height = bitmap.height;
+    const context = surface.getContext("2d", { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const { data: pixels } = context.getImageData(0, 0, surface.width, surface.height);
+    let colored = 0;
+    const startX = Math.floor(surface.width * 0.1);
+    const endX = Math.floor(surface.width * 0.9);
+    const startY = Math.floor(surface.height * 0.1);
+    const endY = Math.floor(surface.height * 0.8);
+    for (let y = startY; y < endY; y += 3) {
+      for (let x = startX; x < endX; x += 3) {
+        const index = (y * surface.width + x) * 4;
+        const red = pixels[index], green = pixels[index+1], blue = pixels[index+2];
+        if (blue > red + 35 && blue > 85 &&
+          Math.max(red, green, blue) - Math.min(red, green, blue) > 42) colored++;
+      }
+    }
+    return colored;
+  }, screenshot.toString("base64"));
+}
+
 let browser;
 try {
   let ready = false;
@@ -131,6 +161,18 @@ try {
           }, null, { timeout: 90000 });
           await page.evaluate(() => new Promise(resolve =>
             requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          // A visible canvas + compiled triangle count can still be a blank first frame.
+          // Observe the exact rendered pixels; do not accept an unpainted model.
+          let painted = 0;
+          for (let attempt = 0; attempt < 36; attempt++) {
+            painted = await paintedMeshPixels(page, canvas);
+            if (painted > 200) break;
+            await page.waitForTimeout(300);
+          }
+          if (painted <= 200) {
+            throw new Error("OpenSCAD compiled but the mesh did not paint in 3D: "+scenario+
+              " ("+painted+" colored pixel samples).");
+          }
         } catch (cause) {
           await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+"-bounds-failure.png"),fullPage:true});
           throw new Error("3D canvas not ready for "+scenario+": "+JSON.stringify(await canvas.boundingBox())+
