@@ -30,7 +30,7 @@ export function identifyPlatformModelUrl(input: string): PlatformModel | null {
     modelId = url.pathname.match(/^\/(?:en\/)?models\/(\d+)(?:[-/]|$)/i)?.[1] ?? "";
   } else if (host === "space.snapmaker.com") {
     platform = "snapmaker-space";
-    modelId = url.pathname.match(/^\/(?:en\/)?models\/([a-z0-9_-]+)(?:\/|$)/i)?.[1] ?? "";
+    modelId = url.pathname.match(/^\/(?:en\/)?model\/(\d+)(?:\/|$)/i)?.[1] ?? "";
   } else return null;
   if (!modelId) return null;
   return { platform, label: PLATFORM_LABELS[platform], url: url.href, modelId };
