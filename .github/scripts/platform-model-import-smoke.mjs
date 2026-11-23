@@ -47,7 +47,15 @@ async function paintedMeshPixels(page, canvas) {
   // transient state rather than failing a model that becomes visibly rendered.
   let screenshot;
   try {
-    screenshot = await canvas.screenshot({ timeout: 2000 });
+    const bounds = await canvas.boundingBox();
+    if (!bounds || bounds.width < 70 || bounds.height < 70) return 0;
+    // Canvas element screenshots can sample an empty WebGL drawing buffer when
+    // preserveDrawingBuffer=false, even while the composed page visibly paints.
+    // Screenshot the composited viewport region instead.
+    screenshot = await page.screenshot({
+      clip: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      timeout: 5000,
+    });
   } catch {
     return 0;
   }
