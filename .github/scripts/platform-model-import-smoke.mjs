@@ -123,11 +123,18 @@ try {
           .first().waitFor({timeout:120000});
         const canvas=page.locator('section[aria-label="3D model preview"] canvas').first();
         await canvas.waitFor({state:"visible",timeout:90000});
-        const bounds=await canvas.boundingBox();
-        if(!bounds || bounds.width<70 || bounds.height<70) {
+        try {
+          await page.waitForFunction(() => {
+            const canvas = document.querySelector('section[aria-label="3D model preview"] canvas');
+            const rect = canvas?.getBoundingClientRect();
+            return rect && rect.width >= 70 && rect.height >= 70;
+          }, null, { timeout: 90000 });
+          await page.evaluate(() => new Promise(resolve =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        } catch (cause) {
           await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+"-bounds-failure.png"),fullPage:true});
-          throw new Error("3D canvas too small for "+scenario+": "+JSON.stringify(bounds)+
-            " | "+(await page.locator("body").innerText()).slice(0,1200));
+          throw new Error("3D canvas not ready for "+scenario+": "+JSON.stringify(await canvas.boundingBox())+
+            " | "+(await page.locator("body").innerText()).slice(0,1200), {cause});
         }
       }
       await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+".png"),fullPage:true});
