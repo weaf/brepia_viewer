@@ -1,4 +1,5 @@
 import { chromium } from "@playwright/test";
+import { handleBridgeRequest } from "../../platform-bridge/worker.mjs";
 import { zipSync, strToU8 } from "fflate";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
@@ -109,13 +110,29 @@ try {
       await page.route("https://bridge.example.test/v1/printables/**",async route=>{
         const pathname=new URL(route.request().url()).pathname;
         bridgeCalls.push({pathname,method:route.request().method()});
-        const payload=pathname.endsWith("/download")
-          ? {url:"https://files.printables.com/media/prints/cube.stl",filename:"cube.stl",format:"stl"}
-          : {title:"Test printed model",files:[
-            {id:"11",name:"cube.stl",bytes:bytes.length,format:"stl"},
-            {id:"12",name:"second.3mf",bytes:900,format:"3mf"}]};
-        await route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(payload),
-          headers:{"access-control-allow-origin":"*"}});
+        // Exercise the actual Worker request handler, including the fixed upstream
+        // GraphQL operations. Only Printables' response is faked for determinism.
+        const upstreamFetch=async (_url,options)=>{
+          const query=JSON.parse(options.body).query;
+          const payload=query.includes("getDownloadLink")
+            ? {data:{getDownloadLink:{ok:true,output:{
+                link:"https://files.printables.com/media/prints/cube.stl"}}}}
+            : {data:{print:{name:"Test printed model",stls:[
+                {id:"11",name:"cube.stl",fileSize:bytes.length},
+                {id:"12",name:"second.3mf",fileSize:900}]}}};
+          return new Response(JSON.stringify(payload),{
+            status:200,headers:{"content-type":"application/json"}});
+        };
+        const response=await handleBridgeRequest(
+          new Request(route.request().url(),{
+            method:route.request().method(),headers:{Origin:origin}
+          }),
+          {fetcher:upstreamFetch,allowedOrigins:[origin]},
+        );
+        await route.fulfill({
+          status:response.status,body:await response.text(),
+          headers:Object.fromEntries(response.headers.entries()),
+        });
       });
       await page.route("https://files.printables.com/media/prints/cube.stl",async route=>{
         await route.fulfill({status:200,contentType:"application/octet-stream",body:bytes,
