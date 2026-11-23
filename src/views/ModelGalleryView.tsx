@@ -1096,7 +1096,7 @@ export function ModelGalleryView() {
     setIsUploading(true);
     setErrorMessage(null);
     try {
-      if (files.length === 1 && /\\.(?:stl|3mf)$/i.test(files[0].name)) {
+      if (files.length === 1 && /\.(?:stl|3mf)$/i.test(files[0].name)) {
         const record = await createUploadedModel(await createMeshModelProject(files[0]));
         await refreshLocalModels();
         openUploadedModel(record);
