@@ -72,7 +72,8 @@ async function convert3mfToStl(input: File): Promise<Uint8Array> {
 
 export async function createMeshModelProject(file: File): Promise<MeshModelProject> {
   const filename = file.name;
-  if (!/^[^\\/\x00-\x1f]{1,128}\.(?:stl|3mf)$/i.test(filename) ||
+  if (filename.length > 128 || !/^[^\\/]+\.(?:stl|3mf)$/i.test(filename) ||
+      Array.from(filename).some(ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127) ||
       file.size === 0 || file.size > OPENSCAD_PROJECT_MAX_ASSET_BYTES) {
     throw new Error("Choose a nonempty STL or 3MF file smaller than 16 MiB.");
   }
