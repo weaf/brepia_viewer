@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const origin = 'http://127.0.0.1:4187';
@@ -8,6 +8,10 @@ const evidence = process.env.RUNNER_TEMP
   ? path.join(process.env.RUNNER_TEMP, 'viewer-static-evidence')
   : path.join(process.cwd(), '.output', 'static-evidence');
 await mkdir(evidence, { recursive: true });
+const notFoundHtml = await readFile(path.resolve('.output/public/404.html'), 'utf8');
+if (!notFoundHtml.includes('window.location.replace("/?model="')) {
+  throw new Error('Static Pages output is missing the model path fallback.');
+}
 const server = spawn('python3', ['-m', 'http.server', '4187', '--bind', '127.0.0.1', '--directory', '.output/public'], { stdio: 'ignore' });
 let browser;
 const source = '/* [Dimensions] */\nwidth = 12; // [4:1:30]\ncube([width,width,5]);\n';
@@ -38,11 +42,24 @@ try {
   browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--disable-dev-shm-usage', '--enable-unsafe-swiftshader'] });
 
   for (const device of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844 }]) {
-    for (const scenario of ['direct', 'github-file', 'github-picker', 'library', 'filter']) {
+    for (const scenario of ['direct', 'github-file', 'github-picker', 'library', 'filter', 'path-direct', 'path-github-file', 'path-encoded', 'path-invalid']) {
       const context = await browser.newContext({ viewport: { width: device.width, height: device.height }, serviceWorkers: 'block' });
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
+      if (scenario.startsWith('path-')) {
+        // Python's simple static server does not serve custom 404.html; emulate
+        // GitHub Pages: the original unknown-path request receives 404.html.
+        await page.route(origin + '/**', async route => {
+          const pathname = new URL(route.request().url()).pathname;
+          if (route.request().isNavigationRequest() &&
+              (pathname.startsWith('/https') || pathname.startsWith('/open/https'))) {
+            await route.fulfill({ status: 404, contentType: 'text/html', body: notFoundHtml });
+          } else {
+            await route.continue();
+          }
+        });
+      }
       if (scenario === 'library') {
         await page.addInitScript(() => {
           // Only replace the clipboard transport, not the Share handler or URL builder.
@@ -52,7 +69,7 @@ try {
           });
         });
       }
-      await page.route('https://models.example.test/test.scad', async route => {
+      await page.route('https://models.example.test/test.scad**', async route => {
         await route.fulfill({ status: 200, contentType: 'text/plain', body: source, headers: fulfilled });
       });
       await page.route('https://api.github.com/repos/tanius/openscad-models**', async route => {
@@ -76,7 +93,26 @@ try {
       if (scenario === 'github-file') target += '?model=' + encodeURIComponent('https://github.com/tanius/openscad-models/blob/master/knob_factory%2Fknob-factory.scad');
       if (scenario === 'github-picker') target += '?model=' + encodeURIComponent('https://github.com/tanius/openscad-models/tree/master');
       if (scenario === 'library') target += '?library=parametric-designs&file=Box%2FBox.scad';
+      if (scenario === 'path-direct') target += 'https://models.example.test/test.scad';
+      if (scenario === 'path-github-file') target += 'https://github.com/tanius/openscad-models/blob/master/knob_factory%2Fknob-factory.scad';
+      if (scenario === 'path-encoded') target += encodeURIComponent('https://models.example.test/test.scad?download=1');
+      if (scenario === 'path-invalid') target += 'https://models.example.test/not-a-model.zip';
       await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      if (scenario.startsWith('path-')) {
+        if (scenario === 'path-invalid') {
+          await page.getByRole('heading', { name: 'Page not found' }).waitFor({ timeout: 10000 });
+          if (new URL(page.url()).pathname === '/') throw new Error('Unrelated URL redirected to the model gallery.');
+          await context.close();
+          continue;
+        }
+        const expected = scenario === 'path-github-file'
+          ? 'https://github.com/tanius/openscad-models/blob/master/knob_factory/knob-factory.scad'
+          : scenario === 'path-encoded'
+            ? 'https://models.example.test/test.scad?download=1'
+            : 'https://models.example.test/test.scad';
+        await page.waitForURL(url => url.pathname === '/' && url.searchParams.get('model') === expected,
+          { timeout: 20000 });
+      }
       // The static build serves prerendered HTML. Controls are inert until React hydrates.
       await page.waitForFunction(() => document.documentElement.dataset.brepiaClientReady === 'true', null, { timeout: 45000 });
 
@@ -136,7 +172,7 @@ try {
       await context.close();
     }
   }
-  console.log('PASS: shareable SCAD/GitHub links, ambiguous project picker, curated library deep links and library filter, desktop and mobile.');
+  console.log('PASS: path-based SCAD/GitHub links, safe static 404 fallback, existing query links, library filter and 3D rendering, desktop and mobile.');
 } finally {
   await browser?.close();
   server.kill('SIGTERM');
