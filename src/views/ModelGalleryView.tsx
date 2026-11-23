@@ -273,6 +273,8 @@ export function ModelGalleryView() {
     [filteredBuiltIns, search],
   );
   const filteredUploads = useMemo(() => {
+    // Choosing a specific curated library excludes local browser uploads.
+    if (repositoryFilter !== "all" && repositoryFilter !== "uploads") return [];
     const needle = search.trim().toLocaleLowerCase();
     if (!needle) return localModels;
     return localModels.filter((model) =>
@@ -280,7 +282,7 @@ export function ModelGalleryView() {
         .toLocaleLowerCase()
         .includes(needle),
     );
-  }, [localModels, search]);
+  }, [localModels, search, repositoryFilter]);
 
   const getModelRevision = useCallback(
     async (record: LocalModelRecord): Promise<string> => {
@@ -893,7 +895,8 @@ export function ModelGalleryView() {
           const scope = inspection.suggestedScope;
           const selection = getGithubScadSelection(inspection, scope);
           const selectedEntrypoint = inspection.suggestedEntrypoint ||
-            (selection.entrypoints.length === 1 ? selection.entrypoints[0] : "");
+            (!fromDeepLink || selection.entrypoints.length === 1
+              ? selection.entrypoints[0] || "" : "");
           setGithubInspection(inspection);
           setGithubScope(scope);
           setGithubEntrypoint(selectedEntrypoint);
@@ -1726,7 +1729,8 @@ export function ModelGalleryView() {
                 onChange={(event) => setRepositoryFilter(event.target.value)}
                 className="h-10 max-w-[200px] rounded-md border border-adam-neutral-700 bg-adam-background-1 px-2 text-xs text-adam-text-primary"
               >
-                <option value="all">All libraries</option>
+                <option value="all">All models</option>
+                <option value="uploads">Uploaded models</option>
                 {getModelRepositories().map((source) => (
                   <option key={source.id} value={source.id}>{source.label}</option>
                 ))}
