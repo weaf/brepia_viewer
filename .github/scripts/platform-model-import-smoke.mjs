@@ -66,7 +66,7 @@ try {
         "printables":"https://www.printables.com/model/3161-3d-benchy",
         "thingiverse":"https://www.thingiverse.com/thing:763622",
         "makerworld":"https://makerworld.com/en/models/24966-example",
-        "snapmaker":"https://space.snapmaker.com/en/models/12345",
+        "snapmaker":"https://space.snapmaker.com/en/model/24313",
         "direct-stl":"https://example.org/models/cube.stl",
       };
       const target=links[scenario] ? origin+"/?model="+encodeURIComponent(links[scenario]) : origin+"/";
