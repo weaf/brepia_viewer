@@ -61,9 +61,25 @@ function parseModelFile(raw: unknown): RemoteModelFile | null {
   return { id: String(file.id), name: file.name, bytes: size, format };
 }
 
+/** An opt-in, fixed-endpoint metadata bridge; never forward caller-supplied URLs. */
+export function printablesBridgeOrigin(
+  configured: string | undefined = import.meta.env.VITE_PRINTABLES_BRIDGE_ORIGIN,
+): string | null {
+  if (!configured?.trim()) return null;
+  let url: URL;
+  try { url = new URL(configured.trim()); }
+  catch { throw new Error("Printables bridge configuration is not a valid HTTPS origin."); }
+  if (url.protocol !== "https:" || url.username || url.password ||
+      url.port || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("Printables bridge must be a single HTTPS origin without credentials or a path.");
+  }
+  return url.origin;
+}
+
 /** Printables' publicly reachable GraphQL surface is undocumented; fail closed if it changes. */
 export async function listPrintablesModelFiles(
   model: PlatformModel, fetcher: typeof fetch = fetch,
+  bridgeOrigin: string | undefined = import.meta.env.VITE_PRINTABLES_BRIDGE_ORIGIN,
 ): Promise<PlatformFileList> {
   if (model.platform !== "printables" || !/^\d{1,15}$/.test(model.modelId)) {
     throw new Error("Not a valid Printables model link.");
@@ -71,17 +87,36 @@ export async function listPrintablesModelFiles(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetcher("https://api.printables.com/graphql/", {
-      method: "POST", mode: "cors", credentials: "omit", redirect: "error",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: "query ViewerFiles($id: ID!) { print(id: $id) { name stls { id name fileSize } } }",
-        variables: { id: model.modelId } }),
-      signal: controller.signal,
-    });
+    const bridge = printablesBridgeOrigin(bridgeOrigin);
+    const response = await fetcher(
+      bridge ? bridge + "/v1/printables/" + model.modelId + "/files"
+        : "https://api.printables.com/graphql/",
+      bridge ? {
+        method: "GET", mode: "cors", credentials: "omit", redirect: "error",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      } : {
+        method: "POST", mode: "cors", credentials: "omit", redirect: "error",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: "query ViewerFiles($id: ID!) { print(id: $id) { name stls { id name fileSize } } }",
+          variables: { id: model.modelId } }),
+        signal: controller.signal,
+      },
+    );
     if (!response.ok) throw new Error(`Printables file listing returned HTTP ${response.status}.`);
     const json: unknown = await response.json();
     const data = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
     if (Array.isArray(data.errors) && data.errors.length) throw new Error("Printables could not list files for this model.");
+    if (bridge) {
+      const body = data as { title?: unknown; files?: unknown };
+      if (!Array.isArray(body.files)) throw new Error("Printables bridge did not return a public file list.");
+      const files = body.files.map((file: unknown) => {
+        if (!file || typeof file !== "object") return null;
+        const item = file as Record<string, unknown>;
+        return parseModelFile({ ...item, fileSize: item.bytes });
+      }).filter((file): file is RemoteModelFile => file !== null).slice(0, 64);
+      return { model, title: typeof body.title === "string" ? body.title.slice(0, 120) : "Printables model", files };
+    }
     const print = (data.data as { print?: { name?: unknown; stls?: unknown } } | undefined)?.print;
     if (!print || !Array.isArray(print.stls)) throw new Error("Printables did not return a public file list.");
     const files = print.stls.map(parseModelFile).filter((file): file is RemoteModelFile => file !== null).slice(0, 64);
@@ -96,6 +131,7 @@ export async function listPrintablesModelFiles(
 /** Resolve one selected public file. Never use credentials or scrape protected pages. */
 export async function getPrintablesDownloadUrl(
   model: PlatformModel, file: RemoteModelFile, fetcher: typeof fetch = fetch,
+  bridgeOrigin: string | undefined = import.meta.env.VITE_PRINTABLES_BRIDGE_ORIGIN,
 ): Promise<string> {
   if (model.platform !== "printables" || !/^\d{1,15}$/.test(model.modelId) ||
       !/^[a-z0-9_-]{1,100}$/i.test(file.id) || !["stl", "3mf"].includes(file.format)) {
@@ -104,20 +140,30 @@ export async function getPrintablesDownloadUrl(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetcher("https://api.printables.com/graphql/", {
-      method: "POST", mode: "cors", credentials: "omit", redirect: "error",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: "mutation ViewerDownload { getDownloadLink(id: " + JSON.stringify(file.id) +
-          ", printId: " + JSON.stringify(model.modelId) +
-          ', fileType: stl, source: model_detail) { ok output { link } } }',
-      }),
-      signal: controller.signal,
-    });
+    const bridge = printablesBridgeOrigin(bridgeOrigin);
+    const response = await fetcher(
+      bridge ? bridge + "/v1/printables/" + model.modelId + "/files/" + file.id + "/download"
+        : "https://api.printables.com/graphql/",
+      bridge ? {
+        method: "GET", mode: "cors", credentials: "omit", redirect: "error",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      } : {
+        method: "POST", mode: "cors", credentials: "omit", redirect: "error",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "mutation ViewerDownload { getDownloadLink(id: " + JSON.stringify(file.id) +
+            ", printId: " + JSON.stringify(model.modelId) +
+            ', fileType: stl, source: model_detail) { ok output { link } } }',
+        }),
+        signal: controller.signal,
+      },
+    );
     if (!response.ok) throw new Error(`Printables download lookup returned HTTP ${response.status}.`);
     const json: unknown = await response.json();
     const data = (json as { data?: { getDownloadLink?: { ok?: boolean; output?: { link?: string } } } } | null)?.data?.getDownloadLink;
-    const link = data?.ok ? data.output?.link : null;
+    const link = bridge ? (json as { url?: unknown } | null)?.url
+      : data?.ok ? data.output?.link : null;
     if (!link || typeof link !== "string") {
       throw new Error("No public download link. This file may require sign-in or a paid membership.");
     }
