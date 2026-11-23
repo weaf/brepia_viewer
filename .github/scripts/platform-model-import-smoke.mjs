@@ -92,7 +92,12 @@ try {
         await input.setInputFiles({name:"cube.stl",mimeType:"application/octet-stream",buffer:bytes});
       }
       if(!["thingiverse","makerworld","snapmaker"].includes(scenario)) {
-        await page.getByText("Source and parameters",{exact:true}).first().waitFor({timeout:60000});
+        try {
+          await page.getByText("Source and parameters",{exact:true}).first().waitFor({timeout:60000});
+        } catch (cause) {
+          await page.screenshot({path:path.join(evidence,device.name+"-"+scenario+"-failure.png"),fullPage:true});
+          throw new Error("Model did not open for "+scenario+": "+(await page.locator("body").innerText()).slice(0,2000), {cause});
+        }
         await page.getByText(/12 triangles/).first().waitFor({timeout:120000});
         const canvas=page.locator('section[aria-label="3D model preview"] canvas').first();
         await canvas.waitFor({state:"visible",timeout:90000});
