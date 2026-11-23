@@ -1156,7 +1156,10 @@ export function ModelGalleryView() {
           </div>
           <div className="flex w-full min-w-0 shrink-0 items-center justify-end gap-1 sm:w-auto">
             {activeRecord.origin === "built-in" && activeRecord.sourceRepositoryId && activeRecord.sourcePath && (
-              <Button type="button" variant="outline" size="sm" className="gap-1"
+              <Button type="button" variant="outline" size="sm"
+                className="h-10 w-10 shrink-0 gap-1 px-0 sm:w-auto sm:px-3"
+                aria-label="Share model link"
+                title="Copy model link"
                 onClick={() => {
                   const url = createViewerModelLink({
                     kind: "library",
@@ -1168,7 +1171,8 @@ export function ModelGalleryView() {
                     () => toast({ title: "Could not copy link", description: url, variant: "destructive" }),
                   );
                 }}>
-                <Link2 className="h-4 w-4" /> Share
+                <Link2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Share</span>
               </Button>
             )}
             <RepositoryLink compact />
