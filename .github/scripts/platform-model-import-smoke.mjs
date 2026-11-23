@@ -6,8 +6,8 @@ import path from "node:path";
 
 const origin = "http://127.0.0.1:4194";
 const evidence = process.env.RUNNER_TEMP
-  ? path.join(process.env.RUNNER_TEMP, "viewer-platform-evidence")
-  : path.resolve(".output/platform-evidence");
+  ? path.join(process.env.RUNNER_TEMP, "viewer-static-evidence")
+  : path.resolve(".output/static-evidence");
 await mkdir(evidence, { recursive: true });
 const server = spawn("python3", ["-m", "http.server", "4194", "--bind", "127.0.0.1",
   "--directory", ".output/public"], { stdio: "ignore" });
