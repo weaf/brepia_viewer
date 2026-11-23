@@ -88,7 +88,7 @@ try {
           throw new Error("Incorrect platform handoff for "+scenario);
         }
       } else if(scenario==="local-stl") {
-        const input=page.locator('input[type="file"][accept=".scad,.scad.txt,.stl,.3mf"]');
+        const input=page.locator('input[type="file"][accept=".stl,.3mf"]');
         await input.setInputFiles({name:"cube.stl",mimeType:"application/octet-stream",buffer:bytes});
       }
       if(!["thingiverse","makerworld","snapmaker"].includes(scenario)) {
