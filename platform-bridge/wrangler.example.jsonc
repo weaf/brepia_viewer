@@ -1,0 +1,18 @@
+{
+  // Opt-in example: copy to wrangler.jsonc and select an allowed staging domain.
+  // No route or workers.dev endpoint is enabled by default.
+  "name": "brepia-printables-bridge",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-11-23",
+  "workers_dev": false,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://viewer.notydesign.se"
+  },
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "104732",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ]
+}
