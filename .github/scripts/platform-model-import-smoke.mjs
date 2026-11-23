@@ -43,7 +43,14 @@ const threeMfBytes = Buffer.from(zipSync({
 }));
 /** Require actual painted blue/white mesh pixels, not just a mounted WebGL canvas. */
 async function paintedMeshPixels(page, canvas) {
-  const screenshot = await canvas.screenshot({ timeout: 20000 });
+  // Three.js may replace the canvas while its mesh is attaching. Retry that
+  // transient state rather than failing a model that becomes visibly rendered.
+  let screenshot;
+  try {
+    screenshot = await canvas.screenshot({ timeout: 2000 });
+  } catch {
+    return 0;
+  }
   return page.evaluate(async encoded => {
     const data = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
     const bitmap = await createImageBitmap(new Blob([data], { type: "image/png" }));
