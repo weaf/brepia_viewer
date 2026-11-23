@@ -1855,6 +1855,7 @@ export function ModelGalleryView() {
               </section>
             )}
 
+            {repositoryFilter !== "uploads" && (
             <section className="mt-8" aria-labelledby="builtins-title">
               <div className="mb-3 flex items-baseline justify-between gap-3">
                 <h2 id="builtins-title" className="text-sm font-semibold">
@@ -1986,6 +1987,7 @@ export function ModelGalleryView() {
                 </div>
               )}
             </section>
+            )}
 
             {!filteredUploads.length && !search && (
               <p className="mt-8 text-center text-xs text-adam-neutral-500">
