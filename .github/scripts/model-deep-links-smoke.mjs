@@ -109,6 +109,15 @@ try {
         await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 60000 });
         await page.getByRole('region', { name: '3D model preview' }).waitFor({ timeout: 45000 });
         await page.getByText(/\b12 triangles\b/).first().waitFor({ timeout: 120000 });
+        // Successful OpenSCAD compilation does not imply Three.js has mounted or painted.
+        const canvas = page.locator('section[aria-label="3D model preview"] canvas').first();
+        await canvas.waitFor({ state: 'visible', timeout: 90000 });
+        await page.waitForFunction(() => {
+          const element = document.querySelector('section[aria-label="3D model preview"] canvas');
+          const rect = element?.getBoundingClientRect();
+          return rect && rect.width >= 80 && rect.height >= 80;
+        }, null, { timeout: 90000 });
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         if (scenario === 'library') {
           const share = page.getByRole('button', { name: 'Share' });
           if (!(await share.isVisible())) throw new Error('Library model share control missing.');
