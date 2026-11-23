@@ -41,6 +41,9 @@ jobs:
       - name: Verify model deep links and library filtering on desktop and mobile
         run: node .github/scripts/model-deep-links-smoke.mjs
 
+      - name: Verify platform model import, STL preview and provider handoffs
+        run: node .github/scripts/platform-model-import-smoke.mjs
+
       - name: Test static HTTP + model gallery and OpenSCAD rendering
         run: node .github/scripts/static-viewer-smoke.mjs
 
