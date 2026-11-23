@@ -18,7 +18,7 @@ export function identifyPlatformModelUrl(input: string): PlatformModel | null {
       url.hash || input.length > 2048) return null;
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
   let platform: SupportedPlatform;
-  let modelId = "";
+  let modelId: string;
   if (host === "printables.com") {
     platform = "printables";
     modelId = url.pathname.match(/^\/model\/(\d+)(?:[-/]|$)/i)?.[1] ?? "";
