@@ -68,6 +68,8 @@ try {
       if (scenario === 'github-picker') target += '?model=' + encodeURIComponent('https://github.com/tanius/openscad-models/tree/master');
       if (scenario === 'library') target += '?library=parametric-designs&file=Box%2FBox.scad';
       await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      // The static build serves prerendered HTML. Controls are inert until React hydrates.
+      await page.waitForFunction(() => document.documentElement.dataset.brepiaClientReady === 'true', null, { timeout: 45000 });
 
       if (scenario === 'github-picker') {
         await page.getByRole('region', { name: 'Choose GitHub project' }).waitFor({ timeout: 30000 });
@@ -75,10 +77,19 @@ try {
       } else if (scenario === 'filter') {
         await page.getByText('Model gallery', { exact: true }).first().waitFor({ timeout: 45000 });
         await page.getByRole('combobox', { name: 'Filter models by library' }).selectOption('parametric-designs');
-        if (await page.getByRole('combobox', { name: 'Filter models by library' }).inputValue() !== 'parametric-designs') {
-          throw new Error('Library filter did not select the configured source.');
+        const filter = page.getByRole('combobox', { name: 'Filter models by library' });
+        await page.waitForFunction(() =>
+          document.querySelector('select[aria-label="Filter models by library"]')?.value === 'parametric-designs',
+          null, { timeout: 10000 });
+        await page.getByRole('heading', { name: /Built-in models/ }).waitFor({ timeout: 30000 });
+        await filter.selectOption('all');
+        await page.waitForFunction(() =>
+          document.querySelector('select[aria-label="Filter models by library"]')?.value === 'all',
+          null, { timeout: 10000 });
+        await filter.selectOption('parametric-designs');
+        if (await filter.inputValue() !== 'parametric-designs') {
+          throw new Error('Library filter did not preserve the requested selection after hydration.');
         }
-        await page.getByRole('heading', { name: 'Built-in models' }).waitFor({ timeout: 30000 });
       } else {
         await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 60000 });
         await page.getByRole('region', { name: '3D model preview' }).waitFor({ timeout: 45000 });
