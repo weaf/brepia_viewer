@@ -43,6 +43,15 @@ try {
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
+      if (scenario === 'library') {
+        await page.addInitScript(() => {
+          // Only replace the clipboard transport, not the Share handler or URL builder.
+          Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async (value) => { window.__copiedViewerModelLink = value; } },
+          });
+        });
+      }
       await page.route('https://models.example.test/test.scad', async route => {
         await route.fulfill({ status: 200, contentType: 'text/plain', body: source, headers: fulfilled });
       });
@@ -81,10 +90,16 @@ try {
         await page.waitForFunction(() =>
           document.querySelector('select[aria-label="Filter models by library"]')?.value === 'parametric-designs',
           null, { timeout: 10000 });
-        await page.getByRole('heading', { name: /Built-in models/ }).waitFor({ timeout: 30000 });
+        await page.waitForFunction(() =>
+          document.querySelectorAll('[data-gallery-model-id]').length > 0,
+          null, { timeout: 30000 });
+        await filter.selectOption('uploads');
+        await page.waitForFunction(() =>
+          document.querySelectorAll('[data-gallery-model-id]').length === 0,
+          null, { timeout: 10000 });
         await filter.selectOption('all');
         await page.waitForFunction(() =>
-          document.querySelector('select[aria-label="Filter models by library"]')?.value === 'all',
+          document.querySelectorAll('[data-gallery-model-id]').length > 0,
           null, { timeout: 10000 });
         await filter.selectOption('parametric-designs');
         if (await filter.inputValue() !== 'parametric-designs') {
@@ -97,6 +112,10 @@ try {
         if (scenario === 'library') {
           const share = page.getByRole('button', { name: 'Share' });
           if (!(await share.isVisible())) throw new Error('Library model share control missing.');
+          await share.click();
+          await page.waitForFunction(() =>
+            window.__copiedViewerModelLink?.includes('?library=parametric-designs&file=Box%2FBox.scad'),
+            null, { timeout: 10000 });
         }
       }
       await page.screenshot({ path: path.join(evidence, 'model-link-' + device.name + '-' + scenario + '.png'), fullPage: true });
