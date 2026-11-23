@@ -12,7 +12,7 @@ describe("shared model links", () => {
     "https://www.printables.com/model/3161-3d-benchy",
     "https://www.thingiverse.com/thing:763622",
     "https://makerworld.com/en/models/24966-example",
-    "https://space.snapmaker.com/en/models/12345",
+    "https://space.snapmaker.com/en/model/24313",
     "https://cdn.example.com/geometry.stl",
     "https://cdn.example.com/print.3mf",
   ])("accepts model platform or mesh URL %s", (source) => {
