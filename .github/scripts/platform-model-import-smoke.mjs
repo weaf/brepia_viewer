@@ -132,6 +132,30 @@ try {
       console.log("PASS",device.name,scenario);
     }
   }
+
+  // Best-effort live compatibility probe, not a test substitute: some platforms
+  // only allow their own origins or block GitHub Actions IP ranges.
+  const probe = await browser.newContext({ serviceWorkers: "block" });
+  try {
+    const probePage = await probe.newPage();
+    await probePage.goto(origin + "/", { waitUntil: "domcontentloaded" });
+    const result = await probePage.evaluate(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 9000);
+      try {
+        const response = await fetch("https://api.printables.com/graphql/", {
+          method: "POST", mode: "cors", credentials: "omit",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: 'query { print(id: "3161") { name } }' }),
+          signal: controller.signal,
+        });
+        return { ok: response.ok, status: response.status };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      } finally { clearTimeout(timeout); }
+    });
+    console.log("PRINTABLES_BROWSER_CORS_PROBE=" + JSON.stringify(result));
+  } finally { await probe.close(); }
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
