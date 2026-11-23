@@ -43,6 +43,25 @@ https://viewer.notydesign.se/?library=parametric-designs&file=Box%2FBox.scad
 
 The library ID and path identify the model in the JSON registry. Share links always open the model as it exists in that library, with local browser changes preserved where applicable. Only models publicly accessible to the visitor can be fetched.
 
+## Model platform links (experimental)
+
+Share a page link from **Printables, Thingiverse, MakerWorld or Snapmaker Space** via `?model=`:
+
+```text
+https://viewer.notydesign.se/?model=https%3A%2F%2Fwww.printables.com%2Fmodel%2F3161-3d-benchy
+```
+
+The Viewer recognizes each platform and clearly distinguishes public downloads from provider-restricted model files.
+
+- **Printables:** The browser attempts a read-only file lookup through Printables' undocumented public GraphQL service. You can select an openly available STL/3MF file; when a shared model has only one file, the Viewer attempts to open it immediately. This service or its cross-origin permissions can change at any time, so production support is best effort.
+- **Thingiverse:** Model pages are recognized, but its official API needs a developer token. Viewer does not store or ask for a token in a public browser session. Open the original model page to download a supported file.
+- **MakerWorld:** Model pages are recognized. Provider downloads ordinarily require login and authorized file access. No session scraping or credential bypass is attempted.
+- **Snapmaker Space:** Model pages are recognized and link to their original download page. Its public file-download API has not been verified.
+
+**Direct public STL/3MF HTTPS file links** can also be passed to `?model=` when the file host permits CORS. The local Upload model button accepts SCAD, STL and 3MF. A mesh file is wrapped in an OpenSCAD `import("model.stl");` project so it can be displayed and transformed; **it does not recover the original parametric design**. Supported 3MF geometry is converted locally to STL for preview, without preserving materials, colors, print profiles, or separate plates. A complex or sliced-only 3MF may fail with an explicit error. An individual asset must fit the existing 16 MiB limit (3MF conversion is capped at 8 MiB compressed).
+
+All files are stored locally in the browser and inherit the original model creator's license. No public proxy, hidden credentials, or server-side scraping is included.
+
 ## Contribute a model library
 
 All public GitHub model sources shown in the built-in gallery are listed in [`src/lib/modelRepositories.json`](src/lib/modelRepositories.json). To propose another source, fork the project, add a single JSON entry and submit a pull request. **No TypeScript changes are required.**
