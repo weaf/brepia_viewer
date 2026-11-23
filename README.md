@@ -27,7 +27,15 @@ Check part geometry and filament assignments in OrcaSlicer or Snapmaker Orca bef
 
 ## Share model links
 
-Brepia Viewer can open a model directly from a shareable link. Example:
+Brepia Viewer opens an external OpenSCAD model automatically when you append the model's full HTTPS URL **directly after the Viewer domain**, without clicking Import:
+
+```text
+https://viewer.notydesign.se/https://raw.githubusercontent.com/Noty-design/Parametric-designs/main/dovetail/dovetail.scad
+```
+
+The remote URL can also be fully percent-encoded after the final slash; both forms work. Public GitHub repository and file links work too. On GitHub Pages, the static `404.html` converts these paths internally into the existing validated import flow. Unrelated missing pages stay 404; the redirect never leaves the Viewer origin.
+
+The original query-string format is still supported:
 
 ```text
 https://viewer.notydesign.se/?model=https%3A%2F%2Fexample.org%2Fmodels%2Fbox.scad
