@@ -20,6 +20,8 @@ jobs:
           cache: npm
       - name: Install exact dependencies
         run: npm ci --no-fund
+      - name: Verify bounded Printables Cloudflare Worker contract
+        run: node --test platform-bridge/worker.test.mjs
       - name: Lint, test and production build
         run: npm run check
       - name: Runtime security audit (high and critical)
