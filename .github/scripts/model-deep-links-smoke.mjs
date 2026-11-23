@@ -121,6 +121,10 @@ try {
         if (scenario === 'library') {
           const share = page.getByRole('button', { name: 'Share' });
           if (!(await share.isVisible())) throw new Error('Library model share control missing.');
+          const buttonBounds = await share.boundingBox();
+          if (!buttonBounds || buttonBounds.x < 0 || buttonBounds.x + buttonBounds.width > device.width) {
+            throw new Error(device.name + ' Share action clipped outside the viewport: ' + JSON.stringify(buttonBounds));
+          }
           await share.click();
           await page.waitForFunction(() =>
             window.__copiedViewerModelLink?.includes('?library=parametric-designs&file=Box%2FBox.scad'),
