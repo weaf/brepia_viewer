@@ -8,6 +8,17 @@ describe("shared model links", () => {
     const url = createViewerModelLink({ kind: "url", url: remote });
     expect(parseViewerModelLink(new URL(url).search)).toEqual({ kind: "url", url: remote });
   });
+  it.each([
+    "https://www.printables.com/model/3161-3d-benchy",
+    "https://www.thingiverse.com/thing:763622",
+    "https://makerworld.com/en/models/24966-example",
+    "https://space.snapmaker.com/en/models/12345",
+    "https://cdn.example.com/geometry.stl",
+    "https://cdn.example.com/print.3mf",
+  ])("accepts model platform or mesh URL %s", (source) => {
+    const viewer = createViewerModelLink({ kind: "url", url: source });
+    expect(parseViewerModelLink(new URL(viewer).search)).toEqual({ kind: "url", url: source });
+  });
   it("round-trips a curated model identity without depending on its display name", () => {
     const link = { kind: "library" as const, repositoryId: "parametric-designs", path: "Box/Box.scad" };
     expect(parseViewerModelLink(new URL(createViewerModelLink(link)).search)).toEqual(link);
