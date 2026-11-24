@@ -1,3 +1,4 @@
+import type { OpenScadOutputLimitMiB } from '@/lib/openScadLimits';
 import type { OpenScadProject } from '@shared/openScadProject';
 import { Parameter } from '@shared/types';
 import WorkspaceFile from '../lib/WorkspaceFile.ts';
@@ -40,6 +41,7 @@ export type OpenSCADWorkerMessageData = {
   fileType: string;
   params: Parameter[];
   includeColorData?: boolean;
+  outputLimitMiB?: OpenScadOutputLimitMiB;
 };
 
 /** Monotonic wall-clock stages within one worker-side OpenSCAD execution (milliseconds). */

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import OpenSCADError from '@/lib/OpenSCADError';
-import { assertOpenScadOutputWithinLimit, OPENSCAD_EXPORT_TIMEOUT_MS } from '@/lib/openScadLimits';
+import { assertOpenScadOutputWithinLimit, OPENSCAD_EXPORT_TIMEOUT_MS, OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB, type OpenScadOutputLimitMiB } from '@/lib/openScadLimits';
+import { requestPreviewWithOutputFallback } from '@/lib/openScadPreviewFallback';
 import { normalizeOpenSCADDxf } from '@/utils/dxfUtils';
 import { getOpenScadExportFormat, isOpenScadExportFormat } from '@/lib/openScadExportFormats';
 import { OpenScadWorkerClient } from '@/worker/openScadWorkerClient';
@@ -20,7 +21,8 @@ type CachedWorkerFile = {
   type: string;
 };
 
-export function useOpenSCAD() {
+export function useOpenSCAD(outputLimitMiB: OpenScadOutputLimitMiB = OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB) {
+  const [previewColorFallback, setPreviewColorFallback] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
   const [isPreviewCancelled, setIsPreviewCancelled] = useState(false);
   const [previewCompileDurationMs, setPreviewCompileDurationMs] = useState<number | null>(null);
@@ -116,6 +118,7 @@ export function useOpenSCAD() {
       options: { includeColorData?: boolean } = {},
     ): Promise<void> => {
       setIsCompiling(true);
+      setPreviewColorFallback(false);
       setIsPreviewCancelled(false);
       setPreviewCompileDurationMs(null);
       setPreviewRoundTripMs(null);
@@ -130,19 +133,26 @@ export function useOpenSCAD() {
         const normalizedProject = normalizeOpenScadProject(project);
         await ensureCachedFiles();
         const requestStartedAt = performance.now();
-        const response = await getClient().request<OpenSCADWorkerResponseData>({
-          id,
-          type: WorkerMessageType.PREVIEW,
-          data: {
-            project: normalizedProject,
-            params: [],
-            fileType: 'stl',
-            // Missing/undefined retains the existing STL+OFF preview.
-            includeColorData: options.includeColorData,
+        const { response, usedFallback } = await requestPreviewWithOutputFallback(
+          async (includeColorData) => {
+            const result = await getClient().request<OpenSCADWorkerResponseData>({
+              id: requestId('preview-request'),
+              type: WorkerMessageType.PREVIEW,
+              data: {
+                project: normalizedProject,
+                params: [],
+                fileType: 'stl',
+                includeColorData,
+                outputLimitMiB,
+              },
+            });
+            assertOpenScadOutputWithinLimit(result, outputLimitMiB);
+            return result;
           },
-        });
+          options.includeColorData,
+          () => activeCompileRef.current === id,
+        );
         const roundTripMs = performance.now() - requestStartedAt;
-        assertOpenScadOutputWithinLimit(response);
 
         if (activeCompileRef.current !== id) return;
 
@@ -150,6 +160,7 @@ export function useOpenSCAD() {
           throw new Error('OpenSCAD did not return a preview output');
         }
 
+        setPreviewColorFallback(usedFallback);
         setPreviewRoundTripMs(roundTripMs);
         setPreviewCompilePhases(response.compilePhases ?? null);
         setPreviewCompileDurationMs(
@@ -186,7 +197,7 @@ export function useOpenSCAD() {
         }
       }
     },
-    [ensureCachedFiles, getClient],
+    [ensureCachedFiles, getClient, outputLimitMiB],
   );
 
   const cancelPreview = useCallback((): void => {
@@ -198,6 +209,7 @@ export function useOpenSCAD() {
     clientRef.current?.reset(new Error('OpenSCAD preview cancelled'));
     setIsCompiling(false);
     setIsPreviewCancelled(true);
+    setPreviewColorFallback(false);
     setPreviewCompileDurationMs(null);
     setPreviewRoundTripMs(null);
     setPreviewCompilePhases(null);
@@ -223,11 +235,12 @@ export function useOpenSCAD() {
           params: [],
           fileType: 'stl',
           includeColorData: options.includeColorData,
+          outputLimitMiB,
         },
       };
       const response =
         await getClient().request<OpenSCADWorkerResponseData>(message);
-      assertOpenScadOutputWithinLimit(response);
+      assertOpenScadOutputWithinLimit(response, outputLimitMiB);
 
       if (!response.output) {
         throw new Error('OpenSCAD did not return a preview output');
@@ -243,7 +256,7 @@ export function useOpenSCAD() {
 
       return { stl, off };
     },
-    [ensureCachedFiles, getClient],
+    [ensureCachedFiles, getClient, outputLimitMiB],
   );
 
   const exportProject = useCallback(
@@ -258,7 +271,7 @@ export function useOpenSCAD() {
       const message: WorkerMessage & { id: string } = {
         id,
         type: WorkerMessageType.EXPORT,
-        data: { project: normalizedProject, params: [], fileType },
+        data: { project: normalizedProject, params: [], fileType, outputLimitMiB },
       };
       const response =
         await getClient().request<OpenSCADWorkerResponseData>(
@@ -266,7 +279,7 @@ export function useOpenSCAD() {
           [],
           OPENSCAD_EXPORT_TIMEOUT_MS,
         );
-      assertOpenScadOutputWithinLimit(response);
+      assertOpenScadOutputWithinLimit(response, outputLimitMiB);
 
       if (!response.output) {
         throw new Error('OpenSCAD did not return an export output');
@@ -282,13 +295,14 @@ export function useOpenSCAD() {
 
       return new Blob([outputBytes], { type: mimeType });
     },
-    [ensureCachedFiles, getClient],
+    [ensureCachedFiles, getClient, outputLimitMiB],
   );
 
   return {
     compileProject,
     cancelPreview,
     isPreviewCancelled,
+    previewColorFallback,
     previewCompileDurationMs,
     previewRoundTripMs,
     previewCompilePhases,

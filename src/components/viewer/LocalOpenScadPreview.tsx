@@ -4,6 +4,7 @@ import { SourceMovePanel, type SelectedSourceMove } from "@/components/viewer/So
 import { describeOpenScadFailure } from "@/lib/openScadFeedback";
 import { PreviewDiagnostics } from "@/components/viewer/PreviewDiagnostics";
 import { useOpenSCAD } from "@/hooks/useOpenSCAD";
+import { OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB, type OpenScadOutputLimitMiB } from "@/lib/openScadLimits";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   getOpenScadEntrypoint,
@@ -47,6 +48,7 @@ export function LocalOpenScadPreview({
   constrained = false,
   experimentalEnabled = false,
   experimentalFastPreview = false,
+  outputLimitMiB = OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB,
   sourceMoveEnabled = false,
   onApplySourceMove,
 }: {
@@ -56,6 +58,7 @@ export function LocalOpenScadPreview({
   constrained?: boolean;
   experimentalEnabled?: boolean;
   experimentalFastPreview?: boolean;
+  outputLimitMiB?: OpenScadOutputLimitMiB;
   sourceMoveEnabled?: boolean;
   onApplySourceMove?: (path: string, content: string) => Promise<void>;
 }) {
@@ -64,6 +67,7 @@ export function LocalOpenScadPreview({
     previewProjectColored,
     cancelPreview,
     isPreviewCancelled,
+    previewColorFallback,
     previewCompileDurationMs,
     previewRoundTripMs,
     previewCompilePhases,
@@ -74,7 +78,7 @@ export function LocalOpenScadPreview({
     offOutput,
     error,
     isError,
-  } = useOpenSCAD();
+  } = useOpenSCAD(outputLimitMiB);
   const isMobile = useIsMobile();
   const [viewerExpanded, setViewerExpanded] = useState(false);
   useEffect(() => {
@@ -115,6 +119,7 @@ export function LocalOpenScadPreview({
   const mountedGroupRef = useRef<Group | null>(null);
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
   const previousFastPreviewRef = useRef(false);
+  const previousOutputLimitRef = useRef(outputLimitMiB);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,10 +127,11 @@ export function LocalOpenScadPreview({
     // in-flight compile. Normal previews keep their existing request lifecycle.
     // When turning fast mode off, cancel its last compile before restoring
     // the standard full STL+OFF output.
-    if (experimentalFastPreview || previousFastPreviewRef.current) {
+    if (experimentalFastPreview || previousFastPreviewRef.current || previousOutputLimitRef.current !== outputLimitMiB) {
       cancelPreview();
     }
     previousFastPreviewRef.current = experimentalFastPreview;
+    previousOutputLimitRef.current = outputLimitMiB;
 
     const renderLatestProject = async () => {
       try {
@@ -159,7 +165,7 @@ export function LocalOpenScadPreview({
       cancelled = true;
       if (timer !== null) globalThis.clearTimeout(timer);
     };
-  }, [assets, cancelPreview, compileProject, experimentalFastPreview, project, writeFile]);
+  }, [assets, cancelPreview, compileProject, experimentalFastPreview, outputLimitMiB, project, writeFile]);
 
   useEffect(() => {
     setStlTimings(null);
@@ -497,7 +503,7 @@ export function LocalOpenScadPreview({
   // Visual movement is a separate opt-in from STL-only rendering.
   // Neither experiment changes the exported OpenSCAD source.
   const visualEditAllowed = experimentalEnabled;
-  const fastStlOnly = experimentalFastPreview;
+  const fastStlOnly = experimentalFastPreview || previewColorFallback;
   return (
     <section
       className={viewerExpanded
@@ -587,6 +593,11 @@ export function LocalOpenScadPreview({
           Orca Color export builds full color data on demand.
         </p>
       )}
+      {previewColorFallback && !isCompiling && output instanceof Blob && (
+        <p role="status" data-testid="mesh-output-fallback-notice" className="z-10 shrink-0 border-t border-amber-400/25 bg-adam-neutral-800 px-3 py-2 text-xs text-amber-200">
+          Mesh output limit ({outputLimitMiB} MiB): using binary STL preview without colors or parts inspection. Source geometry is unchanged; color export builds color data on demand and remains subject to the selected limit.
+        </p>
+      )}
       {!viewerExpanded && experimentalFastPreview && !isCompiling && output instanceof Blob && (
         <PreviewDiagnostics
           durationMs={previewCompileDurationMs}
@@ -627,7 +638,7 @@ export function LocalOpenScadPreview({
               <button
                 type="button"
                 className="min-h-11 rounded-md border border-white/25 px-4 py-2 font-medium"
-                onClick={() => void compileProject(project)}
+                onClick={() => void compileProject(project, { includeColorData: experimentalFastPreview ? false : undefined })}
               >
                 Retry preview
               </button>
@@ -648,7 +659,7 @@ export function LocalOpenScadPreview({
                 <button
                   type="button"
                   className="rounded-md border border-white/25 px-3 py-2 font-medium"
-                  onClick={() => void compileProject(project)}
+                  onClick={() => void compileProject(project, { includeColorData: experimentalFastPreview ? false : undefined })}
                 >
                   Retry preview
                 </button>
