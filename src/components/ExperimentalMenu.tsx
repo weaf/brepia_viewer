@@ -1,10 +1,14 @@
 import { FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OPENSCAD_OUTPUT_LIMIT_CHOICES, OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB, isOpenScadOutputLimitMiB, type OpenScadOutputLimitMiB } from "@/lib/openScadLimits";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -13,11 +17,15 @@ export function ExperimentalMenu({
   onFastPreviewChange,
   sourceMoveEnabled,
   onSourceMoveChange,
+  outputLimitMiB,
+  onOutputLimitChange,
 }: {
   fastPreviewEnabled: boolean;
   onFastPreviewChange: (enabled: boolean) => void;
   sourceMoveEnabled: boolean;
   onSourceMoveChange: (enabled: boolean) => void;
+  outputLimitMiB: OpenScadOutputLimitMiB;
+  onOutputLimitChange: (value: OpenScadOutputLimitMiB) => void;
 }) {
   return (
     <DropdownMenu modal={false}>
@@ -32,7 +40,7 @@ export function ExperimentalMenu({
         >
           <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="hidden text-[11px] sm:inline">Experimental</span>
-          {(fastPreviewEnabled || sourceMoveEnabled) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" aria-label="An experimental tool is active" />}
+          {(fastPreviewEnabled || sourceMoveEnabled || outputLimitMiB !== OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" aria-label="An experimental tool is active" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-1rem)] p-1">
@@ -63,6 +71,25 @@ export function ExperimentalMenu({
             </span>
           </span>
         </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="px-3 py-2">Mesh output limit</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={String(outputLimitMiB)}
+          onValueChange={(value) => {
+            const limit = Number(value);
+            if (isOpenScadOutputLimitMiB(limit)) onOutputLimitChange(limit);
+          }}
+          aria-label="Mesh output limit"
+        >
+          {OPENSCAD_OUTPUT_LIMIT_CHOICES.map(limit => (
+            <DropdownMenuRadioItem key={limit} value={String(limit)} className="min-h-10" aria-label={`Mesh output limit ${limit} MiB`}>
+              {limit} MiB{limit === 128 ? " (default)" : limit === 64 ? " (low memory)" : limit === 512 ? " (experimental maximum)" : " (high capacity)"}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuLabel className="px-3 pb-2 pt-1 text-xs font-normal text-adam-neutral-300">
+          Higher limits need more memory and may fail on mobile. Resets when the page reloads.
+        </DropdownMenuLabel>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -3,6 +3,7 @@ import { RepositoryLink } from "@/components/RepositoryLink";
 import { BuiltInFolderCard } from "@/components/gallery/BuiltInFolderCard";
 import { buildBuiltInGalleryCards } from "@/lib/builtInGalleryGroups";
 import { ExperimentalMenu } from "@/components/ExperimentalMenu";
+import { OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB, type OpenScadOutputLimitMiB } from "@/lib/openScadLimits";
 import { ChainGeneratorPanel } from "@/components/experimental/ChainGeneratorPanel";
 import { createChain } from "@/lib/chainGenerator/chainGenerator";
 import { Button } from "@/components/ui/button";
@@ -182,6 +183,7 @@ export function ModelGalleryView() {
   const [layoutLocked, setLayoutLocked] = useState(false);
   // Fast STL preview remains session-only and does not enable visual movement.
   const [fastPreviewEnabled, setFastPreviewEnabled] = useState(false);
+  const [outputLimitMiB, setOutputLimitMiB] = useState<OpenScadOutputLimitMiB>(OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB);
   // Independent opt-in: verified code writeback. Fast STL remains separate.
   // Independent opt-in: verified code writeback. Fast STL remains separate.
   const [sourceMoveEnabled, setSourceMoveEnabled] = useState(false);
@@ -1212,6 +1214,8 @@ export function ModelGalleryView() {
               onFastPreviewChange={setFastPreviewEnabled}
               sourceMoveEnabled={sourceMoveEnabled}
               onSourceMoveChange={setSourceMoveEnabled}
+              outputLimitMiB={outputLimitMiB}
+              onOutputLimitChange={setOutputLimitMiB}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1363,6 +1367,7 @@ export function ModelGalleryView() {
             assets={activeRecord.assetBlobs}
             experimentalEnabled={true}
             experimentalFastPreview={fastPreviewEnabled}
+            outputLimitMiB={outputLimitMiB}
             sourceMoveEnabled={sourceMoveEnabled}
             onApplySourceMove={saveProjectFile}
             onExportStateChange={handlePreviewExportStateChange}
@@ -1499,6 +1504,8 @@ export function ModelGalleryView() {
               onFastPreviewChange={setFastPreviewEnabled}
               sourceMoveEnabled={sourceMoveEnabled}
               onSourceMoveChange={setSourceMoveEnabled}
+              outputLimitMiB={outputLimitMiB}
+              onOutputLimitChange={setOutputLimitMiB}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

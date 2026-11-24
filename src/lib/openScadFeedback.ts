@@ -55,7 +55,7 @@ export function describeOpenScadFailure(error: unknown): OpenScadFailureFeedback
     return {
       kind: 'output-limit',
       title: 'Mesh too large',
-      message: 'The compiled geometry exceeds the browser output limit. Try fewer facets ($fn) or simplify the model.',
+      message: 'The compiled geometry exceeds the selected mesh output limit. Increase the limit in Experimental → Mesh output limit (more memory), or use fewer facets ($fn).',
       canRetry: false,
       diagnostics,
     };

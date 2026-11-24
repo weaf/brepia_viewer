@@ -252,7 +252,10 @@ class OpenSCADWrapper {
     const render = await this.executeOpenscad(
       data.project,
       data.fileType,
-      parameters.concat(exportParams),
+      // STL-only mode can use the compact binary format without affecting OFF.
+      parameters.concat(includeColorData || data.fileType !== 'stl'
+        ? exportParams
+        : [...exportParams, '--export-format=binstl']),
       includeColorData ? [{ path: '/out.off', key: 'off' }] : [],
     );
 
