@@ -25,6 +25,8 @@ jobs:
         run: STATIC_VIEWER=1 VITE_STATIC_VIEWER=1 npm run build
       - name: Verify opt-in fast STL preview and Orca color 3MF
         run: node .github/scripts/experimental-fast-preview-smoke.mjs
+      - name: Verify real Snowflake gallery at increased mesh capacity
+        run: node .github/scripts/snowflake-mesh-capacity-smoke.mjs
       - name: Retain desktop and mobile Chrome evidence
         if: always()
         uses: actions/upload-artifact@v7

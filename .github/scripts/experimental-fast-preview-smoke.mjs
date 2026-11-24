@@ -75,6 +75,15 @@ try {
       if (await page.getByRole('menuitemcheckbox', { name: 'Enable visual move and diagnostics' }).count()) {
         throw new Error('Move unexpectedly remains in Experimental');
       }
+      // Capacity selection is session-local and independent of fast preview.
+      const capacity = (limit) => page.getByRole('menuitemradio', { name: 'Mesh output limit ' + limit + ' MiB', exact: true });
+      if (await capacity(128).getAttribute('data-state') !== 'checked') throw new Error('Expected default capacity 128 MiB');
+      for (const limit of [64, 256, 512, 128]) {
+        await capacity(limit).click();
+        await openExperimental();
+        if (await capacity(limit).getAttribute('data-state') !== 'checked') throw new Error('Capacity did not update: ' + limit);
+      }
+      await page.screenshot({ path: path.join(evidence, device.name + '-mesh-capacity-menu.png') });
       const fastToggle = page.getByRole('menuitemcheckbox', { name: 'Enable fast STL-only preview' });
       await fastToggle.waitFor();
       if ((await fastToggle.getAttribute('data-state')) !== 'unchecked') throw new Error('Fast preview unexpectedly enabled');
