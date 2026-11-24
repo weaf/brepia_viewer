@@ -128,17 +128,17 @@ describe("GitHub OpenSCAD URL import", () => {
 
   it("uses an only JSON sibling but never guesses between multiple unrelated JSON files", async () => {
     const mkJson = (name: string) => ({
-      path: "other/" + name, type: "blob", mode: "100644", size: 70, sha: "3".repeat(40),
+      path: "knob_factory/" + name, type: "blob", mode: "100644", size: 70, sha: "3".repeat(40),
     });
     const single = fetcher({ [base + "/git/trees/" + "a".repeat(40) + "?recursive=1"]:
       { ...tree, tree: [...tree.tree, mkJson("presets.json")] } });
-    const inspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/other", single);
-    expect(findGithubCustomizerJson(inspection, "other", "main.scad")?.path).toBe("other/presets.json");
+    const inspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/knob_factory", single);
+    expect(findGithubCustomizerJson(inspection, "knob_factory", "knob-factory.scad")?.path)
+      .toBe("knob_factory/presets.json");
     const multi = fetcher({ [base + "/git/trees/" + "a".repeat(40) + "?recursive=1"]:
       { ...tree, tree: [...tree.tree, mkJson("presets.json"), mkJson("settings.json")] } });
-    const multiInspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/other", multi);
-    expect(findGithubCustomizerJson(multiInspection, "other", "main.scad")).toBeNull();
-    expect(findGithubCustomizerJson(multiInspection, "other", "helper.scad")).toBeNull();
+    const multiInspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/knob_factory", multi);
+    expect(findGithubCustomizerJson(multiInspection, "knob_factory", "knob-factory.scad")).toBeNull();
   });
 
   it("opens a model when sibling JSON is invalid and returns a useful warning", async () => {
