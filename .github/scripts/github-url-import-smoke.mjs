@@ -88,8 +88,8 @@ try {
       const saved = page.getByTestId('saved-variants-panel');
       await saved.waitFor({ state: 'visible', timeout: 30000 });
       const selector = saved.getByRole('combobox', { name: 'Choose saved variant' });
-      await selector.locator('option', { hasText: 'Wide' }).waitFor({ timeout: 10000 });
-      await selector.locator('option', { hasText: 'Narrow' }).waitFor({ timeout: 10000 });
+      await selector.locator('option', { hasText: 'Wide' }).waitFor({ state: 'attached', timeout: 10000 });
+      await selector.locator('option', { hasText: 'Narrow' }).waitFor({ state: 'attached', timeout: 10000 });
       await selector.selectOption('Wide');
       await page.waitForFunction(() =>
         document.querySelector('[data-testid="saved-variants-panel"] select[aria-label="Choose saved variant"]')?.value === 'Wide',
