@@ -441,7 +441,8 @@ async function getRepositoryCatalog(
             size: typeof entry.size === "number" ? entry.size : 0,
             sha: typeof entry.sha === "string" ? entry.sha : "",
             url: modelRepositoryTreeUrl(source, path),
-            presetPath: preset?.path,
+            // Store paths relative to the configured library root, just like SCAD.
+            presetPath: preset ? (prefix ? preset.path.slice(prefix.length) : preset.path) : undefined,
             presetSha: preset?.sha,
             presetSize: preset?.size,
           },
