@@ -16,6 +16,7 @@ import {
   type ScadFolderSourceInput,
 } from "@/lib/scadImport";
 import { captureCustomizerValues, parseOpenScadPresetJson, type SavedVariants } from "@/lib/openScadPresets";
+import { chooseSiblingCustomizerJson } from "@/lib/githubCustomizerJson";
 
 const MAX_REPOSITORY_ENTRIES = 5000;
 const MAX_REPOSITORY_SCAD_FILES = 200;
@@ -71,15 +72,7 @@ export function findGithubCustomizerJson(
     throw new Error("Choose a valid OpenSCAD entrypoint.");
   }
   const absolute = scope ? scope + "/" + chosenEntrypoint : chosenEntrypoint;
-  const folder = absolute.includes("/") ? absolute.slice(0, absolute.lastIndexOf("/") + 1) : "";
-  const jsons = inspection.files.filter(file =>
-    file.path.startsWith(folder) && file.path.slice(folder.length).indexOf("/") < 0 &&
-    file.path.toLowerCase().endsWith(".json"));
-  if (!jsons.length) return null;
-  const base = absolute.replace(/\.scad(?:\.txt)?$/i, "");
-  const exact = jsons.find(file => file.path.toLowerCase() === (base + ".json").toLowerCase()) ??
-    jsons.find(file => file.path.toLowerCase() === (absolute + ".json").toLowerCase());
-  return exact ?? (jsons.length === 1 ? jsons[0] : null);
+  return chooseSiblingCustomizerJson(inspection.files, absolute);
 }
 
 function safeUrl(input: string): URL {
