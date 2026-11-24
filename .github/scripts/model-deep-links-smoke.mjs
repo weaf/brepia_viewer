@@ -22,7 +22,10 @@ const ghTree = {
 };
 const libraryTree = {
   truncated: false,
-  tree: [{ path: 'Box/Box.scad', type: 'blob', mode: '100644', sha: fileSha, size: Buffer.byteLength(source) }],
+  tree: [
+    { path: 'Box/Box.scad', type: 'blob', mode: '100644', sha: fileSha, size: Buffer.byteLength(source) },
+    { path: 'Box/Lid.scad', type: 'blob', mode: '100644', sha: 'c'.repeat(40), size: Buffer.byteLength(source) },
+  ],
 };
 const fulfilled = { 'access-control-allow-origin': '*' };
 
@@ -38,7 +41,7 @@ try {
   browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--disable-dev-shm-usage', '--enable-unsafe-swiftshader'] });
 
   for (const device of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844 }]) {
-    for (const scenario of ['direct', 'github-file', 'github-picker', 'library', 'filter']) {
+    for (const scenario of ['direct', 'github-file', 'github-picker', 'library', 'filter', 'folder-menu']) {
       const context = await browser.newContext({ viewport: { width: device.width, height: device.height }, serviceWorkers: 'block' });
       const page = await context.newPage();
       const errors = [];
@@ -83,6 +86,31 @@ try {
       if (scenario === 'github-picker') {
         await page.getByRole('region', { name: 'Choose GitHub project' }).waitFor({ timeout: 30000 });
         await page.getByRole('button', { name: 'Import selected project' }).waitFor({ timeout: 30000 });
+      } else if (scenario === 'folder-menu') {
+        await page.getByText('Model gallery', { exact: true }).first().waitFor({ timeout: 45000 });
+        const chooser = page.getByRole('button', { name: 'Choose model from Box folder' });
+        await chooser.waitFor({ state: 'visible', timeout: 30000 });
+        await chooser.focus();
+        await page.keyboard.press('Enter');
+        const menu = page.getByRole('menu', { name: 'Box models' });
+        await menu.waitFor({ state: 'visible', timeout: 15000 });
+        const entries = menu.getByRole('menuitem');
+        if (await entries.count() !== 2) throw new Error('Folder dropdown did not expose both SCAD models.');
+        const bounds = await menu.boundingBox();
+        if (!bounds || bounds.width < 140 ||
+            bounds.x < -1 || bounds.x + bounds.width > device.width + 1 ||
+            bounds.y < -1 || bounds.y + bounds.height > device.height + 1) {
+          throw new Error(device.name + ' folder menu does not fit the viewport: ' + JSON.stringify(bounds));
+        }
+        await page.screenshot({ path: path.join(evidence, 'folder-dropdown-' + device.name + '.png'), fullPage: false });
+        await page.keyboard.press('Escape');
+        await menu.waitFor({ state: 'hidden', timeout: 10000 });
+        await chooser.click();
+        await menu.getByRole('menuitem', { name: 'Open Box/Lid.scad' }).click();
+        await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 60000 });
+        await page.getByText(/\\b12 triangles\\b/).first().waitFor({ timeout: 120000 });
+        const canvas = page.locator('section[aria-label="3D model preview"] canvas').first();
+        await canvas.waitFor({ state: 'visible', timeout: 90000 });
       } else if (scenario === 'filter') {
         await page.getByText('Model gallery', { exact: true }).first().waitFor({ timeout: 45000 });
         await page.getByRole('combobox', { name: 'Filter models by library' }).selectOption('parametric-designs');
@@ -136,7 +164,7 @@ try {
       await context.close();
     }
   }
-  console.log('PASS: shareable SCAD/GitHub links, ambiguous project picker, curated library deep links and library filter, desktop and mobile.');
+  console.log('PASS: model links, library filter, and keyboard/mobile folder dropdown selecting a real SCAD model.');
 } finally {
   await browser?.close();
   server.kill('SIGTERM');
