@@ -53,8 +53,21 @@ try {
       await chooser.focus();
       await page.keyboard.press('Enter');
 
-      const menu = page.getByRole('menu', { name: 'Box models' });
-      await menu.waitFor({ state: 'visible', timeout: 15000 });
+      const menu = page.getByRole('menu');
+      try {
+        await menu.waitFor({ state: 'visible', timeout: 15000 });
+      } catch (cause) {
+        await page.screenshot({ path: path.join(evidence, 'folder-dropdown-' +
+          device.name + '-menu-failure.png'), fullPage: false });
+        const diagnostics = await page.evaluate(() => ({
+          menus: [...document.querySelectorAll('[role="menu"]')].map(item => ({
+            label: item.getAttribute('aria-label'), text: item.textContent?.slice(0,150),
+          })),
+          chooser: document.querySelector('button[aria-label="Choose model from Box folder"]')
+            ?.getAttribute('aria-expanded'),
+        }));
+        throw new Error('Dropdown failed to open: ' + JSON.stringify(diagnostics), { cause });
+      }
       const options = menu.getByRole('menuitem');
       if (await options.count() !== 2) {
         throw new Error('Expected both Box.scad and Lid.scad in the folder dropdown');
