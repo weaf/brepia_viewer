@@ -33,6 +33,8 @@ Brepia Viewer can open a model directly from a shareable link. Example:
 https://viewer.notydesign.se/?model=https%3A%2F%2Fexample.org%2Fmodels%2Fbox.scad
 ```
 
+When a GitHub folder contains a **standard OpenSCAD Customizer JSON** (with `fileFormatVersion: "1"` and `parameterSets`), Viewer automatically loads its named variants into **Presets** alongside the selected `.scad` model. This applies to imported GitHub folders, GitHub deep links and curated GitHub library models. No separate `Import JSON` step is needed. Viewer prefers `model.json` next to `model.scad`; if there is only one JSON file in that same folder, it uses that instead. When multiple unrelated JSON files are present, Viewer does not guess. Invalid or oversized JSON is reported without preventing the SCAD model from opening. Model defaults are not changed until a preset is selected; local saved variant changes are preserved when a library model refreshes.
+
 The `model` parameter accepts a direct HTTPS `.scad` file hosted with CORS enabled, or a public GitHub repository, folder or `.scad` file link. A GitHub `blob` link identifies the entrypoint and opens it with its project dependencies; a repository containing multiple models may ask the visitor to choose an entrypoint first. External models are imported as **local browser copies**: the link grants no write access to the source repository.
 
 For curated library models, the editor's **Share** button copies a stable library-model link:
