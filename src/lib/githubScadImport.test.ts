@@ -100,7 +100,8 @@ describe("GitHub OpenSCAD URL import", () => {
       Wide: { width: 24 }, Narrow: { width: 8 },
     } });
     const treeWithJson = { ...tree, tree: [
-      ...tree.tree,
+      ...tree.tree.map(item => item.path === "knob_factory/knob-factory.scad"
+        ? { ...item, size: new TextEncoder().encode(code).byteLength } : item),
       { path: "knob_factory/knob-factory.json", type: "blob", mode: "100644", sha: "1".repeat(40), size: new TextEncoder().encode(json).byteLength },
       { path: "other/irrelevant.json", type: "blob", mode: "100644", sha: "2".repeat(40), size: 40 },
     ] };
