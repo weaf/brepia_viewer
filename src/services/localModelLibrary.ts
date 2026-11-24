@@ -19,7 +19,8 @@ import {
 } from "@shared/openScadProjectReferences";
 import { OPENSCAD_MAX_SOURCE_BYTES } from "@/lib/openScadLimits";
 import { createUuid } from "@/lib/uuid";
-import type { SavedVariants } from "@/lib/openScadPresets";
+import { captureCustomizerValues, parseOpenScadPresetJson, type SavedVariants } from "@/lib/openScadPresets";
+import { chooseSiblingCustomizerJson } from "@/lib/githubCustomizerJson";
 import type { ScadFolderAssetInput } from "@/lib/scadImport";
 import {
   getModelRepositories,
@@ -34,7 +35,7 @@ import {
 export const BUILT_IN_MODELS_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT_REPOSITORY_ID = "parametric-designs";
-const DEFAULT_CATALOG_KEY = "built-in-model-catalog";
+const DEFAULT_CATALOG_KEY = "built-in-model-catalog-v2-customizer-json";
 // Preview builds get their own IndexedDB database. Production retains the exact
 // pre-existing name so no local models are migrated, reset or shared with tests.
 const DATABASE_NAME =
@@ -57,6 +58,9 @@ export type BuiltInModel = {
   size: number;
   sha: string;
   url: string;
+  presetPath?: string;
+  presetSha?: string;
+  presetSize?: number;
 };
 
 export type LocalModelRecord = {
@@ -69,6 +73,7 @@ export type LocalModelRecord = {
   sourcePath?: string;
   sourceRepositoryId?: string;
   sourceSha?: string;
+  sourcePresetSha?: string;
   baseProject?: OpenScadProject;
   savedVariants?: SavedVariants;
 };
@@ -346,7 +351,7 @@ async function getRepositoryCatalog(
   const cacheKey =
     source.id === DEFAULT_REPOSITORY_ID
       ? DEFAULT_CATALOG_KEY
-      : modelRepositoryCacheKey(source);
+      : modelRepositoryCacheKey(source) + ":customizer-json-v1";
   const cached = (await withStore(CACHE_STORE, "readonly", (store) =>
     store.get(cacheKey),
   )) as CatalogCache | undefined;
@@ -393,6 +398,13 @@ async function getRepositoryCatalog(
     }
 
     const prefix = source.path ? `${source.path}/` : "";
+    const jsonFiles = payload.tree.flatMap(item =>
+      item.type === "blob" && typeof item.path === "string" &&
+      item.path.toLowerCase().endsWith(".json") &&
+      typeof item.size === "number" && Number.isSafeInteger(item.size) &&
+      typeof item.sha === "string" && /^[a-f0-9]{40}$/i.test(item.sha)
+        ? [{ path: item.path, sha: item.sha, size: item.size }]
+        : []);
     const models = payload.tree
       .flatMap((entry) => {
         if (
@@ -416,6 +428,7 @@ async function getRepositoryCatalog(
           .replace(/[_-]+/g, " ")
           .trim();
         const folder = parts.length > 1 ? parts.slice(0, -1).join(" / ") : "";
+        const preset = chooseSiblingCustomizerJson(jsonFiles, repositoryPath);
         return [
           {
             repositoryId: source.id,
@@ -425,6 +438,9 @@ async function getRepositoryCatalog(
             size: typeof entry.size === "number" ? entry.size : 0,
             sha: typeof entry.sha === "string" ? entry.sha : "",
             url: modelRepositoryTreeUrl(source, path),
+            presetPath: preset?.path,
+            presetSha: preset?.sha,
+            presetSize: preset?.size,
           },
         ];
       })
@@ -505,6 +521,9 @@ function repoProjectPath(sourcePath: string, target: string): string {
 export async function loadBuiltInProject(entry: BuiltInModel): Promise<{
   project: OpenScadProject;
   assetBlobs: Record<string, Blob>;
+  savedVariants?: SavedVariants;
+  presetFile?: string;
+  presetWarning?: string;
 }> {
   const files = new Map<string, string>();
   const pending = [entry.path];
@@ -620,7 +639,31 @@ export async function loadBuiltInProject(entry: BuiltInModel): Promise<{
     project = normalizeOpenScadProject({ ...project, assets: descriptors });
     validateOpenScadProjectAssetReferences(project);
   }
-  return { project, assetBlobs };
+  let savedVariants: SavedVariants | undefined;
+  let presetFile: string | undefined;
+  let presetWarning: string | undefined;
+  if (entry.presetPath) {
+    try {
+      if (!entry.presetSize || entry.presetSize > 2 * 1024 * 1024) {
+        throw new Error("JSON exceeds the 2 MiB Customizer preset limit.");
+      }
+      const jsonBytes = await fetchRepoBytes(entry.repositoryId, entry.presetPath, 2 * 1024 * 1024);
+      const sets = parseOpenScadPresetJson(new TextDecoder("utf-8", { fatal: true }).decode(jsonBytes));
+      if (!Object.keys(sets).length) throw new Error("JSON contains no Customizer variants.");
+      const source = project.files.find(file => file.path === project.entrypointPath);
+      if (!source) throw new Error("OpenSCAD entrypoint is missing.");
+      savedVariants = {
+        originalParameters: captureCustomizerValues(source.content),
+        parameterSets: sets,
+        activeName: null,
+      };
+      presetFile = entry.presetPath;
+    } catch (error) {
+      presetWarning = entry.presetPath + ": " +
+        (error instanceof Error ? error.message : "Could not read Customizer JSON.");
+    }
+  }
+  return { project, assetBlobs, savedVariants, presetFile, presetWarning };
 }
 
 export async function createUploadedModel(input: {
@@ -731,6 +774,7 @@ export async function saveBuiltInWorkingCopy(input: {
     baseProject: input.baseProject,
     savedVariants: input.savedVariants,
     sourceSha: input.entry.sha,
+    sourcePresetSha: input.entry.presetSha,
     updatedAt: new Date().toISOString(),
   };
   await saveLocalModel(record);
