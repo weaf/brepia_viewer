@@ -132,8 +132,8 @@ try {
           const presetsPanel = page.getByTestId('saved-variants-panel');
           await presetsPanel.waitFor({ state: 'visible', timeout: 30000 });
           const variants = presetsPanel.getByRole('combobox', { name: 'Choose saved variant' });
-          await variants.locator('option', { hasText: 'Wide' }).waitFor({ timeout: 10000 });
-          await variants.locator('option', { hasText: 'Narrow' }).waitFor({ timeout: 10000 });
+          await variants.locator('option', { hasText: 'Wide' }).waitFor({ state: 'attached', timeout: 10000 });
+          await variants.locator('option', { hasText: 'Narrow' }).waitFor({ state: 'attached', timeout: 10000 });
           const share = page.getByRole('button', { name: 'Share' });
           if (!(await share.isVisible())) throw new Error('Library model share control missing.');
           const buttonBounds = await share.boundingBox();
