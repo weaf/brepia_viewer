@@ -31,3 +31,11 @@ The PR's static browser smoke uses `https://bridge.example.test` as a *mocked* W
 5. Only after PASS: authorize main integration and Pages deployment. Roll back by removing the build variable and redeploying the previous static Viewer. Worker can then be disabled independently.
 
 `ALLOWED_ORIGINS` configures which **browser Origin** headers receive CORS responses. This is not authentication; non-browser clients can spoof an Origin. Retain the fixed routes, a Cloudflare rate-limit binding and any operational abuse controls. The Worker is deliberately not a general CORS bypass. It should not relay binary model files.
+
+## Acceptance checkpoint — 2026-11-24
+
+- **PASS (existing published baseline):** `main` at `0babd633a547a3a0725a86b5893e9e46ee60d593` contains PR #58 GitHub Customizer JSON and PR #60 OpenSCAD enum dropdowns. CI run `45487350204` and Pages run `45487349828` succeeded. These are not evidence of the yet-unmerged platform importer.
+- **Branch reconciliation:** PR #57 restored the accepted JSON sibling-selection safeguards and enum dropdown component/test from `main`, plus corrected native-select `option` visibility and stale SCAD-size test fixtures. Feature branch remains unmerged and diverged; do not replace these approved behaviors with earlier prototypes.
+- **UNKNOWN (live deployment):** Access to the published Viewer from a human browser, real Printables API availability, a real public STL/3MF response, direct-file browser CORS, and actual desktop/Android end-to-end render after Printables selection. Neither mocked GraphQL nor a green static UI test proves this chain.
+- **Provider approval gate:** `api.printables.com/graphql/` is undocumented, not an official supported integration contract. Do not deploy the Worker or enable `VITE_PRINTABLES_BRIDGE_ORIGIN` until the intended API usage has been confirmed permitted and the owner has independently approved a **test-only** Cloudflare deployment.
+- **Next verification:** run the branch CI and targeted desktop/mobile regression; then, only after owner approval, test the fixed Worker routes against a real public Printables model in staging. No production, generic proxy, credential, or auth-bypass changes are authorized.
