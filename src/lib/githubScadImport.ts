@@ -504,7 +504,7 @@ export async function downloadGithubScadProject(
     project,
     assets: decoded.kind === "entrypoint-required" ? decoded.pending.assets : decoded.assets,
     importedFiles: selectedFiles.length + (presetFile ? 1 : 0),
-    skippedFiles: selection.skipped,
+    skippedFiles: Math.max(0, selection.skipped - (presetFile ? 1 : 0)),
     savedVariants,
     presetFile,
     presetWarning,
