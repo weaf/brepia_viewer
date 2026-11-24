@@ -108,7 +108,7 @@ try {
         await chooser.click();
         await menu.getByRole('menuitem', { name: 'Open Box/Lid.scad' }).click();
         await page.getByText('Source and parameters', { exact: true }).first().waitFor({ timeout: 60000 });
-        await page.getByText(/\\b12 triangles\\b/).first().waitFor({ timeout: 120000 });
+        await page.getByText(/\b12 triangles\b/).first().waitFor({ timeout: 120000 });
         const canvas = page.locator('section[aria-label="3D model preview"] canvas').first();
         await canvas.waitFor({ state: 'visible', timeout: 90000 });
       } else if (scenario === 'filter') {
