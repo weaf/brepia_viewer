@@ -627,6 +627,7 @@ export async function createUploadedModel(input: {
   name: string;
   project: OpenScadProject;
   assets?: readonly ScadFolderAssetInput[];
+  savedVariants?: SavedVariants;
 }): Promise<LocalModelRecord> {
   const id = `upload:${createUuid()}`;
   const assetBlobs: Record<string, Blob> = {};
@@ -665,6 +666,7 @@ export async function createUploadedModel(input: {
     project,
     baseProject: project,
     assetBlobs,
+    savedVariants: input.savedVariants,
     updatedAt: new Date().toISOString(),
   };
   await saveLocalModel(record);
