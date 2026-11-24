@@ -10,7 +10,7 @@ import {
 import { ParameterSlider } from '@/components/parameter/ParameterSlider';
 import { Label } from '@/components/ui/label';
 import { ColorPicker } from '@/components/parameter/ColorPicker';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ChevronDown } from 'lucide-react';
 
 export function ParameterInput({
   param,
@@ -40,49 +40,55 @@ export function ParameterInput({
     handleCommit(paramState, value);
   };
 
-  // Enum parameters (those with a fixed set of options, e.g. a "View Mode"
-  // of Assembled/Exploded) are a constrained choice — a free-text field lets
-  // you type a value the model can't honor. Render a segmented toggle so the
-  // only thing selectable is a valid option. Takes precedence over the
-  // type-specific branches below.
+  // OpenSCAD Customizer enum options are one constrained choice. Use a native
+  // select so long labels occupy one line and mobile devices get a compact,
+  // touch-friendly system picker instead of wrapping segmented buttons.
   if (paramState.options && paramState.options.length > 0) {
     const options = paramState.options;
     const currentValue = String(paramState.value);
+    const currentOption = options.find((option) => String(option.value) === currentValue);
+    const currentLabel = currentOption?.label ?? currentValue;
+
     return (
-      <div className="grid w-full grid-cols-[80px_1fr] items-center gap-3">
+      <div className="grid w-full min-w-0 grid-cols-[80px_minmax(0,1fr)] items-center gap-3">
         <Label
-          // ToggleGroup renders a <div>, which htmlFor can't target, so the
-          // group is associated via aria-labelledby pointing at this id.
-          id={`${paramState.name}-label`}
-          className="overflow-hidden text-ellipsis text-xs font-normal text-adam-neutral-300"
+          htmlFor={paramState.name}
+          className="min-w-0 text-xs font-normal text-adam-neutral-300"
+          title={paramState.displayName}
         >
           {paramState.displayName}
         </Label>
-        <ToggleGroup
-          type="single"
-          aria-labelledby={`${paramState.name}-label`}
-          value={currentValue}
-          onValueChange={(next) => {
-            // Radix emits '' when the active item is clicked again; ignore it
-            // so a selection can never be cleared into an invalid empty state.
-            if (!next) return;
-            const selected = options.find(
-              (option) => String(option.value) === next,
-            );
-            handleValueCommit(selected ? selected.value : next);
-          }}
-          className="flex w-full flex-wrap justify-start gap-0.5 rounded-lg bg-adam-neutral-900 p-0.5"
-        >
-          {options.map((option) => (
-            <ToggleGroupItem
-              key={String(option.value)}
-              value={String(option.value)}
-              className="h-5 flex-1 rounded-md px-2 text-xs text-adam-neutral-300 transition-colors hover:bg-transparent hover:text-adam-text-primary data-[state=on]:bg-adam-neutral-700 data-[state=on]:font-medium data-[state=on]:text-adam-text-primary data-[state=on]:shadow-sm"
-            >
-              {option.label ?? String(option.value)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <div className="relative min-w-0">
+          <select
+            id={paramState.name}
+            name={paramState.name}
+            aria-label={paramState.displayName}
+            value={currentValue}
+            title={currentLabel}
+            onChange={(event) => {
+              const selected = options.find(
+                (option) => String(option.value) === event.target.value,
+              );
+              if (selected) handleValueCommit(selected.value);
+            }}
+            className="h-9 w-full min-w-0 appearance-none overflow-hidden text-ellipsis whitespace-nowrap rounded-md border border-adam-neutral-700 bg-adam-neutral-900 py-1 pl-3 pr-8 text-xs text-adam-text-primary outline-none transition-colors hover:border-adam-neutral-500 focus-visible:ring-2 focus-visible:ring-adam-blue"
+          >
+            {!currentOption && (
+              <option value={currentValue} disabled>
+                {currentValue} (not in options)
+              </option>
+            )}
+            {options.map((option) => (
+              <option key={String(option.value)} value={String(option.value)}>
+                {option.label ?? String(option.value)}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-adam-neutral-400"
+            aria-hidden="true"
+          />
+        </div>
       </div>
     );
   }
