@@ -984,9 +984,19 @@ export function ModelGalleryView() {
             const result = await downloadGithubScadProject(inspection, scope, selectedEntrypoint);
             const record = await createUploadedModel({
               name: result.title, project: result.project, assets: result.assets,
+              savedVariants: result.savedVariants,
             });
             await refreshLocalModels();
             openUploadedModel(record);
+            if (result.savedVariants) {
+              setSavedVariantsVisible(true);
+              toast({ title: "Customizer presets loaded",
+                description: Object.keys(result.savedVariants.parameterSets).length +
+                  " presets found in " + result.presetFile + "." });
+            } else if (result.presetWarning) {
+              toast({ title: "Customizer JSON skipped", description: result.presetWarning,
+                variant: "destructive" });
+            }
             resetGithubSelection();
             setShowUrlImport(false);
             setUrlToImport("");
@@ -1012,13 +1022,19 @@ export function ModelGalleryView() {
           name: result.title,
           project: result.project,
           assets: result.assets,
+          savedVariants: result.savedVariants,
         });
         await refreshLocalModels();
         openUploadedModel(record);
+        if (result.savedVariants) setSavedVariantsVisible(true);
+        if (result.presetWarning) {
+          toast({ title: "Customizer JSON skipped", description: result.presetWarning,
+            variant: "destructive" });
+        }
         dismissUploadConfirmation();
         uploadConfirmationRef.current = toast({
           title: "GitHub project imported",
-          description: `${result.title}: ${result.importedFiles} supported file(s) saved locally. ${result.skippedFiles} other repository entries were skipped.`,
+          description: `${result.title}: ${result.importedFiles} supported file(s) saved locally. ${result.skippedFiles} other repository entries were skipped.${result.savedVariants ? ` ${Object.keys(result.savedVariants.parameterSets).length} Customizer presets loaded from ${result.presetFile}.` : ""}`,
         });
         resetGithubSelection();
         setShowUrlImport(false);
