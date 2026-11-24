@@ -105,7 +105,7 @@ try {
       const dialog = page.getByRole('dialog');
       const code = dialog.getByRole('textbox', { name: /OpenSCAD source for/i });
       await code.waitFor({ state: 'visible' });
-      const updated = await code.inputValue();
+      const updated = await code.innerText();
       assert.match(updated, /part_selection\s*=\s*"bottom"/);
       assert.match(updated, /snowflake_style\s*=\s*"willow"/);
       assert.match(updated, /numbered_design\s*=\s*72/);
