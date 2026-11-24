@@ -405,6 +405,9 @@ async function getRepositoryCatalog(
       typeof item.sha === "string" && /^[a-f0-9]{40}$/i.test(item.sha)
         ? [{ path: item.path, sha: item.sha, size: item.size }]
         : []);
+    const githubScadPaths = payload.tree.flatMap(item =>
+      item.type === "blob" && typeof item.path === "string" &&
+      /\.scad$/i.test(item.path) ? [item.path] : []);
     const models = payload.tree
       .flatMap((entry) => {
         if (
@@ -428,7 +431,7 @@ async function getRepositoryCatalog(
           .replace(/[_-]+/g, " ")
           .trim();
         const folder = parts.length > 1 ? parts.slice(0, -1).join(" / ") : "";
-        const preset = chooseSiblingCustomizerJson(jsonFiles, repositoryPath);
+        const preset = chooseSiblingCustomizerJson(jsonFiles, repositoryPath, githubScadPaths);
         return [
           {
             repositoryId: source.id,
