@@ -3,6 +3,7 @@ import {
   inspectGithubScadUrl,
   getGithubScadSelection,
   downloadGithubScadProject,
+  findGithubCustomizerJson,
 } from "./githubScadImport";
 
 const fileSource = "module knob() { cylinder(h=10, d=12); }\nknob();";
@@ -91,6 +92,74 @@ describe("GitHub OpenSCAD URL import", () => {
     expect(imported.project.entrypointPath).toBe("main.scad");
     expect(imported.project.files.map((file) => file.path)).toEqual(["helper.scad", "main.scad"]);
     expect(progress).toEqual(["0/2", "1/2", "2/2"]);
+  });
+
+  it("automatically loads the matching Customizer JSON next to the chosen SCAD entrypoint", async () => {
+    const code = "/* [Dimensions] */\nwidth = 12; // [4:1:30]\ncube([width,width,5]);";
+    const json = JSON.stringify({ fileFormatVersion: "1", parameterSets: {
+      Wide: { width: 24 }, Narrow: { width: 8 },
+    } });
+    const treeWithJson = { ...tree, tree: [
+      ...tree.tree.map(item => item.path === "knob_factory/knob-factory.scad"
+        ? { ...item, size: new TextEncoder().encode(code).byteLength } : item),
+      { path: "knob_factory/knob-factory.json", type: "blob", mode: "100644", sha: "1".repeat(40), size: new TextEncoder().encode(json).byteLength },
+      { path: "other/irrelevant.json", type: "blob", mode: "100644", sha: "2".repeat(40), size: 40 },
+    ] };
+    const raw = "https://raw.githubusercontent.com/tanius/openscad-models/" + "a".repeat(40);
+    const f = fetcher({
+      [base + "/git/trees/" + "a".repeat(40) + "?recursive=1"]: treeWithJson,
+      [raw + "/knob_factory/knob-factory.scad"]: code,
+      [raw + "/knob_factory/knob-factory.json"]: json,
+    });
+    const inspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/knob_factory", f);
+    const progress: string[] = [];
+    expect(findGithubCustomizerJson(inspection, "knob_factory", "knob-factory.scad")?.path)
+      .toBe("knob_factory/knob-factory.json");
+    const imported = await downloadGithubScadProject(inspection, "knob_factory", "knob-factory.scad",
+      (done, total) => progress.push(done + "/" + total), f);
+    expect(imported.presetFile).toBe("knob-factory.json");
+    expect(imported.savedVariants?.parameterSets).toMatchObject({ Wide: { width: "24" }, Narrow: { width: "8" } });
+    expect(imported.savedVariants?.originalParameters).toHaveProperty("width");
+    expect(imported.savedVariants?.activeName).toBeNull();
+    expect(imported.project.files.map(file => file.path)).toEqual(["knob-factory.scad"]);
+    expect(imported.importedFiles).toBe(2);
+    expect(progress).toEqual(["0/2", "1/2", "2/2"]);
+  });
+
+  it("uses an only JSON sibling but never guesses between multiple unrelated JSON files", async () => {
+    const mkJson = (name: string) => ({
+      path: "knob_factory/" + name, type: "blob", mode: "100644", size: 70, sha: "3".repeat(40),
+    });
+    const single = fetcher({ [base + "/git/trees/" + "a".repeat(40) + "?recursive=1"]:
+      { ...tree, tree: [...tree.tree, mkJson("presets.json")] } });
+    const inspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/knob_factory", single);
+    expect(findGithubCustomizerJson(inspection, "knob_factory", "knob-factory.scad")?.path)
+      .toBe("knob_factory/presets.json");
+    const multi = fetcher({ [base + "/git/trees/" + "a".repeat(40) + "?recursive=1"]:
+      { ...tree, tree: [...tree.tree, mkJson("presets.json"), mkJson("settings.json")] } });
+    const multiInspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/knob_factory", multi);
+    expect(findGithubCustomizerJson(multiInspection, "knob_factory", "knob-factory.scad")).toBeNull();
+  });
+
+  it("opens a model when sibling JSON is invalid and returns a useful warning", async () => {
+    const json = "{ invalid }";
+    const raw = "https://raw.githubusercontent.com/tanius/openscad-models/" + "a".repeat(40);
+    const f = fetcher({
+      [base + "/git/trees/" + "a".repeat(40) + "?recursive=1"]: {
+        ...tree, tree: [...tree.tree, {
+          path: "knob_factory/knob-factory.json", type: "blob", mode: "100644",
+          size: new TextEncoder().encode(json).byteLength, sha: "4".repeat(40),
+        }],
+      },
+      [raw + "/knob_factory/knob-factory.scad"]: fileSource,
+      [raw + "/knob_factory/knob-factory.json"]: json,
+    });
+    const inspection = await inspectGithubScadUrl("https://github.com/tanius/openscad-models/tree/master/knob_factory", f);
+    const imported = await downloadGithubScadProject(inspection, "knob_factory", "knob-factory.scad", () => {}, f);
+    expect(imported.project.entrypointPath).toBe("knob-factory.scad");
+    expect(imported.savedVariants).toBeUndefined();
+    expect(imported.presetWarning).toMatch(/knob-factory.json.*Invalid OpenSCAD JSON/);
+    expect(imported.importedFiles).toBe(1);
   });
 
   it("rejects invalid urls without requests", async () => {

@@ -12,6 +12,10 @@ const server = spawn('python3', ['-m', 'http.server', '4187', '--bind', '127.0.0
 let browser;
 const source = '/* [Dimensions] */\nwidth = 12; // [4:1:30]\ncube([width,width,5]);\n';
 const blobSha = 'a'.repeat(40);
+const libraryPresets = JSON.stringify({
+  fileFormatVersion: "1",
+  parameterSets: { Wide: { width: 20 }, Narrow: { width: 6 } },
+});
 const fileSha = 'b'.repeat(40);
 const ghTree = {
   truncated: false,
@@ -22,7 +26,10 @@ const ghTree = {
 };
 const libraryTree = {
   truncated: false,
-  tree: [{ path: 'Box/Box.scad', type: 'blob', mode: '100644', sha: fileSha, size: Buffer.byteLength(source) }],
+  tree: [
+    { path: 'Box/Box.scad', type: 'blob', mode: '100644', sha: fileSha, size: Buffer.byteLength(source) },
+    { path: 'Box/Box.json', type: 'blob', mode: '100644', sha: blobSha, size: Buffer.byteLength(libraryPresets) },
+  ],
 };
 const fulfilled = { 'access-control-allow-origin': '*' };
 
@@ -68,7 +75,9 @@ try {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(libraryTree), headers: fulfilled });
       });
       await page.route('https://raw.githubusercontent.com/Noty-design/Parametric-designs/**', async route => {
-        await route.fulfill({ status: 200, contentType: 'text/plain', body: source, headers: fulfilled });
+        const json = route.request().url().endsWith('/Box/Box.json');
+        await route.fulfill({ status: 200, contentType: json ? 'application/json' : 'text/plain',
+          body: json ? libraryPresets : source, headers: fulfilled });
       });
 
       let target = origin + '/';
@@ -119,6 +128,12 @@ try {
         }, null, { timeout: 90000 });
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         if (scenario === 'library') {
+          // Curated GitHub models must load their Customizer JSON without manual Upload JSON.
+          const presetsPanel = page.getByTestId('saved-variants-panel');
+          await presetsPanel.waitFor({ state: 'visible', timeout: 30000 });
+          const variants = presetsPanel.getByRole('combobox', { name: 'Choose saved variant' });
+          await variants.locator('option', { hasText: 'Wide' }).waitFor({ state: 'attached', timeout: 10000 });
+          await variants.locator('option', { hasText: 'Narrow' }).waitFor({ state: 'attached', timeout: 10000 });
           const share = page.getByRole('button', { name: 'Share' });
           if (!(await share.isVisible())) throw new Error('Library model share control missing.');
           const buttonBounds = await share.boundingBox();

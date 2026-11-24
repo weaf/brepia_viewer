@@ -15,6 +15,8 @@ import {
   isSupportedScadFilename,
   type ScadFolderSourceInput,
 } from "@/lib/scadImport";
+import { captureCustomizerValues, parseOpenScadPresetJson, type SavedVariants } from "@/lib/openScadPresets";
+import { chooseSiblingCustomizerJson } from "@/lib/githubCustomizerJson";
 
 const MAX_REPOSITORY_ENTRIES = 5000;
 const MAX_REPOSITORY_SCAD_FILES = 200;
@@ -53,7 +55,25 @@ export type GithubScadImportResult = {
   assets: { path: string; bytes: Uint8Array }[];
   importedFiles: number;
   skippedFiles: number;
+  savedVariants?: SavedVariants;
+  presetFile?: string;
+  presetWarning?: string;
 };
+
+const MAX_PRESET_JSON_BYTES = 2 * 1024 * 1024;
+
+/** Load only the selected entrypoint's sibling JSON; never pick an unrelated JSON at random. */
+export function findGithubCustomizerJson(
+  inspection: GithubScadInspection,
+  scope: string,
+  chosenEntrypoint: string,
+): GithubBlob | null {
+  if (!getGithubScadSelection(inspection, scope).entrypoints.includes(chosenEntrypoint)) {
+    throw new Error("Choose a valid OpenSCAD entrypoint.");
+  }
+  const absolute = scope ? scope + "/" + chosenEntrypoint : chosenEntrypoint;
+  return chooseSiblingCustomizerJson(inspection.files, absolute);
+}
 
 function safeUrl(input: string): URL {
   let url: URL;
@@ -421,9 +441,11 @@ export async function downloadGithubScadProject(
     throw new Error("Choose a valid OpenSCAD entrypoint before downloading.");
   }
   const selectedFiles = [...selection.sources, ...selection.assets];
+  const presetCandidate = findGithubCustomizerJson(inspection, scope, chosenEntrypoint);
+  const totalFiles = selectedFiles.length + (presetCandidate ? 1 : 0);
   const entries: ScadFolderSourceInput[] = [];
   const rootName = "github-project";
-  onProgress(0, selectedFiles.length);
+  onProgress(0, totalFiles);
   // Sequential downloads keep memory and mobile network use bounded.
   for (const file of selectedFiles) {
     const path = relativePath(file.path, scope);
@@ -441,19 +463,50 @@ export async function downloadGithubScadProject(
       throw new Error(`Download stopped after ${entries.length} of ${selectedFiles.length} files. Nothing was saved. ${reason}`);
     }
     entries.push({ name: path.split("/").at(-1) ?? path, relativePath: `${rootName}/${path}`, bytes });
-    onProgress(entries.length, selectedFiles.length);
+    onProgress(entries.length, totalFiles);
   }
   // The same validator, dependency resolution and asset retention as Upload folder.
   const decoded = decodeScadFolderImportEntries(entries);
   const project = decoded.kind === "entrypoint-required"
     ? finalizeScadFolderImport(decoded.pending, chosenEntrypoint)
     : normalizeOpenScadProject({ ...decoded.project, entrypointPath: chosenEntrypoint });
+  let savedVariants: SavedVariants | undefined;
+  let presetFile: string | undefined;
+  let presetWarning: string | undefined;
+  if (presetCandidate) {
+    const relativePreset = relativePath(presetCandidate.path, scope);
+    try {
+      if (presetCandidate.size < 1 || presetCandidate.size > MAX_PRESET_JSON_BYTES) {
+        throw new Error("JSON exceeds the 2 MiB Customizer preset limit.");
+      }
+      const rawUrl = `https://raw.githubusercontent.com/${encodeURIComponent(inspection.owner)}/${encodeURIComponent(inspection.repository)}/${inspection.commitSha}/${presetCandidate.path.split("/").map(encodeURIComponent).join("/")}`;
+      const bytes = await rawBytes(rawUrl, presetCandidate, MAX_PRESET_JSON_BYTES, fetcher);
+      const sets = parseOpenScadPresetJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      if (!Object.keys(sets).length) throw new Error("JSON contains no Customizer variants.");
+      const entry = project.files.find(file => file.path === project.entrypointPath);
+      if (!entry) throw new Error("OpenSCAD entrypoint is missing.");
+      savedVariants = {
+        originalParameters: captureCustomizerValues(entry.content),
+        parameterSets: sets,
+        activeName: null,
+      };
+      presetFile = relativePreset;
+    } catch (error) {
+      presetWarning = relativePreset + ": " +
+        (error instanceof Error ? error.message : "Could not read Customizer JSON.");
+    } finally {
+      onProgress(totalFiles, totalFiles);
+    }
+  }
   const title = scope.split("/").at(-1) || inspection.repository;
   return {
     title,
     project,
     assets: decoded.kind === "entrypoint-required" ? decoded.pending.assets : decoded.assets,
-    importedFiles: selectedFiles.length,
-    skippedFiles: selection.skipped,
+    importedFiles: selectedFiles.length + (presetFile ? 1 : 0),
+    skippedFiles: Math.max(0, selection.skipped - (presetFile ? 1 : 0)),
+    savedVariants,
+    presetFile,
+    presetWarning,
   };
 }

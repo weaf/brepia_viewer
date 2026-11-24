@@ -496,7 +496,8 @@ export function ModelGalleryView() {
       if (
         !saved ||
         saved.origin !== "built-in" ||
-        saved.sourceSha !== entry.sha
+        saved.sourceSha !== entry.sha ||
+        saved.sourcePresetSha !== entry.presetSha
       ) {
         const loaded = await loadBuiltInProject(entry);
         if (saved?.origin === "built-in" && saved.baseProject) {
@@ -518,12 +519,19 @@ export function ModelGalleryView() {
             ...loaded.project,
             files: nextFiles,
           });
+          const remote = loaded.savedVariants;
+          const local = saved.savedVariants;
+          const variants = local && remote ? {
+            originalParameters: remote.originalParameters,
+            parameterSets: { ...remote.parameterSets, ...local.parameterSets },
+            activeName: local.activeName,
+          } : local ?? remote;
           record = await saveBuiltInWorkingCopy({
             entry,
             ...loaded,
             project: latestProject,
             baseProject: loaded.project,
-            savedVariants: saved.savedVariants,
+            savedVariants: variants,
           });
         } else {
           record = await saveBuiltInWorkingCopy({
@@ -532,10 +540,17 @@ export function ModelGalleryView() {
             baseProject: loaded.project,
           });
         }
+        if (loaded.presetWarning) {
+          toast({ title: "Customizer JSON skipped", description: loaded.presetWarning,
+            variant: "destructive" });
+        }
       }
       if (!record)
         throw new Error("Could not create a local copy of this model.");
       setActiveRecord(record);
+      if (record.savedVariants && Object.keys(record.savedVariants.parameterSets).length) {
+        setSavedVariantsVisible(true);
+      }
       void setLastOpenedLocalModel(record.id);
     } catch (error) {
       const message =
@@ -905,9 +920,19 @@ export function ModelGalleryView() {
             const result = await downloadGithubScadProject(inspection, scope, selectedEntrypoint);
             const record = await createUploadedModel({
               name: result.title, project: result.project, assets: result.assets,
+              savedVariants: result.savedVariants,
             });
             await refreshLocalModels();
             openUploadedModel(record);
+            if (result.savedVariants) {
+              setSavedVariantsVisible(true);
+              toast({ title: "Customizer presets loaded",
+                description: Object.keys(result.savedVariants.parameterSets).length +
+                  " presets found in " + result.presetFile + "." });
+            } else if (result.presetWarning) {
+              toast({ title: "Customizer JSON skipped", description: result.presetWarning,
+                variant: "destructive" });
+            }
             resetGithubSelection();
             setShowUrlImport(false);
             setUrlToImport("");
@@ -933,13 +958,19 @@ export function ModelGalleryView() {
           name: result.title,
           project: result.project,
           assets: result.assets,
+          savedVariants: result.savedVariants,
         });
         await refreshLocalModels();
         openUploadedModel(record);
+        if (result.savedVariants) setSavedVariantsVisible(true);
+        if (result.presetWarning) {
+          toast({ title: "Customizer JSON skipped", description: result.presetWarning,
+            variant: "destructive" });
+        }
         dismissUploadConfirmation();
         uploadConfirmationRef.current = toast({
           title: "GitHub project imported",
-          description: `${result.title}: ${result.importedFiles} supported file(s) saved locally. ${result.skippedFiles} other repository entries were skipped.`,
+          description: `${result.title}: ${result.importedFiles} supported file(s) saved locally. ${result.skippedFiles} other repository entries were skipped.${result.savedVariants ? ` ${Object.keys(result.savedVariants.parameterSets).length} Customizer presets loaded from ${result.presetFile}.` : ""}`,
         });
         resetGithubSelection();
         setShowUrlImport(false);
