@@ -43,6 +43,9 @@ jobs:
       - name: Verify model deep links and library filtering on desktop and mobile
         run: node .github/scripts/model-deep-links-smoke.mjs
 
+      - name: Verify OpenSCAD enum dropdowns on desktop and mobile
+        run: node .github/scripts/parameter-enum-dropdown-smoke.mjs
+
       - name: Verify platform model import, STL preview and provider handoffs
         run: node .github/scripts/platform-model-import-smoke.mjs
 

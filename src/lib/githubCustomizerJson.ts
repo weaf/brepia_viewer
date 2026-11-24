@@ -5,6 +5,7 @@
 export function chooseSiblingCustomizerJson<T extends { path: string }>(
   files: readonly T[],
   entrypoint: string,
+  otherSourcePaths?: readonly string[],
 ): T | null {
   const folder = entrypoint.includes("/")
     ? entrypoint.slice(0, entrypoint.lastIndexOf("/") + 1) : "";
@@ -18,5 +19,11 @@ export function chooseSiblingCustomizerJson<T extends { path: string }>(
     file.path.toLowerCase() === (base + ".json").toLowerCase()) ??
     siblings.find(file =>
       file.path.toLowerCase() === (entrypoint + ".json").toLowerCase());
-  return preferred ?? (siblings.length === 1 ? siblings[0] : null);
+  if (preferred) return preferred;
+  // Only use a differently named JSON if a single SCAD candidate shares the
+  // folder. Otherwise it could belong to a different model in that folder.
+  const sources = (otherSourcePaths ?? files.map(file => file.path)).filter(path =>
+    path.startsWith(folder) && !path.slice(folder.length).includes("/") &&
+    /\.scad(?:\.txt)?$/i.test(path));
+  return siblings.length === 1 && sources.length <= 1 ? siblings[0] : null;
 }
