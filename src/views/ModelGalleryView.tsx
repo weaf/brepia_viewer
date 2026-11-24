@@ -506,7 +506,8 @@ export function ModelGalleryView() {
       if (
         !saved ||
         saved.origin !== "built-in" ||
-        saved.sourceSha !== entry.sha
+        saved.sourceSha !== entry.sha ||
+        saved.sourcePresetSha !== entry.presetSha
       ) {
         const loaded = await loadBuiltInProject(entry);
         if (saved?.origin === "built-in" && saved.baseProject) {
@@ -528,12 +529,19 @@ export function ModelGalleryView() {
             ...loaded.project,
             files: nextFiles,
           });
+          const remote = loaded.savedVariants;
+          const local = saved.savedVariants;
+          const variants = local && remote ? {
+            originalParameters: remote.originalParameters,
+            parameterSets: { ...remote.parameterSets, ...local.parameterSets },
+            activeName: local.activeName,
+          } : local ?? remote;
           record = await saveBuiltInWorkingCopy({
             entry,
             ...loaded,
             project: latestProject,
             baseProject: loaded.project,
-            savedVariants: saved.savedVariants,
+            savedVariants: variants,
           });
         } else {
           record = await saveBuiltInWorkingCopy({
@@ -542,10 +550,17 @@ export function ModelGalleryView() {
             baseProject: loaded.project,
           });
         }
+        if (loaded.presetWarning) {
+          toast({ title: "Customizer JSON skipped", description: loaded.presetWarning,
+            variant: "destructive" });
+        }
       }
       if (!record)
         throw new Error("Could not create a local copy of this model.");
       setActiveRecord(record);
+      if (record.savedVariants && Object.keys(record.savedVariants.parameterSets).length) {
+        setSavedVariantsVisible(true);
+      }
       void setLastOpenedLocalModel(record.id);
     } catch (error) {
       const message =
