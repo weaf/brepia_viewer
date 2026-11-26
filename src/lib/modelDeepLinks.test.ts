@@ -8,6 +8,9 @@ describe("shared model links", () => {
     const url = createViewerModelLink({ kind: "url", url: remote });
     expect(parseViewerModelLink(new URL(url).search)).toEqual({ kind: "url", url: remote });
   });
+  it.each(["https://example.org/cube.stl", "https://example.org/cube.3mf?download=1"])("round-trips direct mesh URL %s", (remote) => {
+    expect(parseViewerModelLink(new URL(createViewerModelLink({ kind: "url", url: remote })).search)).toEqual({ kind: "url", url: remote });
+  });
   it("round-trips a curated model identity without depending on its display name", () => {
     const link = { kind: "library" as const, repositoryId: "parametric-designs", path: "Box/Box.scad" };
     expect(parseViewerModelLink(new URL(createViewerModelLink(link)).search)).toEqual(link);

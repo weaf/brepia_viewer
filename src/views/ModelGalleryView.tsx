@@ -3,6 +3,8 @@ import { RepositoryLink } from "@/components/RepositoryLink";
 import { BuiltInFolderCard } from "@/components/gallery/BuiltInFolderCard";
 import { buildBuiltInGalleryCards } from "@/lib/builtInGalleryGroups";
 import { ExperimentalMenu } from "@/components/ExperimentalMenu";
+import { createMeshModelProject } from "@/lib/meshModelImport";
+import { isDirectMeshUrl, fetchPublicMesh } from "@/lib/publicMeshImport";
 import { OPENSCAD_DEFAULT_OUTPUT_LIMIT_MIB, type OpenScadOutputLimitMiB } from "@/lib/openScadLimits";
 import { ChainGeneratorPanel } from "@/components/experimental/ChainGeneratorPanel";
 import { createChain } from "@/lib/chainGenerator/chainGenerator";
@@ -126,6 +128,7 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
 
 export function ModelGalleryView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const meshFileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -905,6 +908,22 @@ export function ModelGalleryView() {
     setIsUploading(true);
     setErrorMessage(null);
     try {
+      if (isDirectMeshUrl(sourceUrl)) {
+        setUrlImportProgress("Downloading STL or 3MF model...");
+        const filename = decodeURIComponent(new URL(sourceUrl).pathname.split("/").pop() ?? "");
+        const file = await fetchPublicMesh(sourceUrl, filename);
+        const record = await createUploadedModel(await createMeshModelProject(file));
+        await refreshLocalModels();
+        openUploadedModel(record);
+        showUploadConfirmation(record.name);
+        if (/\.3mf$/i.test(filename)) {
+          toast({ title: "3MF geometry imported", description: "Converted to STL geometry. Original colors, materials, plates and print settings are not preserved." });
+        }
+        resetGithubSelection();
+        setShowUrlImport(false);
+        setUrlToImport("");
+        return;
+      }
       if (isGithubRepositoryUrl(sourceUrl)) {
         if (!githubInspection || fromDeepLink) {
           setUrlImportProgress("Reading GitHub repository...");
@@ -1050,7 +1069,15 @@ export function ModelGalleryView() {
     setIsUploading(true);
     setErrorMessage(null);
     try {
-      if (files.length === 1 && supportedSourceFile.test(files[0].name)) {
+      if (files.length === 1 && /\.(?:stl|3mf)$/i.test(files[0].name)) {
+        const record = await createUploadedModel(await createMeshModelProject(files[0]));
+        await refreshLocalModels();
+        openUploadedModel(record);
+        showUploadConfirmation(record.name);
+        if (/\.3mf$/i.test(files[0].name)) {
+          toast({ title: "3MF geometry imported", description: "Converted to STL geometry. Original colors, materials, plates and print settings are not preserved." });
+        }
+      } else if (files.length === 1 && supportedSourceFile.test(files[0].name)) {
         const record = await uploadSourceFile(files[0]);
         await refreshLocalModels();
         openUploadedModel(record);
@@ -1574,6 +1601,18 @@ export function ModelGalleryView() {
                 void onChooseFiles(files);
               }}
             />
+            <input
+              ref={meshFileInputRef}
+              type="file"
+              accept=".stl,.3mf"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = "";
+                void onChooseFiles(files);
+              }}
+            />
             <Button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -1595,6 +1634,13 @@ export function ModelGalleryView() {
               className="gap-2 border-adam-neutral-700"
             >
               <FolderOpen className="h-4 w-4" /> Upload folder
+            </Button>
+            <Button type="button" variant="outline"
+              className="gap-2 border-adam-neutral-700"
+              disabled={isUploading}
+              title="STL or 3MF geometry only (3MF colors and print settings are not preserved)"
+              onClick={() => meshFileInputRef.current?.click()}>
+              <FileUp className="h-4 w-4" /> Upload STL/3MF
             </Button>
             <Button
               type="button"
@@ -1618,7 +1664,7 @@ export function ModelGalleryView() {
             className="mt-4 rounded-lg border border-adam-neutral-700 p-3"
           >
             <label htmlFor="url-scad-import" className="mb-2 block text-sm font-medium">
-              OpenSCAD file, folder or GitHub repository URL
+              OpenSCAD project or direct STL/3MF file URL
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
@@ -1640,7 +1686,7 @@ export function ModelGalleryView() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-adam-neutral-400">
-              Import a direct HTTPS .scad file, a GitHub file, a folder or a public repository.
+              Import a direct HTTPS SCAD/STL/3MF file or a public GitHub OpenSCAD project. Mesh files require public CORS access; 3MF imports geometry only, without colors or print settings.
             </p>
             {urlImportProgress && (
               <p role="status" className="mt-2 text-xs text-adam-neutral-200">

@@ -1,3 +1,5 @@
+import { isDirectMeshUrl } from './publicMeshImport';
+
 /** Query strings are deliberately explicit: links do not execute code or mutate local models. */
 export type ViewerModelLink =
   | { kind: "url"; url: string }
@@ -23,9 +25,9 @@ export function parseViewerModelLink(query: string): ViewerModelLink | null {
     }
     if (url.hash) throw new Error("Remove fragments from the model URL.");
     // Preserve remote query strings: direct raw SCAD hosts sometimes require them.
-    if (!/\.scad(?:\.txt)?$/i.test(url.pathname) &&
+    if (!/\.scad(?:\.txt)?$/i.test(url.pathname) && !isDirectMeshUrl(url.href) &&
       !["github.com", "www.github.com"].includes(url.hostname.toLowerCase())) {
-      throw new Error("Link to a .scad file or a public GitHub project.");
+      throw new Error("Link to a direct public SCAD, STL or 3MF file, or a public GitHub OpenSCAD project.");
     }
     return { kind: "url", url: url.href };
   }

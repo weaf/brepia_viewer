@@ -56,6 +56,9 @@ jobs:
       - name: Verify Saved Variants JSON on desktop and mobile
         run: node .github/scripts/saved-variants-smoke.mjs
 
+      - name: Verify local and direct public STL/3MF imports on desktop and mobile
+        run: node .github/scripts/mesh-import-smoke.mjs
+
       - name: Retain test results and screenshots
         if: always()
         uses: actions/upload-artifact@v7

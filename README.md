@@ -45,6 +45,12 @@ https://viewer.notydesign.se/?library=parametric-designs&file=Box%2FBox.scad
 
 The library ID and path identify the model in the JSON registry. Share links always open the model as it exists in that library, with local browser changes preserved where applicable. Only models publicly accessible to the visitor can be fetched.
 
+## Mesh files (STL and 3MF)
+
+Use **Upload STL/3MF** or a direct public HTTPS file URL in **Import from URL** or `?model=`. The remote file must allow CORS without credentials and without redirects. Model-platform pages are not direct file URLs: download the file manually when needed. No provider API, proxy, or backend is used.
+
+Imported mesh geometry is wrapped in a local OpenSCAD project using `import("model.stl")`. The original parametric CAD is not recovered. Supported 3MF geometry is converted to STL; original colors, materials, plate layout and slicer settings are not preserved. Slicer-only or incompatible 3MF files can fail. Limits: 16 MiB per STL/asset, 8 MiB compressed 3MF and 48 MiB declared uncompressed 3MF content. These are input limits, separate from compiled mesh capacity.
+
 ## Contribute a model library
 
 All public GitHub model sources shown in the built-in gallery are listed in [`src/lib/modelRepositories.json`](src/lib/modelRepositories.json). To propose another source, fork the project, add a single JSON entry and submit a pull request. **No TypeScript changes are required.**
